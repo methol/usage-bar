@@ -124,12 +124,15 @@ class UsageService: ObservableObject {
     /// 启动期一次性扫本地 JSONL 算 30 天 cost。
     /// G3 #2: 内部用 Task.detached 把扫描挪到 cooperative pool；MainActor 在 await 期间释放，
     /// 仅最后写回 self.localCost30d 时回到 main。
+    /// G5 R1: 显式 await MainActor.run 标注写回意图，便于未来重构时不破坏此不变量。
     /// 注意：polling timer 内**不**调用此方法（避免 IO 抖动；60s in-memory + on-disk 缓存兜底）。
     func refreshLocalCostIfNeeded() async {
         let summary = await Task.detached(priority: .utility) {
             await LocalCostScanner.shared.scan()
         }.value
-        self.localCost30d = summary.scannedFileCount > 0 ? summary : nil
+        await MainActor.run {
+            self.localCost30d = summary.scannedFileCount > 0 ? summary : nil
+        }
     }
 
     // MARK: - Polling

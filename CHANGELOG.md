@@ -9,6 +9,47 @@
 
 ---
 
+## [v0.1.2] — 2026-05-11
+
+### 新增（Added）
+
+- **本地 30 天成本估算**：popover 新增"本地 30 天估算 ≈ $X.XX"卡片（点击展开 per-model 调用次数 + USD 明细）
+- 数据源：扫本地 Claude CLI JSONL 日志（`~/.claude/projects/**/*.jsonl` + `~/.config/claude/projects` + `$CLAUDE_CONFIG_DIR/projects` 三路径优先级）
+- 价格表：LiteLLM-compatible 离线快照（截至 2026-05-11，覆盖 Opus 4 / Sonnet 4 / Haiku 4 全 family + 3.x 兼容）；未知模型不阻塞，UI 标注"含 N 条未知模型调用记录（价格表过时？）"
+- 60s 内存 + 磁盘缓存（`~/Library/Caches/claude-usage-bar/cost-usage/claude-v1.json`），连续打开 popover 不重扫
+- 滚动 30 天窗口；按 `(message.id, requestId)` 元组去重流式块；`requestId` 缺失自动回退用 `msg.id` 作 dedup key
+- 未装 Claude CLI / 无 JSONL 用户：cost 卡完全隐藏（不显示 $0.00 误导）
+
+### 内部（Internal）
+
+- 新增 `ClaudePricing.swift`（11 个已知模型 family 价 + normalize 去日期后缀 + lookup nil = unknown）
+- 新增 `JSONLCostParser.swift`（actor-friendly 纯函数；schema 主动不 decode `message.content`）
+- 新增 `LocalCostScanner.swift`（actor 隔离 + 60s 缓存 + 30 天滚动窗 + per-model 累积 + scanRoots 可测试 overload + Caches dir force-unwrap 加 NSTemporaryDirectory 兜底）
+- 新增 `LocalCostCard.swift` 独立 SwiftUI 组件（避免 PopoverView 380+ 行膨胀）
+- `UsageService.refreshLocalCostIfNeeded()` async：内部 `Task.detached` 跑 scanner + `await MainActor.run` 显式标注写回，避免 IO 期间持有 MainActor
+- `ClaudeUsageBarApp.task` 启动序列：bootstrap CLI → refresh local cost → startPolling；polling timer 内**不**调用 scan
+- 新增 19 case 单测（4 ClaudePricing + 8 JSONLCostParser + 7 LocalCostScanner，含 SC7 守护 testEnvelopeDoesNotDecodeContentField + dedup + 30d 窗 + cache hit/miss + scanRoots env override + aggregation）；总数 84 → 103
+
+### 安全 / 隐私（Security）
+
+- **隐私架构强守护（v0.1.1 SC7 事故警示延续 + 扩展）**：
+  - parser `Envelope.Message` schema **类型层禁止** `content` 字段（schema-level 守护，非 runtime discipline）
+  - `testEnvelopeDoesNotDecodeContentField` Mirror 反射验证 `JSONLUsageEvent` 无 content/contentBlocks/text 属性，未来若有人意外添加立即红灯
+  - 错误日志**只 log error type**，不 log 文件名（含 session UUID 半结构化隐私信息）
+  - 测试 mock JSONL 用 `mock-` / `msg_mock_` / `req_mock_` 前缀，禁止真实 API key 前缀
+- 自动化三守护：
+  - `SC_AUTO_NO_PRINT_TOKENS`（扩 `lastPathComponent` / `message.content` / `jsonlLine` 关键字）
+  - `SC_AUTO_NO_REAL_TOKEN_PREFIX`（后置 `[0-9a-zA-Z]` 硬匹配 `sk-ant-(oat|ort|api)` / `sk-proj-` / `AKIA[0-9A-Z]{16}` 三家真 token 前缀）
+  - `SC_AUTO_NO_CONTENT_READ`（锚定 `message.content` / `JSONLUsageEvent.content` / `Envelope.Message.content:` 不误报 `let content` 变量）
+- v0.1.1 事故警示永久延续：禁止把任何用户对话日志贴 commit / spec / PR / 测试 fixture；测试 fixture 全部由作者手写
+
+### 参考
+
+- spec: [`2026-05-11-local-cost-scan`](./docs/superpowers/specs/2026-05-11-local-cost-scan.md)
+- 版本: [`v0.1.2`](./docs/versions/v0.1.2-local-cost-scan.md)
+
+---
+
 ## [v0.1.1] — 2026-05-11
 
 ### 新增（Added）

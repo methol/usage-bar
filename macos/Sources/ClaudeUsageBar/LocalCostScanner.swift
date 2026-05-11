@@ -87,6 +87,8 @@ actor LocalCostScanner {
                         do {
                             guard let event = try JSONLCostParser.parseLine(String(line)) else { continue }
                             guard event.timestamp >= cutoff else { continue }
+                            // G5 R2: msgId 是 Anthropic 生成的全局唯一 UUID（msg_01...），
+                            // 跨 session 不碰撞；requestId 进一步区分同一 msg 的 retry。
                             let key = "\(event.messageId)|\(event.requestId)"
                             if seen.contains(key) { continue }
                             seen.insert(key)

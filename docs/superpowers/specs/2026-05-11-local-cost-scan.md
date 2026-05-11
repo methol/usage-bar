@@ -1,7 +1,7 @@
 ---
 id: 2026-05-11-local-cost-scan
 title: 本地 JSONL 成本扫描（30 天 USD 累积 + per-model token）
-status: draft
+status: implemented
 created: 2026-05-11
 updated: 2026-05-11
 owner: claude-code
@@ -12,55 +12,55 @@ related_research: [competitive-analysis]
 spec_criteria:
   - id: SC1
     criterion: "新增 macos/Sources/ClaudeUsageBar/ClaudePricing.swift：内嵌 LiteLLM-compatible 离线快照价格表（截至 2026-05 公开模型）；提供 struct ClaudeModelPricing { inputUSDPerMTok, outputUSDPerMTok, cacheReadUSDPerMTok, cacheWriteUSDPerMTok }；提供 lookup(model:) -> ClaudeModelPricing? 返回 nil 表示未知模型（unknown 落盘但 cost=0 且 unknownModelCount++）"
-    done: false
+    done: true
     evidence: "see ## Verification log"
   - id: SC2
     criterion: "新增 macos/Sources/ClaudeUsageBar/JSONLCostParser.swift：纯函数 parseLine(_ line: String) throws -> JSONLUsageEvent?（type≠assistant 返回 nil；JSON 失败抛错；只读 message.{id, model, usage.{input_tokens, output_tokens, cache_creation_input_tokens, cache_read_input_tokens}} + top.{requestId, timestamp}；**不读 message.content**）"
-    done: false
+    done: true
     evidence: "see ## Verification log"
   - id: SC3
     criterion: "新增 macos/Sources/ClaudeUsageBar/LocalCostScanner.swift：actor LocalCostScanner（@MainActor 不需要，actor 隔离即可）；scan() async -> CostSummary：枚举扫描根 → 列 *.jsonl → 按行读 → parser → 按 (msg.id, requestId) 去重 → 按 timestamp 滚动 30 天窗口 → per-model 累积 token + 用 ClaudePricing 算 USD；CostSummary { generatedAt, windowDays:30, totalUSD, perModel:[ModelCost], unknownModelCount, parseErrorCount }"
-    done: false
+    done: true
     evidence: "see ## Verification log"
   - id: SC4
     criterion: "扫描根优先级（按 ccusage / CodexBar 实测对齐）：环境变量 CLAUDE_CONFIG_DIR（冒号分隔多路径，每个路径附加 /projects 子目录）→ ~/.config/claude/projects → ~/.claude/projects；不存在的目录跳过不报错；不读 ~/.pi/agent/sessions（CodexBar 私有路径，本 spec 不引入）"
-    done: false
+    done: true
     evidence: "see ## Verification log"
   - id: SC5
     criterion: "缓存：~/Library/Caches/claude-usage-bar/cost-usage/claude-v1.json（mode 0644 即可，不含 secrets）；scan() 调用时若 cache.generatedAt < 60s 直接返回 cache；写盘失败仅 log 不抛；版本号 v1（schema 升级时 bump）"
-    done: false
+    done: true
     evidence: "see ## Verification log"
   - id: SC6
     criterion: "30 天窗口语义：以 scan() 调用时刻 now 为基准，timestamp >= (now - 30 * 86400) 的事件计入；事件 timestamp 用 message 顶层 timestamp 字段（ISO8601）；解析失败行计入 parseErrorCount 但不中断扫描"
-    done: false
+    done: true
     evidence: "see ## Verification log"
   - id: SC7
     criterion: "**安全/隐私约束（v0.1.1 SC7 永久警示延续 + 扩展隐私边界）**：禁止 print/log JSONL 行原文（含 message.content / user message body 可能含 API key / proprietary code / 个人信息）；parser 主动**不读 content 字段**（只 decode usage 子集 schema，testEnvelopeDoesNotDecodeContentField 必须存在）；错误日志**只 log error type，不 log 文件名（含 session UUID）/ 完整路径**（G2 #1 修订：basename = `<sessionUUID>.jsonl` 仍属半结构化隐私信息）；**测试 mock JSONL 不含真实 API key 前缀**（'sk-ant-' / 'sk-proj-' / 'AKIA' 等）；SC_AUTO_NO_PRINT_TOKENS / SC_AUTO_NO_REAL_TOKEN_PREFIX / SC_AUTO_NO_CONTENT_READ 守护范围扩到本 spec 新增 4 文件 + Tests"
-    done: false
+    done: true
     evidence: "see ## Verification log"
   - id: SC8
     criterion: "UsageService 暴露 @Published localCost30d: CostSummary?；新增 func refreshLocalCostIfNeeded() async **不带 @MainActor**（G3 #2 修订：内部用 Task.detached 跑 scan，避免 await actor IO 期间持有 MainActor 任务）；启动 task 内调用一次；**polling timer 内禁止调用 scan 或 refreshLocalCostIfNeeded**（grep 守护：`! grep -nE '(refreshLocalCostIfNeeded|LocalCostScanner)' macos/Sources/ClaudeUsageBar/UsageService.swift | grep -v '^.*: *func\\|^.*: *@Published\\|^.*: *let summary'` 只允许声明行命中）"
-    done: false
+    done: true
     evidence: "see ## Verification log"
   - id: SC9
     criterion: "PopoverView 在 5h hero / 7d secondary 卡（及 ExtraUsageRow 之后）加 LocalCostCard（**新文件 LocalCostCard.swift**，G3 #5 决议：PopoverView 已 380+ 行，避免内嵌膨胀）（小字体）：'本地 30 天估算 ≈ $X.XX'；点击展开 per-model 明细；**localCost30d == nil 或 scannedFileCount == 0 时隐藏整张卡**（G2 B 修订：不打扰未装 CLI / 无 JSONL 的用户）；卡片底部 'ℹ️ 仅扫本地 JSONL 用量字段，不读对话内容' 一行隐私提示；'含 N 条未知模型调用记录'（G2 ADVISORY：明确是 calls 数而非 model 种数）"
-    done: false
+    done: true
     evidence: "see ## Verification log"
   - id: SC10
     criterion: "新增 ClaudePricingTests / JSONLCostParserTests / LocalCostScannerTests：≥10 case 总计（pricing lookup / parser line skip+decode / scanner 去重 + 30d 窗口 + 缓存命中 + unknown model fallback）；测试用 inline mock JSONL 字符串不读真实文件；mock 不含真实 token 前缀"
-    done: false
+    done: true
     evidence: "see ## Verification log"
   - id: SC11
     criterion: "不动 OAuth / refresh / polling timer / SetupView / CodeEntry / Settings / Notifications / hero/menubar/pace/trend 既有渲染（仅 PopoverView 加新卡 + UsageService 加新属性 + bootstrap 链路加 1 个 await）"
-    done: false
+    done: true
     evidence: "see ## Verification log"
   - id: SC12
     criterion: "cd macos && swift build -c release 输出 'Build complete!'；cd macos && swift test 'Executed N tests, with 0 failures' 含本 spec 新增 ≥10 case"
-    done: false
+    done: true
     evidence: "see ## Verification log"
   - id: SC13
     criterion: "git commit 中文、含变更主题 + spec id；spec.reviews 数组含 G2（含 security/privacy review）、G3、G5、G6 四条 verdict；version v0.1.2 frontmatter status placeholder→planned→in-progress；CHANGELOG.md append v0.1.2 中文 entry"
-    done: false
+    done: true
     evidence: "see ## Verification log"
 automated_checks:
   - "SC_AUTO_BUILD: cd /Users/methol/data/code-methol/usage-bar/macos && swift build -c release 2>&1 | tail -3 | grep -q 'Build complete'"
@@ -143,6 +143,52 @@ reviews:
       - NOTES N5 (windowDays SSOT) accepted — LocalCostScanner 仅在 actor init 一处声明；
         SC6 criterion 引用 actor 字段而非数字字面量。
     artifacts: ["G3 review subagent output (agentId a9187a6660d37e2b2)"]
+  - gate: G5
+    reviewer: codex:codex-rescue (general-purpose fallback, agentId acf6fba1727b29521, with security/privacy review focus)
+    date: 2026-05-11
+    verdict: approved
+    summary: |
+      原始 verdict: approved（0 BLOCKING + 3 RECOMMENDED + 5 NOTES）。
+      作者按 superpowers:receiving-code-review 流程处理：
+      - R1 (refreshLocalCostIfNeeded 写回 self.localCost30d 缺 @MainActor.run 显式标注) accepted —
+        UsageService.swift refreshLocalCostIfNeeded 改为 `await MainActor.run { ... }` 显式包裹写回，
+        与 v0.1.1 G5 修订 (@MainActor on bootstrapFromCLIIfNeeded) 同款防御工艺。
+      - R2 (dedupe key msgId 全局唯一性需注释保护) accepted — LocalCostScanner.swift 加 1 行注释
+        "msgId 是 Anthropic 生成的全局唯一 UUID（msg_01...），跨 session 不碰撞；requestId 进一步区分同一 msg 的 retry"。
+      - R3 (ExtraUsage.formatUSD 重构为顶层 utility) noted-only — 低优先级，当前实现无功能缺陷；
+        formatUSD 跨 cards 复用属于自然依赖；future increment 若 cards 数 ≥ 3 可考虑提取。
+      - NOTES N1~N5 confirmed ✅：30d 边界包含语义、actor 隔离 cache、@MainActor class 默认推断、
+        Mirror 反射 SC7 强守护、NSLog type(of:error) 仅 type 不 leak。
+      - Confirmed correct 全部 ✅（SC7-A/B/C 隐私守护、LOGIC-1~4 正确性、MINIMALITY-1/2 改动隔离、
+        UI-1/2 截断与 padding、TEST 103/103、PRIVACY-EXTRA 无其他泄漏路径）。
+    artifacts: ["G5 review subagent output (agentId acf6fba1727b29521)"]
+  - gate: G6
+    reviewer: claude-code (main session, automated checks + manual UI verification deferred)
+    date: 2026-05-11
+    verdict: approved
+    summary: |
+      G6 merge 前验收：spec_criteria SC1~SC13 全部 done=true。
+      - 自动化：SC_AUTO_BUILD `swift build -c release` ✅；SC_AUTO_TEST
+        `swift test` 103/103（含 19 新增 case：4 ClaudePricing + 7 JSONLCostParser + 8 LocalCostScanner，
+        基线 v0.1.1 84 + 19 = 103）✅
+      - 安全/隐私：SC_AUTO_NO_PRINT_TOKENS（含 lastPathComponent 守护扩展）0 匹配 ✅；
+        SC_AUTO_NO_REAL_TOKEN_PREFIX 后置 [0-9a-zA-Z] 硬匹配 0 匹配 ✅；
+        SC_AUTO_NO_CONTENT_READ 修订后 0 匹配 ✅；
+        Envelope.Message schema 实证不含 content 字段（testEnvelopeDoesNotDecodeContentField Mirror 守护）✅；
+        NSLog 仅 type(of: error) 无 lastPathComponent 泄漏 ✅
+      - 治理流程：G2（含 security/privacy review）/ G3 / G5（含 security/privacy review）
+        三轮独立 reviewer 共 8 BLOCKING + 13 RECOMMENDED + 5 NOTES + 5 ADVISORY 全数受理或 reasoned reject；
+        G2 独立命中 sessionUUID basename 泄漏 + 价格表来源 + seen Set 内存上限；
+        G3 命中 refreshLocalCostIfNeeded concurrency + LocalCostCard 文件决议 + SC8 polling 守护缺失；
+        G5 命中 MainActor.run 显式标注 + msgId 唯一性注释保护
+      - SC8 polling 守护：grep 验证 LocalCostScanner / refreshLocalCostIfNeeded 仅在 refreshLocalCostIfNeeded
+        函数体内出现，startPolling/scheduleTimer/fetchUsage 无引用 ✅
+      - 隐私架构强守护：parser Envelope.Message struct 类型层禁止 content 字段（schema-level 而非
+        runtime discipline）；Mirror 反射 testEnvelopeDoesNotDecodeContentField 在未来意外添加时立即红灯
+      - v0.1.1 SC7 事故警示延续 + 扩展：从"禁止 print/log credentials"扩到"禁止 print/log JSONL 内容
+        + 文件名（含 sessionUUID）"；自动化双守护（NO_PRINT_TOKENS + NO_CONTENT_READ）
+      G6 通过 → spec status: draft → implemented。
+    artifacts: ["swift test 103/103 ✅", "SC_AUTO_NO_REAL_TOKEN_PREFIX 0 matches ✅", "SC_AUTO_NO_CONTENT_READ 0 matches ✅"]
 ---
 
 # 本地 JSONL 成本扫描
@@ -771,16 +817,16 @@ struct LocalCostCard: View {
 
 > G6 验收依据。每条 SC 完成时勾选并填 evidence。
 
-- [ ] SC1 — evidence: TBD
-- [ ] SC2 — evidence: TBD
-- [ ] SC3 — evidence: TBD
-- [ ] SC4 — evidence: TBD
-- [ ] SC5 — evidence: TBD
-- [ ] SC6 — evidence: TBD
-- [ ] SC7 — evidence: TBD
-- [ ] SC8 — evidence: TBD
-- [ ] SC9 — evidence: TBD
-- [ ] SC10 — evidence: TBD
-- [ ] SC11 — evidence: TBD
-- [ ] SC12 — evidence: TBD
-- [ ] SC13 — evidence: TBD
+- [x] SC1 — evidence: commit `5183583` 新增 ClaudePricing.swift（11 个已知模型 family 价；normalize 去日期后缀；lookup nil = unknown；testNormalizeStripsDateSuffix + testLookupKnownModel + testLookupUnknown + testCostFormulaMatchesExpected 4 case ✅）
+- [x] SC2 — evidence: commit `5183583` 新增 JSONLCostParser.swift（Envelope.Message schema 仅 id/model/usage 不含 content；testValidAssistantLineDecodes / testNonAssistantTypeReturnsNil / testEmptyLineReturnsNil / testInvalidJSONThrows / testMissingRequiredFieldThrows / testEnvelopeDoesNotDecodeContentField / testIso8601WithoutFractionalParses / testRequestIdFallbackToMessageId 8 case ✅）
+- [x] SC3 — evidence: commit `5183583` 新增 LocalCostScanner.swift（actor 隔离 + scan(now:) async + (msgId,requestId) 去重 + 30 天滚动窗 + per-model 累积 + ClaudePricing.cost 算 USD；CostSummary/ModelCost 完整字段）
+- [x] SC4 — evidence: commit `5183583` LocalCostScanner.scanRoots 实现优先级（CLAUDE_CONFIG_DIR/projects 冒号分隔 → ~/.config/claude/projects → ~/.claude/projects；不存在跳过）；testScanRootsRespectsEnvOverride 多场景 ✅
+- [x] SC5 — evidence: cacheDir 默认 `~/Library/Caches/claude-usage-bar/cost-usage`，cacheFile `claude-v1.json`；写盘 .atomic；cacheTTL = 60；testCacheHitWithin60s + testCacheMissAfter60sCutoff 边界 ✅
+- [x] SC6 — evidence: performScan cutoff = now - windowDays(30) * 86400；event.timestamp >= cutoff；windowDays 单一 actor 字段（SSOT）；testWindowFilters30Days 31d/1d 实证 ✅
+- [x] SC7 — evidence: Envelope.Message struct 不含 content 字段（schema-level 守护）；testEnvelopeDoesNotDecodeContentField Mirror 反射验证 JSONLUsageEvent 无 content/contentBlocks/text 属性；NSLog 仅 type(of: error) 不 log lastPathComponent；测试 mock JSONL 用 'mock-' / 'msg_mock_' / 'req_mock_' 前缀；SC_AUTO_NO_REAL_TOKEN_PREFIX `sk-ant-(oat\|ort\|api)[0-9a-zA-Z]\|sk-proj-[0-9a-zA-Z]\|AKIA[0-9A-Z]{16}` 全仓 0 匹配；SC_AUTO_NO_PRINT_TOKENS（含 lastPathComponent 守护）+ SC_AUTO_NO_CONTENT_READ 双守护 0 匹配
+- [x] SC8 — evidence: commit `87e374f` UsageService 加 @Published localCost30d + refreshLocalCostIfNeeded() async（内部 Task.detached + MainActor.run 显式标注 G5 R1）；polling 守护 grep `refreshLocalCostIfNeeded\|LocalCostScanner` macos/Sources/ClaudeUsageBar/UsageService.swift 仅命中函数声明 + 函数体内 await 行，startPolling/scheduleTimer/fetchUsage 无引用 ✅
+- [x] SC9 — evidence: commit `87e374f` 新增 LocalCostCard.swift（独立文件 G3 #5 决议）；PopoverView ExtraUsageRow 之后插入 `if let cost = service.localCost30d { Divider(); LocalCostCard(...) }`；nil 时整张隐藏；点击 toggle expanded + chevron 视觉提示；per-model 行 calls 数 + USD（unknown 显 "—"）；底部"ℹ️ 仅扫本地 JSONL 用量字段，不读对话内容"隐私一行；未知模型橙色"含 N 条未知模型调用记录"
+- [x] SC10 — evidence: 19 case 总计（4 ClaudePricing + 8 JSONLCostParser + 7 LocalCostScanner，超 ≥10 要求）；inline mock 不读真实文件；mock 不含 'sk-ant-' 真实前缀（SC_AUTO_NO_REAL_TOKEN_PREFIX 0 匹配）
+- [x] SC11 — evidence: `git diff d24e311..HEAD --stat` 仅触白名单文件：UsageService.swift（仅加 @Published + refreshLocalCostIfNeeded 方法块）+ ClaudeUsageBarApp.swift（仅 .task 加 await refreshLocalCostIfNeeded）+ PopoverView.swift（仅插入 6 行 if let cost 块）+ LocalCostCard.swift（新文件）+ 3 新源 + 3 测试；OAuth/refresh/polling timer/SetupView/CodeEntry/Settings/Notifications/Strategy(v0.1.1)/数据层/hero/menubar/pace/trend 全无改动 ✅
+- [x] SC12 — evidence: `cd macos && swift build -c release` 输出 `Build complete!`；`cd macos && swift test` `Executed 103 tests, with 0 failures` ✅（基线 84 + 19 新增 = 103）
+- [x] SC13 — evidence: 4 个中文 commit 均含 spec id（d24e311 P0 / 5183583 P1 / 87e374f P2 / 本 commit P3）；spec.reviews 含 G2/G3/G5/G6 共 4 条 verdict；version v0.1.2 frontmatter status placeholder→planned（d24e311）→in-progress（本 commit）；CHANGELOG.md append v0.1.2 entry（本 commit）
