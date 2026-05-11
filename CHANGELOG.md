@@ -9,6 +9,34 @@
 
 ---
 
+## [v0.0.9] — 2026-05-11
+
+### 新增（Added）
+
+- **趋势箭头 ▲▼**：5h / 7d hero 卡片 label 旁显示近 6h 趋势，如 `5-Hour ▲ 12%` 表示当前比 6 小时前高 12 个百分点；可一眼看出用量在涨还是在落
+- 上升趋势用红色（与现有"高用量为红"心智一致），下降趋势用绿色
+- 微小波动（|Δ| < 1 个百分点）视为持平不显示，避免视觉抖动
+- 数据不足时不显示（首次启动 / 清缓存后约需 6 小时累积 history）
+
+### 改进（Changed）
+
+- 完全复用既有 30 天 `history.json`（`~/.config/claude-usage-bar/`），不引入新存储
+
+### 内部（Internal）
+
+- 新增 `TrendCalculator.swift` 顶层纯函数 `computeTrend(currentPct:points:metric:lookback:now:)`，含明确的单位约定：currentPct 0-100 / UsageDataPoint.pct5h 0-1，函数内部自动对齐
+- 新增 `TrendCalculatorTests` 10 case：方向 / flat / 数据不足 / nil current / .rounded() 边界（1.4→1, 0.9→nil）/ 多 baseline 取最新 / pct7d KeyPath / **显式命名 testUnitConversion**（防御未来 baseline*100 误删）
+- `UsageHeroCard` 接口加可选 `trend: TrendIndicator?` 参数（默认 nil，不破坏 v0.0.8 现有 call site），#Preview 升级为含 trend 三档示例
+- spec 走完 G2 / G3 / G5 / G6 共四轮独立 reviewer review；G2 review 独立命中并修复了 currentPct 与 pct5h 单位 100x 误差 bug；commit 拆分（spec / Calculator / 接入 / G5 修订 / G6 收尾）
+
+### 参考
+
+- 版本计划：[`docs/versions/v0.0.9-trend-arrows.md`](./docs/versions/v0.0.9-trend-arrows.md)
+- 含 spec：`2026-05-11-trend-arrows`
+- 母法：[`docs/superpowers/specs/2026-05-11-docs-governance.md`](./docs/superpowers/specs/2026-05-11-docs-governance.md)
+
+---
+
 ## [v0.0.8] — 2026-05-11
 
 ### 改进（Changed）

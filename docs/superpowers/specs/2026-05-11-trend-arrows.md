@@ -1,7 +1,7 @@
 ---
 id: 2026-05-11-trend-arrows
 title: 趋势箭头 ▲▼ + 6h 增量百分点（基于现有 history.json）
-status: accepted
+status: implemented
 created: 2026-05-11
 updated: 2026-05-11
 owner: claude-code
@@ -11,53 +11,53 @@ related_adrs: [0001, 0002]
 related_research: [competitive-analysis]
 spec_criteria:
   - id: SC1
-    criterion: "新增 macos/Sources/ClaudeUsageBar/TrendCalculator.swift，含 TrendDirection enum + TrendIndicator struct + 顶层纯函数 computeTrend(points:metric:lookback:now:) -> TrendIndicator?"
-    done: false
-    evidence: null
+    criterion: "新增 macos/Sources/ClaudeUsageBar/TrendCalculator.swift，含 TrendDirection enum + TrendIndicator struct + 顶层纯函数 computeTrend(currentPct:points:metric:lookback:now:) -> TrendIndicator?（G5 review B1 修订：补 currentPct 参数标签与代码一致）"
+    done: true
+    evidence: "commit 5e62142 + 5f06533"
   - id: SC2
     criterion: "新增 macos/Tests/ClaudeUsageBarTests/TrendCalculatorTests.swift，≥4 case：up（current > baseline）/ down（current < baseline）/ flat（|Δ| < 1pp，return nil）/ 数据不足（history 中无 lookback 之前的点，return nil）；deltaPct 用 .rounded() 取整非截断（边界 case Δ=1.4→1 / Δ=0.9→nil）；每测构造 let now = Date() 显式传 now"
-    done: false
-    evidence: null
+    done: true
+    evidence: "see ## Verification log"
   - id: SC3
     criterion: "UsageHeroCard 增加可选 trend 参数（默认 nil 不破坏现有 call site）；trend 非 nil 时在 label 行内 label 文本之后、Spacer 之前显示 '▲ N%' / '▼ N%'，font .caption2 monospacedDigit，color = up→.red / down→.green"
-    done: false
-    evidence: null
+    done: true
+    evidence: "see ## Verification log"
   - id: SC4
     criterion: "PopoverView usageView 把 historyService.history.dataPoints 与 service.usage 传给 TrendCalculator，分别为 5h 与 7d 计算 trend；UsageHeroCard 调用从 (size, label, bucket) 升到 (size, label, bucket, trend)"
-    done: false
-    evidence: null
+    done: true
+    evidence: "see ## Verification log"
   - id: SC5
     criterion: "lookback 默认 6h（21600s）；TrendCalculator 找 baseline = points 中 timestamp ≤ (now - lookback) 的最新一点；若无（即所有 history 点都比 6h 更新），return nil"
-    done: false
-    evidence: null
+    done: true
+    evidence: "see ## Verification log"
   - id: SC6
     criterion: "|delta| < 1pp 视为 flat 返回 nil（不显示），避免抖动；**单位约定**：delta 计算的两侧统一为 0-100 百分点制 — currentPct 直接传 service.usage?.bucket?.utilization（API 原始 0-100），UsageDataPoint.pct5h/pct7d 在 UsageService.swift:72-73 是 utilization/100.0（0-1 unitless），computeTrend 内部对 baseline 自动 *100.0 与 currentPct 对齐"
-    done: false
-    evidence: null
+    done: true
+    evidence: "see ## Verification log"
   - id: SC7
     criterion: "UsageHeroCard #Preview 增加含 trend 的示例（≥1 个 up + 1 个 down）"
-    done: false
-    evidence: null
+    done: true
+    evidence: "see ## Verification log"
   - id: SC8
     criterion: "5h/7d 之外的其他视图（Per-Model UsageBucketRow / ExtraUsageRow / UsageChartView / Settings 等）不引入 trend；ExtraUsage 无 trend（数据语义不同，留待后续）"
-    done: false
-    evidence: null
+    done: true
+    evidence: "see ## Verification log"
   - id: SC9
     criterion: "cd macos && swift build -c release 输出 'Build complete!'"
-    done: false
-    evidence: null
+    done: true
+    evidence: "see ## Verification log"
   - id: SC10
     criterion: "cd macos && swift test 'Executed N tests, with 0 failures'（含新增 TrendCalculatorTests ≥4 case）"
-    done: false
-    evidence: null
+    done: true
+    evidence: "see ## Verification log"
   - id: SC11
     criterion: "git commit 中文、含变更主题 + spec id；spec.reviews 数组含 G2、G5、G6 三条 verdict"
-    done: false
-    evidence: null
+    done: true
+    evidence: "see ## Verification log"
   - id: SC12
     criterion: "version v0.0.9 frontmatter status placeholder→planned→in-progress；CHANGELOG.md append v0.0.9 中文 entry"
-    done: false
-    evidence: null
+    done: true
+    evidence: "see ## Verification log"
 automated_checks:
   - "SC_AUTO_BUILD: cd /Users/methol/data/code-methol/usage-bar/macos && swift build -c release 2>&1 | tail -3 | grep -q 'Build complete'"
   - "SC_AUTO_TEST: cd /Users/methol/data/code-methol/usage-bar/macos && swift test 2>&1 | tail -5 | grep -E 'Executed [0-9]+ test.*0 failures'"
@@ -102,6 +102,38 @@ reviews:
       - N1~N5（TrendDirection 自带 Equatable / colorForPct visibility / 类型一致性 / SC 数量 /
         相关文件路径）confirmed/noted-only — 不改 spec。
     artifacts: ["G3 review subagent output (agentId a9e1517a5adc1fe37)"]
+  - gate: G5
+    reviewer: codex:codex-rescue (general-purpose fallback, agentId ae18a5bda401ac77f)
+    date: 2026-05-11
+    verdict: approved-after-revisions
+    summary: |
+      原始 verdict: approved-after-revisions（1 BLOCKING + 2 RECOMMENDED + 7 NOTES）。
+      作者按 superpowers:receiving-code-review 流程：
+      - B1（SC1 函数签名文字未含 currentPct，与 5e62142 实际代码 computeTrend(currentPct:...)
+        不符）accepted — 本 G6 commit 修订 SC1 criterion 文字补齐 currentPct 标签。
+      - R1（缺显式命名 testUnitConversion case）accepted — commit 5f06533 在
+        TrendCalculatorTests 加 testUnitConversion_baselineIsZeroToOne，注释明示若
+        baseline*100 被误删本 case 必失败；测试数 9 → 10。
+      - R2（trend body 每帧 filter+max 无缓存）noted-only — commit 5f06533 在
+        PopoverView.usageView 顶加 TODO(perf) 注释：30 天 ~千点下可接受；
+        若未来 polling↑/retention↑ 超 ~万点迁 UsageService @Published 缓存。
+      - N1~N7（布局 / 数据流 / 单位转换 / commit 分离 / 颜色 / 破坏性 / SC8）confirmed ✅
+    artifacts: ["G5 review subagent output (agentId ae18a5bda401ac77f)", "commit 5f06533"]
+  - gate: G6
+    reviewer: claude-code (main session, automated checks + manual UI verification deferred)
+    date: 2026-05-11
+    verdict: approved
+    summary: |
+      G6 merge 前验收：spec_criteria SC1~SC12 全部 done=true。
+      - 自动化：SC_AUTO_BUILD `swift build -c release` ✅；SC_AUTO_TEST
+        `swift test` 60/60（含 TrendCalculatorTests 10 + ResetCountdownFormatterTests 6）✅
+      - 关键 bug 修复：G2 B1（单位 100x 误差）由 reviewer 与作者主会话独立同时发现，
+        spec §3.2 显式约定单位 + computeTrend 内部 baseline*100；G5 通过显式命名单测固化此修订
+      - 视觉验证：UsageHeroCard.swift #Preview 含 trend up/down 示例供 Xcode 看；
+        菜单栏 popover trend 视觉由用户累积 ≥6h history 后目视确认（manual_checks）
+      - 治理流程：G2 / G3 / G5 三轮独立 reviewer 共 2 BLOCKING + 8 RECOMMENDED 全数受理
+      G6 通过 → spec status: accepted → implemented。
+    artifacts: ["scripts/linkcheck (inline python ✅)", "scripts/frontmatter-lint (inline python ✅)", "swift test 60/60 ✅"]
 ---
 
 # 趋势箭头 ▲▼ + 6h 增量百分点（基于现有 history.json）
@@ -344,15 +376,15 @@ UsageHeroCard(size: .secondary, label: "7-Day", bucket: service.usage?.sevenDay,
 
 > G6 验收依据。每条 SC 完成时勾选并填 evidence。
 
-- [ ] SC1 — pending
-- [ ] SC2 — pending
-- [ ] SC3 — pending
-- [ ] SC4 — pending
-- [ ] SC5 — pending
-- [ ] SC6 — pending
-- [ ] SC7 — pending
-- [ ] SC8 — pending
-- [ ] SC9 — pending
-- [ ] SC10 — pending
-- [ ] SC11 — pending
-- [ ] SC12 — pending
+- [x] SC1 — evidence: commit `5e62142` 新增 `TrendCalculator.swift`（TrendDirection + TrendIndicator + computeTrend(currentPct:points:metric:lookback:now:)）；G5 B1 修订把 SC1 文字签名补齐为含 currentPct
+- [x] SC2 — evidence: commit `5e62142` 新增 `TrendCalculatorTests.swift` 9 case；commit `5f06533` 加 testUnitConversion_baselineIsZeroToOne，共 10 case；含 .rounded() 边界（boundary up 1.4→1 / down 0.9→nil）
+- [x] SC3 — evidence: commit `d751aad` `UsageHeroCard.swift:13` 加 `var trend: TrendIndicator? = nil`；body label 行内 trend Text `.caption2 monospacedDigit`，color = up→.red / down→.green
+- [x] SC4 — evidence: commit `d751aad` `PopoverView.swift:65-92` `usageView` 内 `historyService.history.dataPoints` + `service.usage?.fiveHour?.utilization` + `\.pct5h` 调 computeTrend 算 trend5h；7d 同款
+- [x] SC5 — evidence: TrendCalculator.swift 默认 `lookback: TimeInterval = 6 * 3600`；`baselineCandidates = points.filter { $0.timestamp <= cutoff }; max(by: { $0.timestamp < $1.timestamp })`；testInsufficientData 验证返回 nil
+- [x] SC6 — evidence: TrendCalculator.swift `baselinePct100 = baseline[keyPath: metric] * 100.0`；`if absDelta < 1.0 { return nil }`；testFlat / testUnitConversion 双重验证单位转换正确
+- [x] SC7 — evidence: commit `d751aad` UsageHeroCard.swift `#Preview` 三档示例升级为含 trend：5h .down 5%（绿▼）/ 7d .up 12%（红▲）/ Edge 100% trend nil
+- [x] SC8 — evidence: G5 review N(g) 确认 `git diff` 对 UsageBucketRow / ExtraUsageRow / UsageChartView / Settings 等无 trend 引用 ✅
+- [x] SC9 — evidence: `cd macos && swift build -c release` 输出 `Build complete!`（多次复跑均绿）
+- [x] SC10 — evidence: `cd macos && swift test` `Executed 60 tests, with 0 failures` ✅
+- [x] SC11 — evidence: 5 个中文 commit 均含 spec id（31f125b / 5e62142 / d751aad / 5f06533 / 本 commit）；spec.reviews 数组含 G2 / G3 / G5 / G6 共 4 条 verdict
+- [x] SC12 — evidence: version v0.0.9 frontmatter status placeholder→planned（commit 31f125b）→in-progress（本 commit）；CHANGELOG.md append v0.0.9 entry（本 commit）
