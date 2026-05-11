@@ -23,10 +23,12 @@ struct StoredCredentials: Codable, Equatable {
 }
 
 struct StoredCredentialsStore {
-    private let fileManager: FileManager
+    // v0.1.3 G3-B2: 提升 internal 让同 module 的 multi-account extension 与测试可见
+    let fileManager: FileManager
     let directoryURL: URL
     let credentialsFileURL: URL
     let legacyTokenFileURL: URL
+    var accountsFileURL: URL { directoryURL.appendingPathComponent("accounts.json") }
 
     init(
         directoryURL: URL = FileManager.default.homeDirectoryForCurrentUser
@@ -73,18 +75,18 @@ struct StoredCredentialsStore {
         try? fileManager.removeItem(at: legacyTokenFileURL)
     }
 
-    private func ensureDirectoryExists() throws {
+    func ensureDirectoryExists() throws {
         try fileManager.createDirectory(at: directoryURL, withIntermediateDirectories: true)
         try fileManager.setAttributes([.posixPermissions: 0o700], ofItemAtPath: directoryURL.path)
     }
 
-    private static let encoder: JSONEncoder = {
+    static let encoder: JSONEncoder = {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         return encoder
     }()
 
-    private static let decoder: JSONDecoder = {
+    static let decoder: JSONDecoder = {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         return decoder

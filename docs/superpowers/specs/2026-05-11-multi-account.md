@@ -23,11 +23,11 @@ spec_criteria:
     done: false
     evidence: "see ## Verification log"
   - id: SC4
-    criterion: "UsageService 加 @Published accounts: [StoredAccount] = [] + @Published activeAccountId: UUID? = nil；新增 switchAccount(to:) 方法（save activeIndex + reload credentials + 重新 startPolling + 重新 fetchProfile + 触发 refreshLocalCostIfNeeded）；adoptCredentials/loadCredentials/saveCredentials 内部映射到 active account"
+    criterion: "UsageService 加 @Published accounts: [StoredAccount] = [] + @Published activeAccountId: UUID? = nil；新增 switchAccount(to:) 方法（save activeIndex + reload credentials + 重新 startPolling + 重新 fetchProfile + 触发 refreshLocalCostIfNeeded）；**G2-B1/G3-B3 race fix**：引入 accountSwitchEpoch: Int 单调递增 + currentFetchTask 持有；switchAccount 先 currentFetchTask?.cancel() + refreshTask?.cancel() + timer?.invalidate() + epoch += 1；fetchUsage 入口捕获 epoch，写 self.usage 前比对若 epoch 已变则丢弃；refreshCredentials 完成时同样比对 epoch 才 saveCredentials；loadCredentials/saveCredentials 内部映射到 active account 的 credentials 字段"
     done: false
     evidence: "see ## Verification log"
   - id: SC5
-    criterion: "新增 addAccount(_:) 流程：完成 OAuth 后（complete sign in 路径）若 accounts.count > 0 则 append 新 account 而非覆盖；若为空走原 sign-in 路径建第一个 account；activeIndex 切到新 account；label 默认 \"账号 \\(N)\" 或 fetchProfile 后用 email"
+    criterion: "新增 addAccount 流程：**G3-B1 函数名修正**：将 UsageService.submitOAuthCode 内的 post-200 token exchange 分支抽出为 private func completeSignIn(_ credentials:)；新增 beginAddAccount() 调 startOAuthFlow（实际函数名）；completeSignIn 内部判 accounts.empty 走第一个 account 路径，否则 append 新 account + activeIndex 切到新；activeIndex 切到新 account；label 默认 \"账号 \\(N)\" 或 fetchProfile 后用 email；**G2-A/G3-R3 UX fix**：PopoverView 顶层路由调整 — 改为 `if service.isAwaitingCode { CodeEntryView }`（不再嵌在 !isAuthenticated 分支内），让 isAuthenticated + isAwaitingCode 用户也能看到 CodeEntry；CodeEntryView 加 title 文案区分（accounts.count > 0 时显示 \"添加账号\"，否则 \"登录\"）"
     done: false
     evidence: "see ## Verification log"
   - id: SC6
@@ -67,13 +67,74 @@ automated_checks:
   - "SC_AUTO_TEST: cd /Users/methol/data/code-methol/usage-bar/macos && swift test 2>&1 | tail -5 | grep -E 'Executed [0-9]+ test.*0 failures'"
   - "SC_AUTO_NO_PRINT_TOKENS: ! grep -nrI -E '(print|NSLog|os_log|os\\.log|Logger)\\s*[\\(,].*([Aa]ccess[Tt]oken|[Rr]efresh[Tt]oken|rawJSON|claudeAiOauth|message\\.content|jsonlLine|rawLine|lastPathComponent|account\\.credentials)' macos/Sources/ClaudeUsageBar/ 2>/dev/null"
   - "SC_AUTO_NO_REAL_TOKEN_PREFIX: ! grep -nrI -E 'sk-ant-(oat|ort|api)[0-9a-zA-Z]|sk-proj-[0-9a-zA-Z]|AKIA[0-9A-Z]{16}' macos/ docs/ CHANGELOG.md 2>/dev/null"
-  - "SC_AUTO_ACCOUNTS_PERMS: stat -f '%OLp' ~/.config/claude-usage-bar/accounts.json 2>/dev/null | grep -qE '^600$|^644$' || true  # 仅在用户实跑后能验证；CI 跳过"
+  - "SC_AUTO_SC11_GUARD: git diff --name-only 82c68cd..HEAD -- macos/Sources/ClaudeUsageBar/ | grep -vE '^macos/Sources/ClaudeUsageBar/(StoredCredentials\\.swift|UsageService\\.swift|StoredAccount\\.swift|AccountSwitcherView\\.swift|PopoverView\\.swift)$' | wc -l | grep -q '^[[:space:]]*0[[:space:]]*$'  # G3-B6：spec 立项 commit 82c68cd 之后只允许触碰白名单 5 文件"
 manual_checks:
   - "**单账号用户启动**：accounts.json 不存在，credentials.json 存在 → 自动迁移成 1 个 account；popover 顶部不显示 switcher（accounts.count == 1）"
-  - "**添加第二个账号**：popover 顶部下拉 → 添加账号 → 走 PKCE → SetupView/CodeEntry → 完成后 accounts.count == 2，active 切到新账号；popover 顶部出现 switcher"
+  - "**添加第二个账号**：popover 顶部下拉 → 添加账号 → 走 PKCE → CodeEntry 标题显示 \"添加账号\" → 完成后 accounts.count == 2，active 切到新账号；popover 顶部出现 switcher"
   - "**切换账号**：下拉选另一账号 → 立即清 usage 占位、重新 fetchUsage / fetchProfile / refreshLocalCostIfNeeded；菜单栏图标 percent 即时更新"
-  - "**安全 manual check**：grep 'sk-ant-' 全仓 0 匹配；ls -la ~/.config/claude-usage-bar/accounts.json 显示 0600"
-reviews: []
+  - "**安全 manual check**：grep 'sk-ant-' 全仓 0 匹配；`stat -f '%OLp' ~/.config/claude-usage-bar/accounts.json` 显示 `600`（G3-R4：实际持续守护降级为 manual，单测 testAccountsJSONFilePermissionsAre0600 是绑定证据）"
+reviews:
+  - gate: G2
+    reviewer: codex:codex-rescue (general-purpose fallback, agentId a2b9f484c1d44b1a7, with security/privacy review focus)
+    date: 2026-05-11
+    verdict: approved-after-revisions
+    summary: |
+      原始 verdict: approved-after-revisions（2 BLOCKING + 4 RECOMMENDED + 6 ADVISORY）。
+      作者按 superpowers:receiving-code-review 流程处理：
+      - BLOCKING B1 (switchAccount in-flight race 写回旧 usage / refresh saveCredentials 污染新 account) accepted —
+        SC4 重写：引入 accountSwitchEpoch 单调递增 + currentFetchTask 持有；
+        switchAccount 先 cancel 已有 task + refreshTask + timer + epoch++；
+        fetchUsage / refreshCredentials 写值前比对 epoch 丢弃旧响应；
+        与 G3-B3 完全重合，统一修。
+      - BLOCKING B2 (迁移 fail-safe setAttributes 失败时 accounts.json 已落盘但未清理) accepted —
+        §3.3 修订 saveAccounts catch 块加 `try? fileManager.removeItem(at: accountsFileURL)` 清理半成品；
+        SC3 文字增 "setAttributes 失败回滚"。
+      - RECOMMENDED A (addAccount UX 区分) 与 G3-R3 重合 accepted —
+        PopoverView 路由 + CodeEntry 标题区分。
+      - RECOMMENDED B (SC_AUTO_NO_PRINT_TOKENS 跨行漏洞) noted-only —
+        当前 grep 行内匹配已覆盖直接 NSLog token；跨行 `let t = token; NSLog(t)` 属代码 review 范畴，
+        加 grep "account.credentials" 已覆盖 accessToken/refreshToken 间接读取主要路径。
+      - RECOMMENDED C (testMigration mock 可行性) accepted —
+        SC10 测试改用 chmod 0o500 dir 路径制造真实 write failure，无需 mock FileManager。
+      - RECOMMENDED D (Schema v3 rollback) accepted —
+        §5 风险 #11 新增："accounts.json version > currentVersion 时 decode 通常成功（JSONDecoder 忽略未知字段）；
+        breaking rename 时 decode 失败 → 走迁移路径找 credentials.json 不存在 → 用户登出。
+        accepted risk，不阻塞 v0.1.3。"
+      - ADVISORY 全部 noted-only / accepted：StoredAccountsFile 命名一致性 / currentActiveIndex Int? /
+        a11y / history.json docstring / reviews G3 命名。
+      - Confirmed correct 全部 ✅。
+    artifacts: ["G2 review subagent output (agentId a2b9f484c1d44b1a7)"]
+  - gate: G3
+    reviewer: claude-code (general-purpose subagent, agentId a40ec40103ae168af)
+    date: 2026-05-11
+    verdict: approved-after-revisions
+    summary: |
+      原始 verdict: approved-after-revisions（6 BLOCKING + 6 RECOMMENDED + 6 NOTES）。
+      作者按 superpowers:receiving-code-review 流程处理：
+      - B1 (函数名漂移 completeSignIn/adoptCredentials/startSignInFlow 不存在) accepted —
+        实际代码 submitOAuthCode (UsageService.swift:189) + startOAuthFlow (line 163)；
+        P1 sub-step "extract submitOAuthCode post-200 branch into private func completeSignIn(_ credentials:)"；
+        beginAddAccount 调 startOAuthFlow；SC5 / §3.4 文字修订。
+      - B2 (P1 拆分) accepted — P1 拆为 Commit B-1 (store + StoredAccount + 2 测试)
+        + Commit B-2 (UsageService + UsageServiceMultiAccountTests)；
+        §3.8 重写。
+      - B3 (switchAccount race) 与 G2-B1 重合 accepted — 见 G2 处理。
+      - B4 (testMigrationSaveFailureKeepsOldFile mock seam) accepted —
+        改用 chmod 0o500 directory 制造真实 write failure；无需 mock FileManager。
+      - B5 (Success bullet 不可机器验证) accepted — P0/P2/P3 success 全部改用具体可执行 grep/git 命令。
+      - B6 (SC11 缺自动化白名单) accepted — automated_checks 新增 SC_AUTO_SC11_GUARD
+        `git diff --name-only 82c68cd..HEAD | grep -vE '<白名单>'` 应空。
+      - R1 (PopoverView 精确插入点) accepted — §3.6 文字"作为 else 分支首子，在 Text(\"Claude Usage\") 之前"。
+      - R2 (≥10 / ≥11 / ≥13 不一致) accepted — 统一 ≥11；SC10/SC12/§3.7 一致。
+      - R3 (beginAddAccount UX gap) 与 G2-A 重合 accepted —
+        PopoverView 路由调整 + CodeEntry 标题区分；新增 SC5 后半文字。
+      - R4 (SC_AUTO_ACCOUNTS_PERMS 假守护) accepted — 降级 manual；单测 testAccountsJSONFilePermissionsAre0600 是绑定证据。
+      - R5 (credentials + legacy token 共存 precedence) accepted —
+        现 load() 已优先 credentials.json；§3.3 注释明确"复用 load() 的 fallback 链，不重复实现"。
+      - R6 (lastUsed test) accepted — SC10 加 testSwitchAccountUpdatesLastUsed。
+      - NOTES N1~N6 全部 accepted（loadAccounts 注释 / CHANGELOG regex / 文件名 glob / a11y / 现有 103 不回归 / 数字一致）。
+      - Confirmed correct 全部 ✅。
+    artifacts: ["G3 review subagent output (agentId a40ec40103ae168af)"]
 ---
 
 # 多账号支持
@@ -361,34 +422,49 @@ AccountSwitcherView(service: service)
 
 ### 3.8 Implementation plan（G3 对象）
 
-**Step P0** — spec + version + 索引（Commit A，仅文档）
+**Step P0** — spec + version + 索引（Commit A，仅文档）✅ 已完成 commit `82c68cd`
 - 升 v0.1.3 placeholder→planned；删 guardrail
 - specs/README.md / versions/README.md 索引同步
-- **Success**:
-  - `grep -A1 '^status:' docs/versions/v0.1.3-*.md` 输出 `status: planned`
+- **Success**（G3-B5 修订：可执行命令）:
+  - `grep -A1 '^status:' docs/versions/v0.1.3-multi-account.md` 输出 `status: planned`
   - `python3 -c "import yaml; yaml.safe_load(open('docs/superpowers/specs/2026-05-11-multi-account.md').read().split('---')[1])"` 退出 0
-  - `grep -c '^- \[' docs/superpowers/specs/2026-05-11-multi-account.md` ≥ 13
+  - `grep -q 'v0.1.3-multi-account.md' docs/versions/README.md`
+  - `grep -q '2026-05-11-multi-account' docs/superpowers/specs/README.md`
 - **覆盖 SC**: 无
 
-**Step P1** — store 数据模型 + 迁移 + UsageService 多账号字段 + 测试（Commit B）
-- 新增 StoredAccount.swift（StoredAccount + StoredAccountsFile）
-- 扩展 StoredCredentialsStore：accountsFileURL / loadAccounts / saveAccounts / deleteAccounts；fileManager/encoder/decoder 提升 internal
-- UsageService 加 @Published accounts + activeAccountId；init 用 loadAccounts；switchAccount + beginAddAccount + currentActiveIndex；completeSignIn 路径分支（append vs first）；saveCredentials/loadCredentials 映射到 active
-- 新增 StoredAccountsFileTests / StoredCredentialsStoreMigrationTests / UsageServiceMultiAccountTests（≥11 case）
+**Step P1a** — store 数据模型 + 迁移 + 测试（Commit B-1，G3-B2 拆分）
+- 新增 StoredAccount.swift（StoredAccount + StoredAccountsFile + activeAccount clamp）
+- 扩展 StoredCredentialsStore：accountsFileURL / loadAccounts / saveAccounts / deleteAccounts；fileManager/encoder/decoder 提升 internal；catch 块加 cleanup 半成品 accounts.json（G2-B2）
+- 新增 StoredAccountsFileTests（≥4 case）+ StoredCredentialsStoreMigrationTests（≥4 case，含 chmod 0o500 dir 制造真实 write failure 的 testMigrationSaveFailureKeepsOldFile + testAccountsJSONFilePermissionsAre0600 + precedence test）
+- UsageService 不动（B-1 是纯增量 store API，无 caller change）
 - **Success**:
-  - `swift build -c release && swift test` 全绿
-  - `swift test 2>&1 | grep -E 'Executed (11[3-9]|1[2-9][0-9]) tests.*0 failures'` 命中（基线 103 + ≥11 = ≥114）
-  - SC_AUTO_NO_REAL_TOKEN_PREFIX / SC_AUTO_NO_PRINT_TOKENS 守护无匹配
-- **覆盖 SC**: SC1, SC2, SC3, SC4, SC5, SC7（前置）, SC8, SC10, SC12（前半）
+  - `cd macos && swift build -c release && swift test` 全绿；测试数 103 + 8 = 111
+  - `git diff --name-only 82c68cd..HEAD -- macos/Sources/ClaudeUsageBar/` 仅含 `StoredCredentials.swift` + `StoredAccount.swift`
+  - SC_AUTO_NO_PRINT_TOKENS / SC_AUTO_NO_REAL_TOKEN_PREFIX 守护无匹配
+- **覆盖 SC**: SC1, SC2, SC3, SC7（前置）, SC10（部分）, SC12（前部分）
+
+**Step P1b** — UsageService 多账号字段 + race fix + 测试（Commit B-2，G3-B2 拆分）
+- 抽取 UsageService.submitOAuthCode 内 post-200 token exchange 分支为 `private func completeSignIn(_ credentials:)`（G3-B1 函数名修正）
+- UsageService 加 @Published accounts + activeAccountId；init 用 loadAccounts；switchAccount + beginAddAccount + completeSignIn 分支（empty/append）+ accountSwitchEpoch + currentFetchTask；fetchUsage / refreshCredentials 写值前 epoch guard（G2-B1/G3-B3）
+- 新增 UsageServiceMultiAccountTests（≥3 case：testInitLoadsAccounts + testSwitchAccountClearsTransientState + testSwitchAccountInvalidIdNoop + testSwitchAccountUpdatesLastUsed + testActiveIndexOutOfBoundClampedToLast；G3-R6）
+- **Success**:
+  - `cd macos && swift build -c release && swift test` 全绿
+  - `swift test 2>&1 | grep -E 'Executed (11[4-9]|1[2-9][0-9]) tests.*0 failures'` 命中（111 + ≥3 = ≥114）
+  - `git diff --name-only <B-1 sha>..HEAD -- macos/Sources/ClaudeUsageBar/` 仅含 `UsageService.swift`
+  - SC_AUTO_NO_PRINT_TOKENS / SC_AUTO_NO_REAL_TOKEN_PREFIX 守护无匹配
+- **覆盖 SC**: SC4, SC5（前置）, SC8, SC10（剩余）, SC12（中段）
 
 **Step P2** — AccountSwitcherView + PopoverView 接入（Commit C）
-- 新增 AccountSwitcherView.swift
-- PopoverView 顶部插入 AccountSwitcherView(service: service)
+- 新增 AccountSwitcherView.swift（accounts.count <= 1 时 EmptyView；> 1 时 Menu；含 a11y label "Switch account"）
+- PopoverView 路由调整：将 CodeEntryView 路由提升到 isAuthenticated 之外（`if service.isAwaitingCode { CodeEntryView }`）支持 add account 流程（G2-A/G3-R3）
+- PopoverView else 分支首子（Text("Claude Usage") 之前）插入 `AccountSwitcherView(service: service)`（G3-R1 精确插入点）
+- CodeEntryView 标题文案区分（accounts.count > 0 → "添加账号"，否则 "登录"）
 - **Success**:
-  - `swift build -c release && swift test` 全绿
-  - `git diff --stat HEAD~1..HEAD` 仅触白名单：PopoverView.swift + AccountSwitcherView.swift（新文件）
+  - `cd macos && swift build -c release && swift test` 全绿
+  - `git diff --name-only <B-2 sha>..HEAD -- macos/Sources/ClaudeUsageBar/` 仅含 `AccountSwitcherView.swift` + `PopoverView.swift`
   - 三守护仍无匹配
-- **覆盖 SC**: SC6, SC9, SC11, SC12（后半）
+  - SC_AUTO_SC11_GUARD（git diff 全程白名单 5 文件）退 0
+- **覆盖 SC**: SC5（剩余 UX）, SC6, SC9, SC11, SC12（后半）
 
 **G5 gate** — 独立 reviewer code-review 加 security/privacy review focus
 - (a) accounts.json 0600 权限
@@ -435,6 +511,7 @@ AccountSwitcherView(service: service)
 8. **a11y**：Menu 默认有 keyboard 支持；label 用中文 OK。
 9. **token 不在 label 暴露**：StoredAccount.label 仅 "账号 N" 或 email；UI 渲染只读 label。
 10. **完成 sign in 后 active 切换时机**：用户 add 第二个账号完成 PKCE 时立即切到新；与系统 menu add option 一致。
+11. **Schema v3 rollback**（G2-D 修订）：accounts.json `version > currentVersion` 时 JSONDecoder 默认忽略未知字段，通常仍能 decode 为 v2 结构 — 这是好的意外行为；breaking rename（去掉 `accounts` 字段）时 decode 失败 → loadAccounts fallback 找 credentials.json 不存在 → 返回 nil → 用户被登出（重 sign-in 即可）。**accepted risk** 不阻塞 v0.1.3。
 
 ## 6. 后续工作（不在本 spec 范围）
 
