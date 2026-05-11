@@ -11,7 +11,7 @@ related_adrs: [0001, 0002]
 related_research: [competitive-analysis]
 spec_criteria:
   - id: SC1
-    criterion: "新增 macos/Sources/ClaudeUsageBar/ClaudeUsageStrategy.swift：定义 protocol ClaudeUsageStrategy { func loadCredentials() async throws -> StoredCredentials? }；为后续多数据源（v0.1.2/v0.1.3/v0.2.3/v0.2.4）提供统一抽象骨架"
+    criterion: "新增 macos/Sources/ClaudeUsageBar/ClaudeUsageStrategy.swift：定义 protocol ClaudeUsageStrategy { func loadCredentials() async throws -> StoredCredentials? }；为后续多数据源（v0.1.2 本地 cost / v0.1.3 多账号 / 未来扩展）提供统一抽象骨架"
     done: true
     evidence: "see ## Verification log"
   - id: SC2
@@ -154,7 +154,7 @@ reviews:
 **事故警示（来自 v0.1.1 设计阶段）**：作者在 spec 调研期间执行了 `security find-generic-password -s 'Claude Code-credentials' -w | sed 's/^./X/'` 命令试图脱敏读取 Keychain 项；但 `sed 's/^./X/'` 仅替换每行第一字符，整行 token 主体仍打印到对话 transcript 中，造成真实 token 泄漏。立即建议用户 `claude logout && claude login` 轮换。**此事件促使 SC7 永久写入"禁止 print/log credentials"约束**，是本 spec 最高优先级的安全规则。
 
 本 spec 引入：
-- `ClaudeUsageStrategy` protocol 骨架（为后续 v0.1.2 本地 cost / v0.1.3 多账号 / v0.2.3 cookie / v0.2.4 CLI PTY 等数据源 spec 复用）
+- `ClaudeUsageStrategy` protocol 骨架（为后续 v0.1.2 本地 cost / v0.1.3 多账号 / 未来扩展数据源 spec 复用）
 - `ClaudeCLICredentialsStrategy` 单一实现：从 macOS Keychain 读 `Claude Code-credentials`
 - UsageService 启动时一次性 bootstrap：若本地 credentials.json 不存在则尝试 strategy
 
@@ -201,8 +201,8 @@ reviews:
 import Foundation
 
 /// 多数据源抽象骨架。当前仅 ClaudeCLICredentialsStrategy 一个实现；
-/// v0.1.2 LocalCostScanStrategy / v0.1.3 MultiAccountStrategy / v0.2.3
-/// CookieFallbackStrategy / v0.2.4 CLIPTYStrategy 将依次加入。
+/// v0.1.2 LocalCostScanStrategy / v0.1.3 MultiAccountStrategy 已加入；
+/// 未来若需要新数据源 spec 在此扩展。
 protocol ClaudeUsageStrategy {
     /// 从该 strategy 提供凭证。返回 nil 表示该 strategy 无凭证可提供（静默降级）；
     /// 抛出 error 表示明确异常需上层 log（但**不得带 raw credential 值**）。
@@ -410,8 +410,7 @@ case：
 
 - LocalCostScanStrategy（解析 `~/.claude/projects/**/*.jsonl` 算本地 cost） → v0.1.2
 - MultiAccountStrategy（多 token / 账号切换） → v0.1.3
-- CookieFallbackStrategy（claude.ai 浏览器 cookie） → v0.2.3
-- CLIPTYStrategy（`claude` CLI PTY 兜底） → v0.2.4
+- 未来扩展数据源（如有需要）通过 ClaudeUsageStrategy 协议添加
 - 上述多源真正落地时统一开 ADR 总结 strategy chain 设计
 
 ## 7. 引用

@@ -244,8 +244,8 @@ Section("更新通道") {
 ```markdown
 ## Sparkle 双通道
 
-- **stable tag**：`v0.2.x` / `v1.0.0` 等不带 `-beta.N` 后缀；appcast item 不带 `sparkle:channel`（默认通道）
-- **beta tag**：`v0.2.3-beta.1` / `v0.3.0-beta.2` 等；appcast item 加 `<sparkle:channel>beta</sparkle:channel>`
+- **stable tag**：`v0.X.Y` 等不带 `-beta.N` 后缀；appcast item 不带 `sparkle:channel`（默认通道）
+- **beta tag**：`v0.X.Y-beta.N` 等；appcast item 加 `<sparkle:channel>beta</sparkle:channel>`
 - CI 在 release workflow 内：
   - tag matches `*-beta.*` → 生成 beta item
   - 否则 → 生成 stable item

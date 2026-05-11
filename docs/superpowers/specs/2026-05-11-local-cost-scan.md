@@ -804,7 +804,7 @@ struct LocalCostCard: View {
 - 价格表自动从 LiteLLM 同步 → v0.2.x 评估（隐私 / 网络成本）
 - MultiAccount cost 分账（v0.1.3 multi-account 配套） → v0.1.3 spec 内统一处理
 - pi.codex `~/.pi/agent/sessions/` 扩展扫描根 → 用户报告再加
-- Cookie / CLI PTY 数据源 → v0.2.3 / v0.2.4 各自 spec
+- 未来扩展数据源 spec（按需立项）
 
 ## 7. 引用
 

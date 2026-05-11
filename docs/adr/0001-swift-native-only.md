@@ -27,7 +27,7 @@ deciders: claude-code, methol
 - 更新走 [Sparkle](https://sparkle-project.org)（已集成）
 - 包管理用 SwiftPM，**不引入 CocoaPods / Carthage / Xcode 工程文件**
 - 拒绝引入 Electron / Tauri / React Native / Flutter / Web View 内嵌 UI
-- 命令行工具（v0.2.6 计划）也用 Swift，复用核心 strategy 层
+- 命令行工具（如未来立项）也用 Swift，复用核心 strategy 层
 
 ## Consequences
 

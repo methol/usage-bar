@@ -175,7 +175,7 @@ CI 完成后：
 
 | Tag pattern | Channel | CI 行为 |
 |---|---|---|
-| `v0.X.Y` / `v1.0.0` 等不带 `-beta.N` 后缀 | **stable** | appcast item 不带 `<sparkle:channel>` 标签（默认通道） |
+| `v0.X.Y` 等不带 `-beta.N` 后缀 | **stable** | appcast item 不带 `<sparkle:channel>` 标签（默认通道） |
 | `v0.X.Y-beta.N` / `v0.X.Y-beta.1` 等带 `-beta.N` 后缀 | **beta** | appcast item 加 `<sparkle:channel>beta</sparkle:channel>` |
 
 约束：
