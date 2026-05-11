@@ -64,6 +64,10 @@ struct PopoverView: View {
 
     @ViewBuilder
     private var usageView: some View {
+        // TODO(perf): trend 在 body 每次重渲染都 filter+max O(n) 算两次。
+        // 30 天 history 上限 ~千条点，菜单栏 popover 打开时无交互重渲染，影响可接受；
+        // 若未来 polling 频率↑或 retention↑超过 ~万点，把 trend 计算移到
+        // UsageService @Published 属性按 polling 周期缓存。G5 review R2 noted。
         let points = historyService.history.dataPoints
         let trend5h = computeTrend(
             currentPct: service.usage?.fiveHour?.utilization,

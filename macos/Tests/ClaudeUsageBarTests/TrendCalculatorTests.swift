@@ -119,6 +119,23 @@ final class TrendCalculatorTests: XCTestCase {
         XCTAssertEqual(trend, TrendIndicator(direction: .up, deltaPct: 5))
     }
 
+    /// 显式覆盖 G2 review B1 修订点：UsageDataPoint.pct5h 是 0-1 unitless，
+    /// currentPct 是 0-100 百分制；computeTrend 内部 baseline*100 与 currentPct
+    /// 对齐。若未来有人把 `* 100.0` 误删，本 case 会失败。
+    func testUnitConversion_baselineIsZeroToOne() {
+        let now = Date()
+        // pct5h=0.30 (即 30%) ←→ currentPct=80 (80%) → Δ=+50 ▲
+        // 若 *100 被删，delta = 80 - 0.30 = 79.7 → ▲ 80（明显异常）
+        let points = [makePoint(secondsAgo: 6.5 * 3600, pct5h: 0.30, now: now)]
+        let trend = computeTrend(
+            currentPct: 80,
+            points: points,
+            metric: \.pct5h,
+            now: now
+        )
+        XCTAssertEqual(trend, TrendIndicator(direction: .up, deltaPct: 50))
+    }
+
     func testPct7dMetric() {
         let now = Date()
         // 测试 KeyPath 切换到 pct7d
