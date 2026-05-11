@@ -9,6 +9,31 @@
 
 ---
 
+## [v0.2.0] — 2026-05-11 🏁 Phase 2 里程碑
+
+逻辑标记版本，无新功能 spec。承接 v0.1.1~v0.1.3 数据源扩展能力的稳定阶段："数据厚度赶上 CodexBar"目标达成。
+
+### Phase 2 阶段产出
+
+- v0.1.1 Claude CLI Keychain 凭证零配置登录
+- v0.1.2 本地 JSONL 30 天 cost 估算 + parser 隐私架构守护（schema 不读 message.content）
+- v0.1.3 多账号支持（accounts store + 迁移 + popover 切换器 + race fix）
+
+### 下一阶段（v0.2.x 基建/工具链）
+
+- v0.2.1 Apple 公证（hard gate — 凭证操作需用户授权）
+- v0.2.2 Sparkle beta 通道
+- v0.2.3 cookie 回退
+- v0.2.4 CLI PTY 兜底
+- v0.2.5 WidgetKit
+- v0.2.6 CLI 工具
+
+### 不打 tag
+
+沿用 v0.1.0 经验：里程碑标记仅用于路线图阶段化展示，发版统一在子版本累积时考虑。
+
+---
+
 ## [v0.1.3] — 2026-05-11
 
 ### 新增（Added）
