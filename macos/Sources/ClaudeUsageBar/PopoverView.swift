@@ -365,7 +365,7 @@ private struct SetupThresholdSlider: View {
     }
 }
 
-private func colorForPct(_ pct: Double) -> Color {
+func colorForPct(_ pct: Double) -> Color {
     switch pct {
     case ..<0.60: return .green
     case 0.60..<0.80: return .yellow
