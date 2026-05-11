@@ -32,7 +32,7 @@ placeholder ─首个 spec 落地─► planned ─开发开始─► in-progres
 | [v0.0.10](./v0.0.10-menubar-display-modes.md) | menubar-display-modes | in-progress | 2026-05-12 | 🎨 菜单栏多显示模式 |
 | [v0.0.11](./v0.0.11-pace-tracking.md) | pace-tracking | in-progress | 2026-05-12 | 🎨 Pace tracking |
 | [v0.1.0](./v0.1.0-phase1-milestone.md) | phase1-milestone | shipped | 2026-05-11 | 🏁 Phase 1 里程碑（逻辑标记） |
-| [v0.1.1](./v0.1.1-claude-cli-credentials.md) | claude-cli-credentials | placeholder | — | 🔌 Claude CLI 凭证复用 |
+| [v0.1.1](./v0.1.1-claude-cli-credentials.md) | claude-cli-credentials | planned | 2026-05-12 | 🔌 Claude CLI 凭证复用 |
 | [v0.1.2](./v0.1.2-local-cost-scan.md) | local-cost-scan | placeholder | — | 🔌 本地 JSONL cost 扫描 |
 | [v0.1.3](./v0.1.3-multi-account.md) | multi-account | placeholder | — | 🔌 多账号 |
 | [v0.2.0](./v0.2.0-phase2-milestone.md) | phase2-milestone | placeholder | — | 🏁 Phase 2 里程碑 |
