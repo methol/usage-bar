@@ -64,16 +64,30 @@ struct PopoverView: View {
 
     @ViewBuilder
     private var usageView: some View {
+        let points = historyService.history.dataPoints
+        let trend5h = computeTrend(
+            currentPct: service.usage?.fiveHour?.utilization,
+            points: points,
+            metric: \.pct5h
+        )
+        let trend7d = computeTrend(
+            currentPct: service.usage?.sevenDay?.utilization,
+            points: points,
+            metric: \.pct7d
+        )
+
         UsageHeroCard(
             size: .hero,
             label: "5-Hour",
-            bucket: service.usage?.fiveHour
+            bucket: service.usage?.fiveHour,
+            trend: trend5h
         )
 
         UsageHeroCard(
             size: .secondary,
             label: "7-Day",
-            bucket: service.usage?.sevenDay
+            bucket: service.usage?.sevenDay,
+            trend: trend7d
         )
 
         if let opus = service.usage?.sevenDayOpus,

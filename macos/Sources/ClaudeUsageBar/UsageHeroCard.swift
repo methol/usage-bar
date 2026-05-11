@@ -9,6 +9,7 @@ struct UsageHeroCard: View {
     let size: UsageCardSize
     let label: String
     let bucket: UsageBucket?
+    var trend: TrendIndicator? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -16,6 +17,12 @@ struct UsageHeroCard: View {
                 Text(label)
                     .font(labelFont)
                     .foregroundStyle(.secondary)
+                if let trend {
+                    Text(trendText(for: trend))
+                        .font(.caption2)
+                        .monospacedDigit()
+                        .foregroundStyle(trend.direction == .up ? .red : .green)
+                }
                 Spacer()
                 if let countdown {
                     Text(countdown)
@@ -67,6 +74,11 @@ struct UsageHeroCard: View {
         guard let resetDate = bucket?.resetsAtDate else { return nil }
         return formatResetCountdown(date: resetDate, now: Date())
     }
+
+    private func trendText(for t: TrendIndicator) -> String {
+        let arrow = t.direction == .up ? "▲" : "▼"
+        return "\(arrow) \(t.deltaPct)%"
+    }
 }
 
 struct CapsuleProgressBar: View {
@@ -86,22 +98,25 @@ struct CapsuleProgressBar: View {
     }
 }
 
-#Preview("Hero card – three thresholds") {
+#Preview("Hero card – three thresholds + trend") {
     VStack(alignment: .leading, spacing: 12) {
         UsageHeroCard(
             size: .hero,
             label: "5-Hour",
-            bucket: UsageBucket(utilization: 42, resetsAt: "2099-01-01T00:00:00Z")
+            bucket: UsageBucket(utilization: 42, resetsAt: "2099-01-01T00:00:00Z"),
+            trend: TrendIndicator(direction: .down, deltaPct: 5)  // 下降趋势 → 绿色 ▼
         )
         UsageHeroCard(
             size: .secondary,
             label: "7-Day",
-            bucket: UsageBucket(utilization: 73, resetsAt: "2099-01-08T00:00:00Z")
+            bucket: UsageBucket(utilization: 73, resetsAt: "2099-01-08T00:00:00Z"),
+            trend: TrendIndicator(direction: .up, deltaPct: 12)  // 上升趋势 → 红色 ▲
         )
         UsageHeroCard(
             size: .secondary,
             label: "Edge: 100%",
-            bucket: UsageBucket(utilization: 100, resetsAt: "2099-01-01T00:30:00Z")
+            bucket: UsageBucket(utilization: 100, resetsAt: "2099-01-01T00:30:00Z"),
+            trend: nil  // 无趋势数据
         )
     }
     .padding()
