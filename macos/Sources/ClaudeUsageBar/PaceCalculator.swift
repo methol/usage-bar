@@ -45,6 +45,8 @@ func computePaceState(
         guard rate > 0 else { return .onPace }
         let remaining = 100.0 - current
         let runsOutIn = remaining / rate
+        // Defensive guard: 数学上当 deviation>0 且 rate>0 时此分支不可达
+        // （证明见 PaceCalculatorTests.testRunsOutBeyondReset 注释）；保留作浮点精度兜底。
         if runsOutIn >= timeToReset { return .onPace }
         return .inDeficit(percentOver: Int(absDeviation.rounded()), runsOutIn: runsOutIn)
     } else {

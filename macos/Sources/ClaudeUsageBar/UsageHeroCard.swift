@@ -94,8 +94,10 @@ struct UsageHeroCard: View {
             return nil  // 默认状态不显示，避免打扰
         case .inDeficit(let percentOver, let runsOutIn):
             // 复用 v0.0.8 formatResetCountdown：把 runsOutIn 当作"距离 N 秒后耗尽"
+            // 固定 now 快照避免双 Date() 调用时钟竞争（G5 review B1 修订）
             // edge case: runsOutIn=0（currentPct=100）→ formatResetCountdown(0) 返回 nil → "—"
-            let countdown = formatResetCountdown(date: Date().addingTimeInterval(runsOutIn), now: Date()) ?? "—"
+            let now = Date()
+            let countdown = formatResetCountdown(date: now.addingTimeInterval(runsOutIn), now: now) ?? "—"
             return ("\(percentOver)% over pace · runs out in \(countdown)", .red)
         case .inReserve(let percentUnder):
             return ("\(percentUnder)% under pace", .green)

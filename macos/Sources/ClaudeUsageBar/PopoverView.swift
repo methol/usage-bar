@@ -79,6 +79,9 @@ struct PopoverView: View {
             points: points,
             metric: \.pct7d
         )
+        // TODO(perf): pace5h 与 trend5h/7d 一样在 body 每帧重算（v0.0.9 G5 R2 / v0.0.11 G5 R2）；
+        // 30 天 ~千点 history 下 < 1ms 影响小；polling↑/retention↑ 至 ~万点时迁
+        // UsageService @Published 缓存。
         let pace5h = computePaceState(
             currentPct: service.usage?.fiveHour?.utilization,
             resetDate: service.usage?.fiveHour?.resetsAtDate
