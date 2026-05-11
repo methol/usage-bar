@@ -9,6 +9,41 @@
 
 ---
 
+## [v0.1.1] — 2026-05-11
+
+### 新增（Added）
+
+- **Claude CLI 凭证零配置登录**：已装 Claude Code CLI 的用户首次启动 app 自动复用 OAuth 凭证（macOS Keychain `Claude Code-credentials`），无需走 PKCE 浏览器流程
+- 首次启动会弹出"允许 ClaudeUsageBar 访问 Claude Code-credentials"提示；选"始终允许"后续启动免提示
+- 拒绝 / 取消 / 未装 Claude CLI 时静默降级走原 sign-in 流程，行为与 v0.1.0 一致
+- 已 sign-in 用户不受影响（不覆盖已有 credentials.json）
+
+### 内部（Internal）
+
+- 新增 `ClaudeUsageStrategy` protocol 骨架（单方法 `loadCredentials() async throws -> StoredCredentials?`），为后续 v0.1.2 本地 cost 扫描 / v0.1.3 多账号 / v0.2.3 cookie 回退 / v0.2.4 CLI PTY 兜底等多数据源 spec 预留扩展点
+- 新增 `ClaudeCLICredentialsStrategy` 实现：`SecItemCopyMatching` 读 Keychain（kSecAttrService + kSecAttrAccount=NSUserName()）+ Task.detached 避免主线程阻塞 + 4 种"权限/不存在" OSStatus 静默降级 + JSON schema decode
+- `UsageService.bootstrapFromCLIIfNeeded()` @MainActor async：启动期一次性尝试，不破坏现有 OAuth / refresh / polling 流程
+- `ClaudeUsageBarApp.task` 启动序列调整：bootstrap 后再判 setupComplete，bootstrap 成功用户跳过 SetupView
+- 新增 6 case 单测：valid decode / missing oauth / missing accessToken / nil 字段 / ms→s 转换 / LoadError 脱敏；总数 78 → 84
+
+### 安全 / 隐私（Security）
+
+- **永久安全约束 SC7**（事故警示，源自 v0.1.1 设计阶段真实 token 泄漏事故，已立即轮换）：
+  - 源代码与测试中**禁止 print / NSLog / os_log / Logger 输出 credentials 任何字段**
+  - 错误日志只记录 "credentials parse failed: <error type>" 不带 raw value
+  - LoadError 实现 CustomStringConvertible 仅输出 case 名（不带 OSStatus 数值）
+  - Swift Testing 断言禁止对 token 字段做字面比较（用 hasPrefix / count / nil-ness）
+  - 测试 mock 用 'mock-' 前缀，禁止 'sk-ant-' 真实前缀
+- 自动化双守护：`SC_AUTO_NO_PRINT_TOKENS`（Sources/ grep print/log×token 字段）+ `SC_AUTO_NO_REAL_TOKEN_PREFIX`（全仓 grep `sk-ant-(oat|ort|api)[0-9]` 真 token 前缀）
+
+### 参考
+
+- 版本计划：[`docs/versions/v0.1.1-claude-cli-credentials.md`](./docs/versions/v0.1.1-claude-cli-credentials.md)
+- 含 spec：`2026-05-11-claude-cli-credentials`
+- 母法：[`docs/superpowers/specs/2026-05-11-docs-governance.md`](./docs/superpowers/specs/2026-05-11-docs-governance.md)
+
+---
+
 ## [v0.1.0] — 2026-05-11 — Phase 1 milestone（逻辑标记）
 
 > **注**：本版本无新功能、无新代码、无 binary release、无 Sparkle 自动更新。

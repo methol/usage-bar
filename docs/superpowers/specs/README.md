@@ -22,7 +22,7 @@ updated: 2026-05-11
 | `2026-05-11-trend-arrows` | 趋势箭头 ▲▼ + 6h 增量百分点 | implemented | v0.0.9 | [文件](./2026-05-11-trend-arrows.md) |
 | `2026-05-11-menubar-display-modes` | 菜单栏多显示模式 icon / percent / percent+trend | implemented | v0.0.10 | [文件](./2026-05-11-menubar-display-modes.md) |
 | `2026-05-11-pace-tracking` | 5h 配速指示器 On pace / In deficit / In reserve | implemented | v0.0.11 | [文件](./2026-05-11-pace-tracking.md) |
-| `2026-05-11-claude-cli-credentials` | 复用 Claude CLI Keychain 凭证 + Strategy 协议骨架 | accepted | v0.1.1 | [文件](./2026-05-11-claude-cli-credentials.md) |
+| `2026-05-11-claude-cli-credentials` | 复用 Claude CLI Keychain 凭证 + Strategy 协议骨架 | implemented | v0.1.1 | [文件](./2026-05-11-claude-cli-credentials.md) |
 
 > 新增 spec 时在表格 append 一行；状态由 spec frontmatter 同步。
 

@@ -105,6 +105,7 @@ class UsageService: ObservableObject {
     /// - Keychain 不可读 / 解析失败：静默降级（行为退化为 v0.1.0，走原 sign-in）
     /// - SC7 安全约束：错误日志仅打印 LoadError case 名（CustomStringConvertible 已脱敏），
     ///   绝不打印 raw credential 值。
+    @MainActor
     func bootstrapFromCLIIfNeeded() async {
         if loadCredentials() != nil { return }
         let strategy = ClaudeCLICredentialsStrategy()
