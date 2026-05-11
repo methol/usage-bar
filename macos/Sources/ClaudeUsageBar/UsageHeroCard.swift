@@ -28,10 +28,10 @@ struct UsageHeroCard: View {
                 Text(percentageText)
                     .font(.system(size: pctFontSize, weight: .semibold, design: .rounded))
                     .monospacedDigit()
-                    .foregroundStyle(colorForPct(pctValue))
+                    .foregroundStyle(pctColor)
                 Spacer()
             }
-            CapsuleProgressBar(value: pctValue, color: colorForPct(pctValue))
+            CapsuleProgressBar(value: pctValue, color: pctColor)
                 .frame(height: 8)
         }
     }
@@ -52,6 +52,10 @@ struct UsageHeroCard: View {
 
     private var pctValue: Double {
         (bucket?.utilization ?? 0) / 100.0
+    }
+
+    private var pctColor: Color {
+        colorForPct(pctValue)
     }
 
     private var percentageText: String {

@@ -29,4 +29,10 @@ final class ResetCountdownFormatterTests: XCTestCase {
         let target = now.addingTimeInterval(30)  // 30s
         XCTAssertEqual(formatResetCountdown(date: target, now: now), "<1m")
     }
+
+    func testExactHour() {
+        let now = Date()
+        let target = now.addingTimeInterval(3600)  // 60s 边界：1h 0m
+        XCTAssertEqual(formatResetCountdown(date: target, now: now), "1h 0m")
+    }
 }
