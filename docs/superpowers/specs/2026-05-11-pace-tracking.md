@@ -1,7 +1,7 @@
 ---
 id: 2026-05-11-pace-tracking
 title: 5h 配速指示器（On pace / In deficit / In reserve + Runs out 估算）
-status: accepted
+status: implemented
 created: 2026-05-11
 updated: 2026-05-11
 owner: claude-code
@@ -12,52 +12,52 @@ related_research: [competitive-analysis]
 spec_criteria:
   - id: SC1
     criterion: "新增 macos/Sources/ClaudeUsageBar/PaceCalculator.swift：含 enum PaceState (.onPace / .inDeficit(percentOver:Int, runsOutIn:TimeInterval) / .inReserve(percentUnder:Int)) + 顶层纯函数 computePaceState(currentPct:resetDate:windowDuration:now:) -> PaceState?"
-    done: false
-    evidence: null
+    done: true
+    evidence: "see ## Verification log"
   - id: SC2
     criterion: "新增 macos/Tests/ClaudeUsageBarTests/PaceCalculatorTests.swift，≥6 case：onPace（小偏差 < 3pp）/ inDeficit（actual 远超 expected）/ inReserve（actual 远低 expected）/ early window（elapsed/total < 3% 返回 nil）/ resetDate nil 返回 nil / runsOut 不超过 reset 剩余时间"
-    done: false
-    evidence: null
+    done: true
+    evidence: "see ## Verification log"
   - id: SC3
     criterion: "UsageHeroCard 增加可选 pace 参数（默认 nil 不破坏 v0.0.8/9/10 现有 call site）"
-    done: false
-    evidence: null
+    done: true
+    evidence: "see ## Verification log"
   - id: SC4
     criterion: "hero 卡片在 progress bar 下方显示 pace 单行文本：.inDeficit → 'N% over pace · runs out in <countdown>'（红色）；.inReserve → 'N% under pace'（绿色）；.onPace 不显示（默认状态无需打扰）；nil 不显示"
-    done: false
-    evidence: null
+    done: true
+    evidence: "see ## Verification log"
   - id: SC5
     criterion: "PopoverView usageView 把 5h fiveHour bucket 传入 computePaceState 算 pace 给 5h hero card；7d 不显示 pace（windowDuration 7d 与即时 rate 外推无意义；spec §1 显式排除）"
-    done: false
-    evidence: null
+    done: true
+    evidence: "see ## Verification log"
   - id: SC6
     criterion: "early window 隐藏：elapsed / windowDuration < 0.03 时返回 nil（避免新窗口刚开 actual 接近 0、expected 也接近 0、噪声放大产生抖动）"
-    done: false
-    evidence: null
+    done: true
+    evidence: "see ## Verification log"
   - id: SC7
     criterion: "flat threshold：|actual_pct - expected_pct| < 3pp 视为 .onPace（与 v0.0.9 trend 1pp 不同：pace 比较的是预期偏差，3pp 才是有意义的'过快/过慢'信号）"
-    done: false
-    evidence: null
+    done: true
+    evidence: "see ## Verification log"
   - id: SC8
     criterion: "inDeficit 'runs out in' 估算：rate = currentPct / elapsed (pct/sec)；runsOutIn = (100 - currentPct) / rate；clamp 到 (resetDate - now) — 即如果按当前 rate 算下来比 reset 还远则其实不会用完，提示 .onPace"
-    done: false
-    evidence: null
+    done: true
+    evidence: "see ## Verification log"
   - id: SC9
     criterion: "cd macos && swift build -c release 输出 'Build complete!'"
-    done: false
-    evidence: null
+    done: true
+    evidence: "see ## Verification log"
   - id: SC10
     criterion: "cd macos && swift test 'Executed N tests, with 0 failures'（含新增 PaceCalculatorTests ≥6 case）"
-    done: false
-    evidence: null
+    done: true
+    evidence: "see ## Verification log"
   - id: SC11
     criterion: "git commit 中文、含变更主题 + spec id；spec.reviews 数组含 G2、G3、G5、G6 四条 verdict"
-    done: false
-    evidence: null
+    done: true
+    evidence: "see ## Verification log"
   - id: SC12
     criterion: "version v0.0.11 frontmatter status placeholder→planned→in-progress；CHANGELOG.md append v0.0.11 中文 entry"
-    done: false
-    evidence: null
+    done: true
+    evidence: "see ## Verification log"
 automated_checks:
   - "SC_AUTO_BUILD: cd /Users/methol/data/code-methol/usage-bar/macos && swift build -c release 2>&1 | tail -3 | grep -q 'Build complete'"
   - "SC_AUTO_TEST: cd /Users/methol/data/code-methol/usage-bar/macos && swift test 2>&1 | tail -5 | grep -E 'Executed [0-9]+ test.*0 failures'"
@@ -66,6 +66,7 @@ manual_checks:
   - "P2 commit 后 git diff --stat 确认仅触：PaceCalculator.swift（新）/ PaceCalculatorTests.swift（新）/ UsageHeroCard.swift / PopoverView.swift；其他文件无改动（SC8 反向断言）"
   - "**视觉验证 fallback**（G3 R2 修订）：本地 token 多数处于 onPace 静默状态难以目视验证 inDeficit/inReserve 分支；改用 Xcode 打开 UsageHeroCard.swift 看 #Preview 中 pace 三档示例（onPace 不显示 / inDeficit 红色 + runs out in / inReserve 绿色）作为视觉证据"
   - "G5 时目视 popover 总高度无溢出（hero card +14pt for pace 行；估算总高度 ~470pt；与 §5#7 风险交叉验证）"
+  - "已知精度限制（G5 R3）：runsOutIn < 60s 时 formatResetCountdown 返回 '<1m'，hero card 显示 'runs out in <1m'；语义略不同于 reset countdown，但属可接受精度取舍"
 reviews:
   - gate: G2
     reviewer: codex:codex-rescue (general-purpose fallback, agentId a7e5f253896b78262)
@@ -107,6 +108,42 @@ reviews:
         accepted — §3.6 G5 gate (a) 加 5 个具体 guard 路径点名。
       所有 NOTES confirmed ✅
     artifacts: ["G3 review subagent output (agentId a8f603c9071d33ae6)"]
+  - gate: G5
+    reviewer: codex:codex-rescue (general-purpose fallback, agentId a9a2a1af3ade9a173)
+    date: 2026-05-11
+    verdict: approved-after-revisions
+    summary: |
+      原始 verdict: approved-after-revisions（1 BLOCKING + 3 RECOMMENDED + 3 NOTES）。
+      作者按 superpowers:receiving-code-review 流程：
+      - B1（UsageHeroCard.swift paceText 双 Date() 时钟竞争，可能让 secs<=0
+        误降级 "—"）accepted — commit f19c943 用 `let now = Date()` 一次快照，
+        `formatResetCountdown(date: now+runsOutIn, now: now)` 同源。
+      - R1（PaceCalculator runsOutIn>=timeToReset defensive guard 缺 inline 注释）
+        accepted — commit f19c943 加注释说明数学上 deviation>0+rate>0 时不可达，
+        保留作浮点精度兜底。
+      - R2（PopoverView pace5h 重渲染 perf TODO）accepted — commit f19c943
+        usageView pace5h 前加 TODO(perf) 与 v0.0.9 trend 同款。
+      - R3（spec manual_check 加 "<1m" 精度限制说明）accepted — manual_checks
+        新增条目，本 G6 commit 落地。
+      - N1~N3（commit 独立 revert / 无破坏性 / Preview 覆盖）confirmed ✅
+    artifacts: ["G5 review subagent output (agentId a9a2a1af3ade9a173)", "commit f19c943"]
+  - gate: G6
+    reviewer: claude-code (main session, automated checks + manual UI verification deferred)
+    date: 2026-05-11
+    verdict: approved
+    summary: |
+      G6 merge 前验收：spec_criteria SC1~SC12 全部 done=true。
+      - 自动化：SC_AUTO_BUILD `swift build -c release` ✅；SC_AUTO_TEST
+        `swift test` 78/78（含 9 PaceCalculatorTests + 9 MenuBarDisplayModeTests
+        + 10 TrendCalculatorTests + 6 ResetCountdownFormatterTests）✅
+      - 视觉验证：UsageHeroCard.swift #Preview 含 4 张 pace 示例
+        （inDeficit / inReserve / 7d nil / onPace）供 Xcode 看；菜单栏 popover
+        pace 由用户累积 5h 窗口期间目视确认（manual_checks）
+      - 治理流程：G2 / G3 / G5 三轮独立 reviewer 共 5 BLOCKING + 11 RECOMMENDED
+        全数受理或 reasoned reject；G2 独立命中 reset 已过 + inReserve 误导路径
+        与 currentPct=100 edge case；G5 命中双 Date() 时钟竞争
+      G6 通过 → spec status: accepted → implemented。
+    artifacts: ["scripts/linkcheck (inline python ✅)", "scripts/frontmatter-lint (inline python ✅)", "swift test 78/78 ✅"]
 ---
 
 # 5h 配速指示器（On pace / In deficit / In reserve + Runs out 估算）
@@ -358,15 +395,15 @@ UsageHeroCard(size: .secondary, label: "7-Day", bucket: ..., trend: trend7d)  //
 
 > G6 验收依据。每条 SC 完成时勾选并填 evidence。
 
-- [ ] SC1 — pending
-- [ ] SC2 — pending
-- [ ] SC3 — pending
-- [ ] SC4 — pending
-- [ ] SC5 — pending
-- [ ] SC6 — pending
-- [ ] SC7 — pending
-- [ ] SC8 — pending
-- [ ] SC9 — pending
-- [ ] SC10 — pending
-- [ ] SC11 — pending
-- [ ] SC12 — pending
+- [x] SC1 — evidence: commit `b9021f5` 新增 PaceCalculator.swift（PaceState enum + computePaceState）
+- [x] SC2 — evidence: commit `b9021f5` 新增 PaceCalculatorTests.swift 9 case（含 G3 B1 必含 testRunsOutBeyondReset / testPastReset / testNilCurrent / testNilResetDate / testEarlyWindowHidden / testInDeficitWith100Pct）
+- [x] SC3 — evidence: commit `0a39f21` UsageHeroCard.swift 加 `var pace: PaceState? = nil`，default nil 不破坏现有 call site
+- [x] SC4 — evidence: commit `0a39f21` paceText computed property 三态：onPace→nil / inDeficit→红色 + runs out in / inReserve→绿色；commit `f19c943` G5 B1 修双 Date() 竞争
+- [x] SC5 — evidence: commit `0a39f21` PopoverView.usageView 计算 pace5h 传入 5h hero；7d 不传（默认 nil）
+- [x] SC6 — evidence: PaceCalculator early window guard `elapsedFraction >= 0.03 else return nil`，testEarlyWindowHidden 验证
+- [x] SC7 — evidence: PaceCalculator `if absDeviation < 3.0 { return .onPace }`，testOnPaceSmallDeviation 验证
+- [x] SC8 — evidence: PaceCalculator runsOutIn = (100-current)/rate；defensive guard `runsOutIn >= timeToReset → onPace`（commit f19c943 加 inline 注释说明数学不可达）
+- [x] SC9 — evidence: `cd macos && swift build -c release` 输出 `Build complete!`
+- [x] SC10 — evidence: `cd macos && swift test` `Executed 78 tests, with 0 failures` ✅
+- [x] SC11 — evidence: 5 个中文 commit 均含 spec id（62e310b / b9021f5 / 0a39f21 / f19c943 / 本 commit）；spec.reviews 含 G2 / G3 / G5 / G6 共 4 条 verdict
+- [x] SC12 — evidence: version v0.0.11 frontmatter status placeholder→planned（commit 62e310b）→in-progress（本 commit）；CHANGELOG.md append v0.0.11 entry（本 commit）

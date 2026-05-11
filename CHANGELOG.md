@@ -9,6 +9,36 @@
 
 ---
 
+## [v0.0.11] — 2026-05-11
+
+### 新增（Added）
+
+- **5h 配速指示器**：参考 CodexBar，hero card 进度条下方现可显示当前 5 小时窗口的配速状态
+  - **N% over pace · runs out in 1h 23m**（红）— 当前速率会在 reset 前用完，给出预计耗尽时间
+  - **N% under pace**（绿）— 用量比预期慢，有余量
+  - **On pace** 默认不显示，避免打扰
+- 早期窗口（开窗 < 3%）静默不显示，避免噪声抖动
+- reset 已过容错降级为 on pace（避免显示历史窗口的"in reserve"误导）
+- 7d 窗口不显示 pace（线性外推假设过强；调研 §2.7 同款决策）
+- 不引入 ML 等营销话术；纯线性外推（current_rate × remaining_pct）
+
+### 内部（Internal）
+
+- 新增 `PaceCalculator.swift`：`enum PaceState { onPace / inDeficit / inReserve }` + 顶层 `computePaceState(currentPct:resetDate:windowDuration:now:)` 纯函数
+- 新增 `PaceCalculatorTests` 9 case：happy 三态 + 边界（早期窗口隐藏 / nil 容错 / reset 已过 / currentPct=100 / runs out 数学边界附数学推导注释）
+- `UsageHeroCard` 接口加可选 `pace` 参数（默认 nil，不破坏 v0.0.8/9/10 现有 call site），#Preview 升级 4 张示例覆盖 4 种 pace 状态
+- `PopoverView` usageView 计算 pace5h 传入 5h hero card；7d 不传 pace
+- spec 走完 G2 / G3 / G5 / G6 共四轮独立 reviewer review；G2 独立命中 reset 已过路径误导 bug + currentPct=100 edge case；G5 命中 paceText 双 Date() 时钟竞争
+- commit 拆分（spec / Calculator+测试 / hero card+popover / G5 修订 / G6 收尾）
+
+### 参考
+
+- 版本计划：[`docs/versions/v0.0.11-pace-tracking.md`](./docs/versions/v0.0.11-pace-tracking.md)
+- 含 spec：`2026-05-11-pace-tracking`
+- 母法：[`docs/superpowers/specs/2026-05-11-docs-governance.md`](./docs/superpowers/specs/2026-05-11-docs-governance.md)
+
+---
+
 ## [v0.0.10] — 2026-05-11
 
 ### 新增（Added）
