@@ -139,6 +139,7 @@ class UsageService: ObservableObject {
 
     /// 切换 active account。G2-B1/G3-B3 race fix：先 cancel 在飞 task + refreshTask + timer + epoch++。
     /// v0.1.3 双写设计：把新 active account 的 credentials 写入 v1 credentials.json（mirror）
+    /// G5 B2: 双写原子性 — saveAccounts 成功后 v1 save 失败时回滚 accounts.json，避免 v1/v2 持久分歧
     func switchAccount(to id: UUID) {
         guard let idx = accounts.firstIndex(where: { $0.id == id }) else { return }
         guard accounts[idx].id != activeAccountId else { return }
@@ -152,14 +153,29 @@ class UsageService: ObservableObject {
         timer = nil
         accountSwitchEpoch += 1
 
+        // G5 B2: 双写原子性保护
+        let oldAccountsFileSnapshot: StoredAccountsFile? = StoredAccountsFile(
+            version: 2,
+            activeIndex: accounts.firstIndex(where: { $0.id == activeAccountId }) ?? 0,
+            accounts: accounts
+        )
         var file = StoredAccountsFile(version: 2, activeIndex: idx, accounts: accounts)
         file.accounts[idx].lastUsed = Date()
         do {
             try credentialsStore.saveAccounts(file)
             // 双写：把新 active account 的 credentials 写到 v1 credentials.json
-            try credentialsStore.save(file.accounts[idx].credentials)
+            do {
+                try credentialsStore.save(file.accounts[idx].credentials)
+            } catch {
+                // v1 失败：回滚 accounts.json activeIndex 到旧值，避免持久分歧
+                if let old = oldAccountsFileSnapshot {
+                    try? credentialsStore.saveAccounts(old)
+                }
+                NSLog("[claude-usage-bar] switchAccount v1 save: \(type(of: error)) — rolled back")
+                return
+            }
         } catch {
-            NSLog("[claude-usage-bar] switchAccount save: \(type(of: error))")
+            NSLog("[claude-usage-bar] switchAccount accounts save: \(type(of: error))")
             return
         }
         self.accounts = file.accounts
@@ -201,9 +217,11 @@ class UsageService: ObservableObject {
 
     func startPolling() {
         guard isAuthenticated else { return }
-        Task {
-            await fetchUsage()
-            if accountEmail == nil { await fetchProfile() }
+        // G5 B1: 持有 currentFetchTask，让 switchAccount 能 cancel
+        currentFetchTask = Task { [weak self] in
+            guard let self else { return }
+            await self.fetchUsage()
+            if self.accountEmail == nil { await self.fetchProfile() }
         }
         scheduleTimer()
     }
@@ -213,7 +231,10 @@ class UsageService: ObservableObject {
         let t = Timer(timeInterval: currentInterval, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated {
                 guard let self, self.isAuthenticated else { return }
-                Task { await self.fetchUsage() }
+                // G5 B1: 持有 currentFetchTask
+                self.currentFetchTask = Task { [weak self] in
+                    await self?.fetchUsage()
+                }
             }
         }
         RunLoop.main.add(t, forMode: .common)
@@ -326,14 +347,16 @@ class UsageService: ObservableObject {
         let newAccounts = accounts + [newAccount]
         let newIdx = newAccounts.count - 1
         let file = StoredAccountsFile(version: 2, activeIndex: newIdx, accounts: newAccounts)
-        do {
-            try credentialsStore.saveAccounts(file)
-            try credentialsStore.save(credentials)  // 双写：v1 credentials.json mirror 新 active token
-        } catch {
-            lastError = "Failed to save credentials: \(error.localizedDescription)"
-            return
+        // G5 B2: 双写原子性 — completeSignIn (add account) 路径快照旧 accounts state for rollback
+        let oldSnapshot: StoredAccountsFile?
+        if !isFirst, let oldActiveIdx = accounts.firstIndex(where: { $0.id == activeAccountId }) {
+            oldSnapshot = StoredAccountsFile(version: 2, activeIndex: oldActiveIdx, accounts: accounts)
+        } else {
+            oldSnapshot = nil
         }
-        // add-account 路径：cancel 旧 task + bump epoch（同 switchAccount 逻辑）
+        // G5 fallback R2: cancel 旧 task + bump epoch **必须在 save 之前**，
+        // 避免 in-flight performRefresh 在 saveAccounts 与 epoch++ 之间完成时
+        // 用旧 refresh token 覆盖刚写的新 active account 的 v1 credentials.json
         if !isFirst {
             currentFetchTask?.cancel()
             currentFetchTask = nil
@@ -347,6 +370,23 @@ class UsageService: ObservableObject {
             self.lastError = nil
             self.localCost30d = nil
             self.accountEmail = nil
+        }
+        do {
+            try credentialsStore.saveAccounts(file)
+            do {
+                try credentialsStore.save(credentials)  // 双写：v1 credentials.json mirror 新 active token
+            } catch {
+                if let old = oldSnapshot {
+                    try? credentialsStore.saveAccounts(old)
+                } else {
+                    credentialsStore.deleteAccounts()  // 首次 sign-in 失败时清除半成品
+                }
+                lastError = "Failed to save credentials: \(error.localizedDescription)"
+                return
+            }
+        } catch {
+            lastError = "Failed to save credentials: \(error.localizedDescription)"
+            return
         }
         self.accounts = newAccounts
         self.activeAccountId = newAccount.id
@@ -382,6 +422,10 @@ class UsageService: ObservableObject {
         refreshTask?.cancel()
         refreshTask = nil
         lastError = nil
+        // G5 R1: 清 OAuth 中间态（避免 sign out 期间正在 add account 的状态残留）
+        isAwaitingCode = false
+        codeVerifier = nil
+        oauthState = nil
     }
 
     // MARK: - PKCE Helpers

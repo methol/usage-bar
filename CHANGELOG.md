@@ -9,6 +9,52 @@
 
 ---
 
+## [v0.1.3] — 2026-05-11
+
+### 新增（Added）
+
+- **多账号支持**：一份 app 同时管理多个 Claude OAuth 账号
+- 数据模型升级：从单 `credentials.json` 升级到 `accounts.json` v2（含 `activeIndex` + `accounts[]` 数组）
+- 自动迁移：旧 `credentials.json` / legacy token file 启动时无感升级到 `accounts[0]`（label "账号 1"）
+- popover 顶部账号下拉切换器（仅 accounts 数 > 1 时显示，单账号用户零打扰）
+- "添加账号..." 入口走标准 PKCE flow，完成后 append 而非覆盖；CodeEntryView 顶部标题区分 "登录" / "添加账号"
+- 切换账号立即清前账号 usage / lastError / localCost30d / accountEmail 占位 + 重启 polling + 新 token fetch
+
+### 内部（Internal）
+
+- 新增 `StoredAccount` { id: UUID, label, addedAt, lastUsed, credentials } + `StoredAccountsFile` v2 schema（含 `activeIndex` clamp + `activeAccount` computed）
+- `StoredCredentialsStore` 加 `accountsFileURL` / `loadAccounts` / `saveAccounts` / `deleteAccounts`（fileManager/encoder/decoder/ensureDirectoryExists 提升 internal）
+- 双写镜像设计：v1 `credentials.json` 始终是 active account token mirror，保持 v0.1.0~v0.1.2 single-account API 行为不变（103 测试 0 回归）
+- 双写原子性：`saveAccounts` 成功但 v1 `save` 失败时回滚 accounts.json（避免持久分歧）；首次 sign-in 半成品时 deleteAccounts 清理
+- `UsageService` 加 `@Published accounts` + `activeAccountId` + `accountSwitchEpoch` 单调递增 + `currentFetchTask` 持有
+- `switchAccount(to:)` 切换：cancel 旧 fetch + refresh + timer + epoch++ + saveAccounts + 双写 v1 mirror + 清瞬态 + startPolling
+- `beginAddAccount()` 触发 `startOAuthFlow`；`completeSignIn(_ credentials:)` 抽取自 `submitOAuthCode`，empty/append 双路径 + add-account 路径先 cancel/epoch++ 再 save（避免毫秒窗口 in-flight refresh 污染）
+- `fetchUsage` / `performRefresh` 入口捕获 epoch；写 `self.usage` / `saveCredentials` 前比对 epoch；不匹配则丢弃响应（race fix 防止账号切换后旧响应覆盖新清空状态）
+- `signOut` 升级：deleteAccounts + 清 accounts/activeAccountId/localCost30d/codeVerifier/oauthState/isAwaitingCode + epoch++ + cancel currentFetchTask
+- 新增 `AccountSwitcherView`（独立 SwiftUI 组件 G3-B5 决议）：accounts.count <= 1 自隐藏；> 1 时 Menu + 当前账号 label + 下拉切换 + "添加账号..." + a11y label
+- `PopoverView` 顶层路由调整：`isAwaitingCode` 提升到 `isAuthenticated` 之外，让 add-account 流程也能看到 CodeEntryView
+- 新增 17 case 测试（基线 103 → 120）：StoredAccountsFileTests 4 + StoredCredentialsStoreMigrationTests 5（含 fail-safe via SetAttributesFailureFileManager mock）+ UsageServiceMultiAccountTests 8
+
+### 安全 / 隐私（Security）
+
+- v0.1.1 / v0.1.2 SC7 永久警示延续 + 扩展：
+  - `accounts.json` 0600 权限同 credentials.json；目录 0700
+  - NSLog 仅 `type(of: error)`，不 leak account.credentials / lastPathComponent / 完整路径
+  - 测试 mock 全部 `mock-` / `msg_mock_` / `req_mock_` 前缀，禁止真实 API key 前缀
+- 自动化三守护：
+  - `SC_AUTO_NO_PRINT_TOKENS`（扩 `account.credentials` 关键字）
+  - `SC_AUTO_NO_REAL_TOKEN_PREFIX`（后置硬匹配防 spec 文字误报）
+  - **`SC_AUTO_SC11_GUARD`**（git diff 自 spec 立项 commit 仅允许触白名单 5 文件 — StoredCredentials/StoredAccount/UsageService/AccountSwitcherView/PopoverView，确保不破坏 OAuth/refresh/Settings/Notifications/历史功能）
+- v1 `credentials.json` 永久保留迁机风险：与 v0.1.0~v0.1.2 同款，accepted risk；后续 v0.2.x 评估 macOS Keychain item 替代 plaintext 文件
+- race fix（双 G5 reviewer 命中）：accountSwitchEpoch + currentFetchTask 持有 + cancel；switchAccount 与 completeSignIn add-account 路径都先 cancel/epoch++ 再 save，避免账号切换瞬间旧 in-flight task 用旧 token 写到新 account
+
+### 参考
+
+- spec: [`2026-05-11-multi-account`](./docs/superpowers/specs/2026-05-11-multi-account.md)
+- 版本: [`v0.1.3`](./docs/versions/v0.1.3-multi-account.md)
+
+---
+
 ## [v0.1.2] — 2026-05-11
 
 ### 新增（Added）
