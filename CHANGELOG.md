@@ -9,6 +9,39 @@
 
 ---
 
+## [v0.1.0] — 2026-05-11 — Phase 1 milestone（逻辑标记）
+
+> **注**：本版本无新功能、无新代码、无 binary release、无 Sparkle 自动更新。
+> 仅作为 "Phase 1 完成"的逻辑里程碑标记，由用户决策"不打 tag"。完整 G7 发版（Apple 公证 + Sparkle 推送）留待后续 v0.x 阶段处理。
+
+### 聚合（aggregated from v0.0.7~v0.0.11）
+
+Phase 1 阶段性体验目标"看起来像 SessionWatcher 了"已达成：
+
+- 📚 **v0.0.7**：文档治理框架立项（ADR / spec / version / runbook / user-guide 六大目录 + AGENTS.md / 7 review gate / 跨模型 reviewer 矩阵）
+- 🎨 **v0.0.8**：PopoverView hero 重做（5h hero 56pt 大字号 + 7d secondary 28pt + capsule 进度条 + reset countdown 紧凑格式）
+- 🎨 **v0.0.9**：6h 趋势箭头 ▲▼ + 增量百分点（基于现有 history.json）
+- 🎨 **v0.0.10**：菜单栏多显示模式（icon / percent / percent+trend）可在 Settings 切换
+- 🎨 **v0.0.11**：5h 配速指示器（On pace / In deficit + Runs out / In reserve）
+
+### 工程指标
+
+- 累计 78 个 swift test，全 0 failures
+- 5 个 spec 共 60 个 spec_criteria 全数 done，每版本走完 G2 / G3 / G5 / G6 四轮独立 reviewer review
+- 21 个原子 commit（见 `git log`），所有视觉变更独立可 revert
+- 仅 Sparkle 一个第三方运行时依赖，无新增
+
+### 后续
+
+Phase 2（v0.1.x）将引入数据源多路径（Claude CLI 凭证复用 / 本地 JSONL cost 扫描 / 多账号），追上 CodexBar 的功能广度。
+
+### 参考
+
+- 版本计划：[`docs/versions/v0.1.0-phase1-milestone.md`](./docs/versions/v0.1.0-phase1-milestone.md)
+- 含 spec：聚合 v0.0.7~v0.0.11
+
+---
+
 ## [v0.0.11] — 2026-05-11
 
 ### 新增（Added）
