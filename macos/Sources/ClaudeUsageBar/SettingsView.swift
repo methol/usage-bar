@@ -56,6 +56,12 @@ struct SettingsWindowContent: View {
                         Text(ch.displayName).tag(ch.rawValue)
                     }
                 }
+                .onAppear {
+                    // G5 R1: 净化未知 rawValue → defaultChannel（用户手动 defaults write canary 等场景）
+                    if UpdateChannel(rawValue: rawChannel) == nil {
+                        rawChannel = UpdateChannel.defaultChannel.rawValue
+                    }
+                }
                 Text("Beta 通道包含未稳定版本，仅建议测试用户启用")
                     .font(.caption)
                     .foregroundStyle(.secondary)

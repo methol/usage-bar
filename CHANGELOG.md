@@ -9,6 +9,44 @@
 
 ---
 
+## [v0.2.2] — 2026-05-11
+
+### 新增（Added）
+
+- **Sparkle 双通道支持**：Settings → "更新通道" Picker，可选「稳定版」/「Beta（实验性）」
+- Beta 通道用户**也**收稳定版更新（不会"卡在 beta"）：beta `allowedChannels = ["stable", "beta"]`
+- 切换通道无需重启 app；下次 checkForUpdates 自动按用户选择过滤 appcast items
+- Settings UI 含 "Beta 通道包含未稳定版本，仅建议测试用户启用" 一行说明
+- 净化机制：用户手动 `defaults write` 写入未知 channel 值时，UI 自动回归默认 stable，AppUpdater 也 fallback 到 stable
+
+### 内部（Internal）
+
+- 新增 `UpdateChannel.swift`：`enum { stable, beta }` + `CaseIterable` + `current(defaults:)` 双 fallback (nil + 未知 rawValue) + `allowedChannelStrings(for:)`
+- 新增 `UpdaterDelegateImpl: NSObject, SPUUpdaterDelegate` 独立 class（避免 `AppUpdater` 转 NSObject 牵连 KVO 生命周期 + 解决 `nonisolated`/`@MainActor` 冲突）
+- `AppUpdater.init(bundle:, defaults: UserDefaults = .standard)` 加 UserDefaults 注入 seam（测试可用 `UserDefaults(suiteName:)` 隔离）
+- SPUStandardUpdaterController 通过 `updaterDelegate: delegateImpl` 接入；`AppUpdater` 强持有 `delegateImpl`（Sparkle weak 持有 delegate）
+- `SettingsView` Form 内新增 `Section("更新通道")` 位置 Notifications 之后 / Account 之前；Picker 绑定 `@AppStorage("updateChannel")`；`.onAppear` 净化未知 rawValue
+- `docs/runbooks/release.md` 新增 §8.5 Sparkle 双通道：tag pattern (`v*-beta.N` → beta channel)、同一 appcast、跨 channel 版本比较、公证 HARD GATE 依赖
+- 新增 11 case 测试（基线 120 → 131）：8 UpdateChannelTests（含 fallback nil / fallback unknown "canary" / display name / allCases）+ 3 AppUpdaterChannelTests（用 disposable UserDefaults suite + SPUUpdaterStub helper）
+
+### 安全 / 隐私（Security）
+
+- channel 不涉及 token；SC7 永久警示（v0.1.1 起）继续：所有 SC_AUTO 守护（NO_PRINT_TOKENS / NO_REAL_TOKEN_PREFIX）0 匹配
+- `UserDefaults.standard` per Apple docs thread-safe；Sparkle delegate 从任意线程调用 `allowedChannels(for:)` 无 race
+- 现有 12 case UsageServiceTests + 3 case SettingsViewTests 单独 `--filter` 跑全绿，无回归
+
+### 参考
+
+- spec: [`2026-05-11-sparkle-beta-channel`](./docs/superpowers/specs/2026-05-11-sparkle-beta-channel.md)
+- 版本: [`v0.2.2`](./docs/versions/v0.2.2-sparkle-beta-channel.md)
+- runbook: [`release.md §8.5`](./docs/runbooks/release.md)
+
+### 后续 prerequisite
+
+- 实际打 beta tag 需 v0.2.1 Apple 公证落地（HARD GATE，凭证操作待用户授权）
+
+---
+
 ## [v0.2.0] — 2026-05-11 🏁 Phase 2 里程碑
 
 逻辑标记版本，无新功能 spec。承接 v0.1.1~v0.1.3 数据源扩展能力的稳定阶段："数据厚度赶上 CodexBar"目标达成。

@@ -64,7 +64,4 @@ final class AppUpdater: ObservableObject {
         }
         updaterController.checkForUpdates(nil)
     }
-
-    /// 测试入口：暴露 delegate 实例供 AppUpdaterChannelTests 直接调用 allowedChannels(for:)
-    func _testDelegate() -> UpdaterDelegateImpl { delegateImpl }
 }
