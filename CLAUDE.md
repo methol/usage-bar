@@ -2,24 +2,11 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-> **Governance**: This repo is AI-led with strict review gates.
-> Read [`AGENTS.md`](./AGENTS.md) first — it overrides this file when in conflict.
-> Full governance contract: [`docs/superpowers/specs/2026-05-11-docs-governance.md`](./docs/superpowers/specs/2026-05-11-docs-governance.md).
+@AGENTS.md
 
-## Project state
-
-- Current tag: forked from Blimp-Labs at `v0.0.6`, now independent — see [ADR 0004](./docs/adr/0004-fork-divergence-from-blimp-labs.md)
-- Remote: `github.com/methol/usage-bar` (not the upstream `Blimp-Labs/...`)
-- Roadmap & version planning: [`docs/versions/`](./docs/versions/)
-- Active design specs: [`docs/superpowers/specs/`](./docs/superpowers/specs/)
-- [`CHANGELOG.md`](./CHANGELOG.md) is AI-maintained at release time — don't hand-edit historical entries; the release runbook ([`docs/runbooks/release.md`](./docs/runbooks/release.md) §5) regenerates it
-- Info.plist's `CFBundleShortVersionString=1.0.0` is a stale placeholder; the real version is injected from the git tag by `build.sh`
-
-## Before claiming work done
-
-- Run `superpowers:verification-before-completion` before declaring any task complete
-- Before opening a PR, run `superpowers:requesting-code-review` (triggers cross-model review; falls back to a `general-purpose` subagent if codex tools are unavailable)
-- Full review gate matrix is in [`AGENTS.md`](./AGENTS.md) §4.2 and [`docs/runbooks/release.md`](./docs/runbooks/release.md)
+> 上面一行用 Claude Code 的 `@import` 语法把 [`AGENTS.md`](./AGENTS.md) 完整加载为上下文。
+> 本文件只保留 Claude Code 高频用到的**技术坑与实操命令**；项目治理 / 版本路线 / review gate 等
+> 全部在 `AGENTS.md`，避免两边维护漂移。
 
 ## Repo at a glance
 
@@ -57,7 +44,7 @@ The big picture cannot be inferred from any single file. Key invariants:
 - **Token & history live on disk under `~/.config/claude-usage-bar/`**: `credentials.json` (0600, contains access+refresh+expiry+scopes; falls back to legacy plaintext `token` file if present — see `StoredCredentials.swift`) and `history.json`. The legacy `token` file is deleted on first save of the new format.
 - **Bundle creation is custom, not stock SwiftPM.** `macos/scripts/build.sh` runs `swift build -c release`, then hand-assembles `.app/Contents/{MacOS,Resources,Frameworks}`, copies the SwiftPM resource bundle (`ClaudeUsageBar_ClaudeUsageBar.bundle`), compiles `Resources/Assets.xcassets` with `actool`, and embeds `Sparkle.framework`. Adding new bundled resources requires they land in the SwiftPM resource bundle (declared in `Package.swift` `resources: [.process("Resources")]`), and any new `.app/Contents/Resources/...` invariants must also be enforced in `macos/scripts/verify-release.sh`.
 - **Sparkle is gated by `SU_FEED_URL` at build time.** If the env var is unset (the default for local builds), `build.sh` strips `SUFeedURL` from `Info.plist`, leaving the updater inert. Release CI injects the feed URL. Do not hardcode the feed URL in `Info.plist`.
-- **Releases are tag-driven.** Pushing a `v*` tag triggers the release workflow which builds once, produces ZIP (Sparkle) + DMG (manual install), verifies both artifacts, generates a signed Sparkle `appcast.xml` from the ZIP, and deploys to GitHub Pages. Requires `SPARKLE_PRIVATE_KEY` repo secret. The version baked into `CFBundleShortVersionString` / `CFBundleVersion` comes from `APP_VERSION` env or falls back to whatever is in `Resources/Info.plist`.
+- **Releases are tag-driven.** Pushing a `v*` tag triggers the release workflow which builds once, produces ZIP (Sparkle) + DMG (manual install), verifies both artifacts, generates a signed Sparkle `appcast.xml` from the ZIP, and deploys to GitHub Pages. Requires `SPARKLE_PRIVATE_KEY` repo secret. `Info.plist` 中的 `CFBundleShortVersionString` / `CFBundleVersion` 在 build 时由 `APP_VERSION` 环境变量或 git tag 注入；plist 里写死的 `1.0.0` 是历史占位，不要手改。
 
 ## Mock server gotcha
 
