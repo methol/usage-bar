@@ -15,7 +15,19 @@ struct PopoverView: View {
                     notificationService: notificationService,
                     onComplete: { setupComplete = true }
                 )
+            } else if service.isAwaitingCode {
+                // v0.1.3 G2-A/G3-R3: 提升 CodeEntryView 路由到 isAuthenticated 之外，
+                // 让"添加账号"流程（已 isAuthenticated + isAwaitingCode）也能看到 CodeEntry
+                Text(service.accounts.isEmpty ? "登录" : "添加账号")
+                    .font(.headline)
+                CodeEntryView(service: service)
+                if let error = service.lastError {
+                    Label(error, systemImage: "exclamationmark.triangle")
+                        .foregroundStyle(.red)
+                        .font(.caption)
+                }
             } else {
+                AccountSwitcherView(service: service)  // accounts.count <= 1 时自隐藏
                 Text("Claude Usage")
                     .font(.headline)
                 if !service.isAuthenticated {
@@ -31,19 +43,16 @@ struct PopoverView: View {
 
     @ViewBuilder
     private var signInView: some View {
-        if service.isAwaitingCode {
-            CodeEntryView(service: service)
-        } else {
-            Text("Sign in to view your usage.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+        // v0.1.3: isAwaitingCode 路由已提升到 body 顶层，本 view 仅处理"未登录且未等 code"场景
+        Text("Sign in to view your usage.")
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
 
-            Button("Sign in with Claude") {
-                service.startOAuthFlow()
-            }
-            .buttonStyle(.borderedProminent)
-            .frame(maxWidth: .infinity)
+        Button("Sign in with Claude") {
+            service.startOAuthFlow()
         }
+        .buttonStyle(.borderedProminent)
+        .frame(maxWidth: .infinity)
 
         if let error = service.lastError {
             Label(error, systemImage: "exclamationmark.triangle")
