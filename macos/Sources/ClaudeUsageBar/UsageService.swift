@@ -98,6 +98,25 @@ class UsageService: ObservableObject {
         isAuthenticated = loadCredentials() != nil
     }
 
+    // MARK: - Bootstrap from Claude CLI Keychain (v0.1.1)
+
+    /// 启动期一次性尝试从 Claude CLI Keychain 复用凭证。
+    /// - 已有 credentials.json：跳过（不覆盖用户主动 sign-in 的状态）
+    /// - Keychain 不可读 / 解析失败：静默降级（行为退化为 v0.1.0，走原 sign-in）
+    /// - SC7 安全约束：错误日志仅打印 LoadError case 名（CustomStringConvertible 已脱敏），
+    ///   绝不打印 raw credential 值。
+    func bootstrapFromCLIIfNeeded() async {
+        if loadCredentials() != nil { return }
+        let strategy = ClaudeCLICredentialsStrategy()
+        do {
+            guard let creds = try await strategy.loadCredentials() else { return }
+            try credentialsStore.save(creds)
+            isAuthenticated = true
+        } catch {
+            NSLog("[claude-usage-bar] credentials bootstrap from CLI failed: \(error)")
+        }
+    }
+
     // MARK: - Polling
 
     func startPolling() {
