@@ -16,10 +16,7 @@ struct ClaudeUsageBarApp: App {
                 appUpdater: appUpdater
             )
         } label: {
-            Image(nsImage: service.isAuthenticated
-                ? renderIcon(pct5h: service.pct5h, pct7d: service.pct7d)
-                : renderUnauthenticatedIcon()
-            )
+            MenuBarLabel(service: service, historyService: historyService)
                 .task {
                     // Auto-mark existing users as setup-complete
                     if service.isAuthenticated && !UserDefaults.standard.bool(forKey: "setupComplete") {

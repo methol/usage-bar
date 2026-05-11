@@ -4,11 +4,21 @@ import ServiceManagement
 struct SettingsWindowContent: View {
     @ObservedObject var service: UsageService
     @ObservedObject var notificationService: NotificationService
+    @AppStorage(MenuBarDisplayMode.storageKey) private var menubarModeRaw: String = MenuBarDisplayMode.icon.rawValue
 
     var body: some View {
         Form {
             Section("General") {
                 LaunchAtLoginToggle()
+
+                Picker("Menubar Display", selection: Binding(
+                    get: { MenuBarDisplayMode(rawValue: menubarModeRaw) ?? .icon },
+                    set: { menubarModeRaw = $0.rawValue }
+                )) {
+                    ForEach(MenuBarDisplayMode.allCases) { mode in
+                        Text(mode.displayName).tag(mode)
+                    }
+                }
 
                 Picker("Polling Interval", selection: Binding(
                     get: { service.pollingMinutes },
