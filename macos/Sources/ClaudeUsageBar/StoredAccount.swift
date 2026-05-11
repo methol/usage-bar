@@ -53,7 +53,8 @@ extension StoredCredentialsStore {
         )
         do {
             try saveAccounts(migrated)
-            try? fileManager.removeItem(at: credentialsFileURL)
+            // v0.1.3 双写镜像设计：v1 credentials.json 始终保留作为 active account token 镜像
+            // 现有 single-account API（store.save/load）仍 work，所有 v0.1.0~v0.1.2 测试不回归
             try? fileManager.removeItem(at: legacyTokenFileURL)
         } catch {
             // G2-B2: 写半成品时清理；setAttributes 失败也走此路径

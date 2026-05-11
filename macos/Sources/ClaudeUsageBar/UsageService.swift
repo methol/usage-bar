@@ -12,6 +12,12 @@ class UsageService: ObservableObject {
     @Published private(set) var accountEmail: String?
     @Published var localCost30d: CostSummary?
 
+    // v0.1.3 multi-account (G3-B3/G2-B1: race fix via epoch + currentFetchTask)
+    @Published private(set) var accounts: [StoredAccount] = []
+    @Published private(set) var activeAccountId: UUID?
+    private var accountSwitchEpoch: Int = 0
+    private var currentFetchTask: Task<Void, Never>?
+
     var historyService: UsageHistoryService?
     var notificationService: NotificationService?
 
@@ -96,7 +102,16 @@ class UsageService: ObservableObject {
         let minutes = Self.pollingOptions.contains(stored) ? stored : Self.defaultPollingMinutes
         self.pollingMinutes = minutes
         self.currentInterval = TimeInterval(minutes * 60)
-        isAuthenticated = loadCredentials() != nil
+        // v0.1.3: 用 loadAccounts 替代 loadCredentials；自动迁移旧 v1 文件
+        if let file = credentialsStore.loadAccounts(defaultScopes: Self.defaultOAuthScopes) {
+            self.accounts = file.accounts
+            self.activeAccountId = file.activeAccount?.id
+            self.isAuthenticated = !file.accounts.isEmpty
+        } else {
+            self.accounts = []
+            self.activeAccountId = nil
+            self.isAuthenticated = false
+        }
     }
 
     // MARK: - Bootstrap from Claude CLI Keychain (v0.1.1)
@@ -108,15 +123,62 @@ class UsageService: ObservableObject {
     ///   绝不打印 raw credential 值。
     @MainActor
     func bootstrapFromCLIIfNeeded() async {
-        if loadCredentials() != nil { return }
+        if !accounts.isEmpty { return }  // 已有任意 account 则不覆盖
         let strategy = ClaudeCLICredentialsStrategy()
         do {
             guard let creds = try await strategy.loadCredentials() else { return }
-            try credentialsStore.save(creds)
+            // v0.1.3: 通过 completeSignIn 路径建第一个 account
+            try saveCredentials(creds)
             isAuthenticated = true
         } catch {
             NSLog("[claude-usage-bar] credentials bootstrap from CLI failed: \(error)")
         }
+    }
+
+    // MARK: - Multi-account (v0.1.3)
+
+    /// 切换 active account。G2-B1/G3-B3 race fix：先 cancel 在飞 task + refreshTask + timer + epoch++。
+    /// v0.1.3 双写设计：把新 active account 的 credentials 写入 v1 credentials.json（mirror）
+    func switchAccount(to id: UUID) {
+        guard let idx = accounts.firstIndex(where: { $0.id == id }) else { return }
+        guard accounts[idx].id != activeAccountId else { return }
+
+        // race fix：cancel 旧 task + bump epoch
+        currentFetchTask?.cancel()
+        currentFetchTask = nil
+        refreshTask?.cancel()
+        refreshTask = nil
+        timer?.invalidate()
+        timer = nil
+        accountSwitchEpoch += 1
+
+        var file = StoredAccountsFile(version: 2, activeIndex: idx, accounts: accounts)
+        file.accounts[idx].lastUsed = Date()
+        do {
+            try credentialsStore.saveAccounts(file)
+            // 双写：把新 active account 的 credentials 写到 v1 credentials.json
+            try credentialsStore.save(file.accounts[idx].credentials)
+        } catch {
+            NSLog("[claude-usage-bar] switchAccount save: \(type(of: error))")
+            return
+        }
+        self.accounts = file.accounts
+        self.activeAccountId = file.accounts[idx].id
+
+        // 清前账号瞬态状态（SC8）
+        self.usage = nil
+        self.lastError = nil
+        self.localCost30d = nil
+        self.accountEmail = nil
+
+        // 重启 polling + 重新 fetch（捕获 epoch via currentFetchTask）
+        startPolling()
+        Task { await refreshLocalCostIfNeeded() }
+    }
+
+    /// 触发 PKCE flow 添加新账号。保持 active 不变；UI 通过 isAwaitingCode 切到 CodeEntry。
+    func beginAddAccount() {
+        startOAuthFlow()  // G3-B1: 实际函数名（不是 startSignInFlow）
     }
 
     // MARK: - Local cost scan (v0.1.2)
@@ -241,31 +303,80 @@ class UsageService: ObservableObject {
                 return
             }
 
-            do {
-                try saveCredentials(credentials)
-            } catch {
-                lastError = "Failed to save credentials: \(error.localizedDescription)"
-                return
-            }
-            isAuthenticated = true
-            isAwaitingCode = false
-            lastError = nil
-            codeVerifier = nil
-            oauthState = nil
-
-            await fetchProfile()
-            startPolling()
+            // G3-B1: 抽出的 completeSignIn helper 处理首次 sign-in vs add-account 两种路径
+            await completeSignIn(with: credentials)
         } catch {
             lastError = "Token exchange error: \(error.localizedDescription)"
         }
     }
 
+    /// 完成 OAuth code 兑换 token 后的统一收尾。
+    /// - accounts.isEmpty: 建第一个 account（保留 v0.1.0~v0.1.2 行为）
+    /// - 否则：append 新 account + activeIndex 切到新（v0.1.3 add-account 路径）
+    private func completeSignIn(with credentials: StoredCredentials) async {
+        let now = Date()
+        let isFirst = accounts.isEmpty
+        let newAccount = StoredAccount(
+            id: UUID(),
+            label: "账号 \(accounts.count + 1)",
+            addedAt: now,
+            lastUsed: now,
+            credentials: credentials
+        )
+        let newAccounts = accounts + [newAccount]
+        let newIdx = newAccounts.count - 1
+        let file = StoredAccountsFile(version: 2, activeIndex: newIdx, accounts: newAccounts)
+        do {
+            try credentialsStore.saveAccounts(file)
+            try credentialsStore.save(credentials)  // 双写：v1 credentials.json mirror 新 active token
+        } catch {
+            lastError = "Failed to save credentials: \(error.localizedDescription)"
+            return
+        }
+        // add-account 路径：cancel 旧 task + bump epoch（同 switchAccount 逻辑）
+        if !isFirst {
+            currentFetchTask?.cancel()
+            currentFetchTask = nil
+            refreshTask?.cancel()
+            refreshTask = nil
+            timer?.invalidate()
+            timer = nil
+            accountSwitchEpoch += 1
+            // 清前账号瞬态
+            self.usage = nil
+            self.lastError = nil
+            self.localCost30d = nil
+            self.accountEmail = nil
+        }
+        self.accounts = newAccounts
+        self.activeAccountId = newAccount.id
+        self.isAuthenticated = true
+        self.isAwaitingCode = false
+        self.lastError = nil
+        self.codeVerifier = nil
+        self.oauthState = nil
+
+        await fetchProfile()
+        startPolling()
+        if !isFirst {
+            Task { await refreshLocalCostIfNeeded() }
+        }
+    }
+
     func signOut() {
+        // v0.1.3: signOut 清除全部 accounts（v0.2.x 留位 per-account sign-out）
+        credentialsStore.deleteAccounts()
         deleteCredentials()
+        accounts = []
+        activeAccountId = nil
+        accountSwitchEpoch += 1
+        currentFetchTask?.cancel()
+        currentFetchTask = nil
         isAuthenticated = false
         usage = nil
         lastUpdated = nil
         accountEmail = nil
+        localCost30d = nil
         timer?.invalidate()
         timer = nil
         refreshTask?.cancel()
@@ -289,6 +400,8 @@ class UsageService: ObservableObject {
     // MARK: - API Fetch
 
     func fetchUsage() async {
+        // G2-B1/G3-B3: 入口捕获 epoch；写值前比对若已变 → 丢弃响应（账号已切换）
+        let epochAtStart = accountSwitchEpoch
         guard loadCredentials() != nil else {
             lastError = "Not signed in"
             isAuthenticated = false
@@ -299,6 +412,8 @@ class UsageService: ObservableObject {
             guard let result = try await sendAuthorizedRequest(to: usageEndpoint) else {
                 return
             }
+            // race guard：账号切换导致此响应已陈旧 → 丢弃
+            guard accountSwitchEpoch == epochAtStart else { return }
             let (data, http) = result
             if http.statusCode == 429 {
                 let retryAfter = http.value(forHTTPHeaderField: "Retry-After")
@@ -327,6 +442,8 @@ class UsageService: ObservableObject {
                 scheduleTimer()
             }
         } catch {
+            // race guard：账号已切换则不写 lastError
+            guard accountSwitchEpoch == epochAtStart else { return }
             lastError = error.localizedDescription
         }
     }
@@ -376,12 +493,42 @@ class UsageService: ObservableObject {
         return nil
     }
 
-    // MARK: - Credential storage
+    // MARK: - Credential storage (v0.1.3 双写镜像设计)
+    //
+    // 主路径：v1 credentials.json 始终是 active account token 的镜像（保持 v0.1.0~v0.1.2
+    // single-account API 行为不变，所有现有测试不回归）。accounts.json 存 metadata
+    // (id/label/addedAt/lastUsed) + activeIndex + 所有 accounts 完整 credentials 副本，
+    // 用于 switchAccount 切换时从其他 account 读 token 写到 v1 credentials.json。
 
+    /// 双写：先写 v1 credentials.json（主），再镜像更新 accounts.json[active]
     private func saveCredentials(_ credentials: StoredCredentials) throws {
-        try credentialsStore.save(credentials)
+        try credentialsStore.save(credentials)  // 主写 v1 (loadCredentials 读这里)
+        if let activeId = activeAccountId,
+           let idx = accounts.firstIndex(where: { $0.id == activeId }) {
+            // 已有 active account：镜像更新
+            var newAccounts = accounts
+            newAccounts[idx].credentials = credentials
+            newAccounts[idx].lastUsed = Date()
+            let file = StoredAccountsFile(version: 2, activeIndex: idx, accounts: newAccounts)
+            try? credentialsStore.saveAccounts(file)  // 镜像失败不阻塞主路径
+            self.accounts = newAccounts
+        } else if accounts.isEmpty {
+            // bootstrap 首次：建第一个 account
+            let first = StoredAccount(
+                id: UUID(),
+                label: "账号 1",
+                addedAt: Date(),
+                lastUsed: Date(),
+                credentials: credentials
+            )
+            let file = StoredAccountsFile(version: 2, activeIndex: 0, accounts: [first])
+            try? credentialsStore.saveAccounts(file)
+            self.accounts = [first]
+            self.activeAccountId = first.id
+        }
     }
 
+    /// 主读：v1 credentials.json（与现有 v0.1.0~v0.1.2 行为一致）
     private func loadCredentials() -> StoredCredentials? {
         credentialsStore.load(defaultScopes: Self.defaultOAuthScopes)
     }
@@ -497,6 +644,8 @@ class UsageService: ObservableObject {
     }
 
     private func performRefresh(force: Bool) async -> RefreshResult {
+        // G2-B1: 入口捕获 epoch；refresh 完成后写 saveCredentials 前比对，避免污染新 active account
+        let epochAtStart = accountSwitchEpoch
         guard let currentCredentials = loadCredentials(),
               let refreshToken = currentCredentials.refreshToken,
               refreshToken.isEmpty == false else {
@@ -549,6 +698,10 @@ class UsageService: ObservableObject {
             return .transientFailure
         }
 
+        // G2-B1: 写值前 epoch 比对，避免账号切换后用旧 refresh token 污染新 active account
+        guard accountSwitchEpoch == epochAtStart else {
+            return .transientFailure  // 视为暂时失败，调用方走兜底
+        }
         do {
             try saveCredentials(updatedCredentials)
         } catch {

@@ -47,8 +47,8 @@ final class StoredCredentialsStoreMigrationTests: XCTestCase {
         XCTAssertEqual(loaded?.accounts.first?.label, "账号 1")
         XCTAssertEqual(loaded?.accounts.first?.credentials.accessToken, "mock-v1")
         XCTAssertEqual(loaded?.accounts.first?.credentials.refreshToken, "mock-refresh")
-        // 迁移成功：旧文件已删
-        XCTAssertFalse(FileManager.default.fileExists(atPath: store.credentialsFileURL.path))
+        // v0.1.3 双写镜像设计：v1 credentials.json 保留作为 active account token mirror（不删）
+        XCTAssertTrue(FileManager.default.fileExists(atPath: store.credentialsFileURL.path))
         // accounts.json 已落盘
         XCTAssertTrue(FileManager.default.fileExists(atPath: store.accountsFileURL.path))
     }
