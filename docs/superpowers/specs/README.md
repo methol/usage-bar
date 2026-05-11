@@ -25,6 +25,7 @@ updated: 2026-05-11
 | `2026-05-11-claude-cli-credentials` | 复用 Claude CLI Keychain 凭证 + Strategy 协议骨架 | implemented | v0.1.1 | [文件](./2026-05-11-claude-cli-credentials.md) |
 | `2026-05-11-local-cost-scan` | 本地 JSONL 成本扫描（30 天 USD + per-model token） | implemented | v0.1.2 | [文件](./2026-05-11-local-cost-scan.md) |
 | `2026-05-11-multi-account` | 多账号支持（accounts store + 迁移 + popover 切换器） | implemented | v0.1.3 | [文件](./2026-05-11-multi-account.md) |
+| `2026-05-11-sparkle-beta-channel` | Sparkle 双通道（stable / beta）+ Settings Picker | draft | v0.2.2 | [文件](./2026-05-11-sparkle-beta-channel.md) |
 
 > 新增 spec 时在表格 append 一行；状态由 spec frontmatter 同步。
 
