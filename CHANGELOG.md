@@ -9,6 +9,38 @@
 
 ---
 
+## [v0.0.10] — 2026-05-11
+
+### 新增（Added）
+
+- **菜单栏多显示模式**：Settings → General → Menubar Display 可切换 3 种显示风格
+  - `Icon`（默认）：双窗口进度条图标（保持现状）
+  - `Percent text`：紧凑文本如 `5h 42%`
+  - `Percent + trend`：在百分比旁叠加 ▲/▼ 趋势（如 `5h 42% ▼5`，需 ≥6h history）
+- 切换模式实时生效（@AppStorage 跨视图同步），不需重启 app
+- 默认仍是 Icon 模式 — 升级用户菜单栏视觉无变化
+
+### 改进（Changed）
+
+- 复用 v0.0.9 趋势算法（`computeTrend`）：trend mode 与 hero card 同源、单位约定一致
+
+### 内部（Internal）
+
+- 新增 `MenuBarDisplayMode.swift`：enum + `formatMenuBarPercent` helper，9 case 单测覆盖（nil / 边界 / round / roundtrip / 默认值防御 / case 数量防御）
+- 新增 `MenuBarLabel.swift`：SwiftUI View 三分支（icon / percent / percent+trend），未登录走 fallback 显示 `5h —`
+- `ClaudeUsageBarApp` MenuBarExtra label 替换为 MenuBarLabel；.task 闭包保留（startPolling→scheduleTimer 自带 timer?.invalidate 已幂等，重复执行安全）
+- `SettingsView` 加 General section displayMode Picker，与 polling interval 同列
+- @AppStorage 直接绑定 enum（SwiftUI 原生 RawRepresentable + RawValue==String 支持），消除 String<->enum 中间映射；G5 review 触发了从 Binding(get:set:) 到直接 $menubarMode 的简化重构
+- spec 走完 G2 / G3 / G5 / G6 共四轮独立 reviewer review；commit 拆分（spec / enum+测试 / View+接入 / G5 修订 / G6 收尾）；不动数据层 / OAuth / Notifications / 现有 popover 视觉
+
+### 参考
+
+- 版本计划：[`docs/versions/v0.0.10-menubar-display-modes.md`](./docs/versions/v0.0.10-menubar-display-modes.md)
+- 含 spec：`2026-05-11-menubar-display-modes`
+- 母法：[`docs/superpowers/specs/2026-05-11-docs-governance.md`](./docs/superpowers/specs/2026-05-11-docs-governance.md)
+
+---
+
 ## [v0.0.9] — 2026-05-11
 
 ### 新增（Added）
