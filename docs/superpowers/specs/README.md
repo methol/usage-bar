@@ -21,6 +21,7 @@ updated: 2026-05-11
 | `2026-05-11-hero-popover` | Popover 重做：5h hero + 7d secondary + capsule 进度条 | implemented | v0.0.8 | [文件](./2026-05-11-hero-popover.md) |
 | `2026-05-11-trend-arrows` | 趋势箭头 ▲▼ + 6h 增量百分点 | implemented | v0.0.9 | [文件](./2026-05-11-trend-arrows.md) |
 | `2026-05-11-menubar-display-modes` | 菜单栏多显示模式 icon / percent / percent+trend | implemented | v0.0.10 | [文件](./2026-05-11-menubar-display-modes.md) |
+| `2026-05-11-pace-tracking` | 5h 配速指示器 On pace / In deficit / In reserve | accepted | v0.0.11 | [文件](./2026-05-11-pace-tracking.md) |
 
 > 新增 spec 时在表格 append 一行；状态由 spec frontmatter 同步。
 
