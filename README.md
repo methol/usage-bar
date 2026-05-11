@@ -34,7 +34,7 @@ A tiny macOS menu bar app that shows your Claude API usage at a glance. Click it
 
 ### Download
 
-1. Download `ClaudeUsageBar.dmg` from the [latest release](https://github.com/Blimp-Labs/claude-usage-bar/releases/latest)
+1. Download `ClaudeUsageBar.dmg` from the [latest release](https://github.com/methol/usage-bar/releases/latest)
 2. Open the disk image and drag `ClaudeUsageBar.app` into `Applications`
 3. Launch the app from `/Applications`
 4. macOS may require right-click → **Open** on first launch
@@ -44,8 +44,8 @@ A tiny macOS menu bar app that shows your Claude API usage at a glance. Click it
 Requires Xcode 15+ / Swift 5.9+ and macOS 14 (Sonoma) or later.
 
 ```sh
-git clone https://github.com/Blimp-Labs/claude-usage-bar.git
-cd claude-usage-bar
+git clone https://github.com/methol/usage-bar.git
+cd usage-bar
 make app            # build .app bundle
 make dmg            # build drag-to-Applications disk image
 make install        # copy to /Applications
@@ -127,7 +127,7 @@ gh secret set SPARKLE_PRIVATE_KEY < /tmp/claude-usage-bar.sparkle.key
 The appcast feed URL used by release builds is:
 
 ```text
-https://blimp-labs.github.io/claude-usage-bar/appcast.xml
+https://methol.github.io/usage-bar/appcast.xml
 ```
 
 ### Project structure
@@ -164,9 +164,15 @@ scripts/                         # Shared tooling
 └── mock-server.py               # Local mock API for development
 ```
 
+## Fork relationship
+
+This repo is an AI-led fork of [`Blimp-Labs/claude-usage-bar`](https://github.com/Blimp-Labs/claude-usage-bar) (forked at upstream `v0.0.6`, 2026-03-10). From `v0.0.7` onward the version numbering and release URLs are independent — see [`docs/adr/0004-fork-divergence-from-blimp-labs.md`](docs/adr/0004-fork-divergence-from-blimp-labs.md). Upstream commits are not auto-merged.
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, testing with the mock server, and submission guidelines.
+
+> Note: this project is AI-led — see [`AGENTS.md`](AGENTS.md) for the governance contract.
 
 ## License
 
