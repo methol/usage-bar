@@ -597,4 +597,4 @@ v0.0.7 不含代码变更，gate 适配如下：
 - [x] SC14 — evidence: `python3 frontmatter-lint` 输出 `✅ Frontmatter present on all 31 required files.`
 - [x] SC15 — evidence: §10 G2 review response，reviews[0] verdict=approved-after-revisions
 - [x] SC16 — evidence: 本 `## Verification log` 区块本身（self-fulfilling）
-- [ ] SC17 — pending (中文 commit 完成时填，evidence 为 commit sha)
+- [x] SC17 — evidence: commit `0e10c8f` (`docs: 立项 v0.0.7 文档治理与版本路线骨架 [spec:2026-05-11-docs-governance]`)
