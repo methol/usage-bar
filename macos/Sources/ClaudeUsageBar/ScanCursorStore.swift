@@ -5,12 +5,14 @@ actor ScanCursorStore {
     private let fm = FileManager.default
     private var cache: ScanCursorFile?
 
-    init(dataDirOverride: URL? = nil) {
+    init(dataDirOverride: URL? = nil, provider: ProviderID = .claude) {
         let dir: URL
         if let o = dataDirOverride { dir = o }
         else if let cfg = UsageEventStore.defaultConfigDir() { dir = cfg.appendingPathComponent("data", isDirectory: true) }
         else { dir = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("claude-usage-bar/data", isDirectory: true) }
-        self.cursorURL = dir.appendingPathComponent("scan-cursor.json")
+        // Claude 保旧文件名 scan-cursor.json（兼容已有部署）；其他 provider 用 scan-cursor-<provider>.json，同目录。
+        let name = provider == .claude ? "scan-cursor.json" : "scan-cursor-\(provider.rawValue).json"
+        self.cursorURL = dir.appendingPathComponent(name)
     }
 
     private static let encoder: JSONEncoder = { let e = JSONEncoder(); e.dateEncodingStrategy = .iso8601; e.outputFormatting = [.prettyPrinted, .sortedKeys]; return e }()
