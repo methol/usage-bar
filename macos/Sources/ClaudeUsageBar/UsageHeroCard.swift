@@ -96,10 +96,12 @@ struct CapsuleProgressBar: View {
             .overlay(alignment: .leading) {
                 if let marker {
                     GeometryReader { geo in
+                        let lineWidth: CGFloat = 2.5
+                        let x = max(0, min(1, marker)) * geo.size.width - lineWidth / 2
                         RoundedRectangle(cornerRadius: 1)
                             .fill(paceMarkerColor)
-                            .frame(width: 2.5, height: geo.size.height + 4)
-                            .offset(x: max(0, min(1, marker)) * geo.size.width - 1.25, y: -2)
+                            .frame(width: lineWidth, height: geo.size.height + 4)
+                            .offset(x: min(max(0, x), max(0, geo.size.width - lineWidth)), y: -2)
                     }
                 }
             }

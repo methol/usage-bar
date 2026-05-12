@@ -265,4 +265,5 @@ ForEach(pace5h) { p in
 - **卡片标题**：`5-Hour` → `Session`、`7-Day` → `Weekly`（图标 clock/calendar 不变）。
 - **去冗余文案**（SC2 范围微调，目标"简洁优雅"）：`LocalCostCard` 去掉"本地 N 天估算"标题文字（连带去掉 `periodLabel` 参数），col1 留空；`UsageHeatmapView` 去掉"消费热力图"标题与"鼠标悬停查看某天明细"提示（悬停信息行保留固定高度避免布局跳动）。
 - **周期切换 segmented 重做**：新增通用 `PillPicker<Item>`（药丸式，配色随卡片审美，不用系统 `.segmented`），`UsageChartSectionView` 的时间范围选择器改用它（与 `ProviderTabBar` 视觉一致）。
-- 测试：删 `UsagePaceAreaTests`，`PaceCalculatorTests` 加 4 条 `expectedPacePct` case；`swift build -c release` / `swift test`(174) / `make release-artifacts` 全绿；`make app` 烟测进程不崩溃。可视化目测仍待 user。
+- 测试：删 `UsagePaceAreaTests`，`PaceCalculatorTests` 加 4 条 `expectedPacePct` case；`swift build -c release` / `swift test` / `make release-artifacts` 全绿；`make app` 烟测进程不崩溃。可视化目测仍待 user。
+- G5 follow-up（同日，迭代 1 review verdict approved-with-nits 的清理项）：① `CapsuleProgressBar` marker 竖线 offset clamp 到 `[0, width-2.5]`，避免 0%/100% 时探出 capsule；② **退役 v0.0.11 的 `computePaceState` / `enum PaceState`**（自本次起已无生产调用点，仅测试在用 → 一并删除函数 + 类型 + `PaceCalculatorTests` 中对应 9 个 case），`PaceCalculator.swift` 现只剩 `expectedPacePct`。v0.0.11 spec（`2026-05-11-pace-tracking.md`）状态不变（implemented 不可变），此处声明其实现已被 v0.2.4 的"标记竖线 + ±X% 偏差"取代。`swift test`(165) 全绿。
