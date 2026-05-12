@@ -237,6 +237,41 @@ enum UsageChartInterpolation {
     }
 }
 
+// MARK: - Pace area
+
+struct PacePoint: Identifiable {
+    let id = UUID()
+    let date: Date
+    let pct: Double   // 0...100
+}
+
+/// pace 面积序列：在 [domainStart, domainEnd] 上等距采样 sampleCount+1 个点，
+/// 每点求其所在 windowDuration 窗口内 elapsed 比例 ×100。窗口序列由当前 `reset`
+/// 按 windowDuration 步长向过去回推（Claude 5h 窗口非固定网格、无历史 reset 记录，
+/// 回推是可接受近似 —— pace 面积只作参考线，不要求精确历史窗口对齐）。
+enum UsagePaceArea {
+    static func series(reset: Date?,
+                       windowDuration: TimeInterval,
+                       domainStart: Date,
+                       domainEnd: Date,
+                       sampleCount: Int = 240) -> [PacePoint] {
+        guard let reset, windowDuration > 0, sampleCount > 0, domainEnd > domainStart else { return [] }
+        let span = domainEnd.timeIntervalSince(domainStart)
+        var out: [PacePoint] = []
+        out.reserveCapacity(sampleCount + 1)
+        for i in 0...sampleCount {
+            let t = domainStart.addingTimeInterval(span * Double(i) / Double(sampleCount))
+            let kRaw = floor(reset.timeIntervalSince(t) / windowDuration)
+            let k = max(0.0, kRaw)
+            let windowStart = reset.addingTimeInterval(-windowDuration * (k + 1))
+            let frac = t.timeIntervalSince(windowStart) / windowDuration
+            let clamped = min(max(frac, 0), 1)
+            out.append(PacePoint(date: t, pct: clamped * 100))
+        }
+        return out
+    }
+}
+
 // MARK: - UsageChartSectionView
 // 趋势图 + 跟随 picker 时间窗口的估算费用卡（Change A/B）
 
