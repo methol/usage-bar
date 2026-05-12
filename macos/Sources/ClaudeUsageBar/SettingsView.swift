@@ -2,6 +2,7 @@ import SwiftUI
 import ServiceManagement
 
 struct SettingsWindowContent: View {
+    @ObservedObject var coordinator: ProviderCoordinator
     @ObservedObject var service: UsageService
     @ObservedObject var notificationService: NotificationService
     // @AppStorage 直接绑定 enum（G5 review B1 修订）
@@ -18,6 +19,19 @@ struct SettingsWindowContent: View {
                     ForEach(MenuBarDisplayMode.allCases) { mode in
                         Text(mode.displayName).tag(mode)
                     }
+                }
+
+                // v0.2.5: 哪个 provider 驱动菜单栏 label。目前只有 Claude 可用 → 禁用并提示。
+                Picker("Primary Provider", selection: $coordinator.primaryProviderID) {
+                    ForEach(coordinator.availableIDs) { id in
+                        Text(id.displayName).tag(id)
+                    }
+                }
+                .disabled(coordinator.availableIDs.count <= 1)
+                if coordinator.availableIDs.count <= 1 {
+                    Text("More providers coming soon — the menu bar shows Claude for now.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
 
                 Picker("Polling Interval", selection: Binding(

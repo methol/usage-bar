@@ -51,6 +51,7 @@ struct ClaudeUsageBarApp: App {
 
         Settings {
             SettingsWindowContent(
+                coordinator: coordinator,
                 service: coordinator.claude,
                 notificationService: notificationService
             )
