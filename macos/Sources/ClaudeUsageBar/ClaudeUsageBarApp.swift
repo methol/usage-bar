@@ -13,16 +13,20 @@ struct ClaudeUsageBarApp: App {
 
     var body: some Scene {
         MenuBarExtra {
-            // 阶段 B：视图暂仍收 service: coordinator.claude 走老 API（阶段 C 改成收 coordinator + 读 runtime）。
             PopoverView(
-                service: coordinator.claude,
+                coordinator: coordinator,
+                claude: coordinator.claude,
                 historyService: historyService,
                 notificationService: notificationService,
                 appUpdater: appUpdater
             )
             .environmentObject(usageStats)
         } label: {
-            MenuBarLabel(service: coordinator.claude, historyService: historyService)
+            MenuBarLabel(
+                runtime: coordinator.primaryRuntime,
+                historyService: historyService,
+                showTrend: coordinator.primaryProviderID == .claude
+            )
                 .task {
                     // 退役 v0.1.2 的 cost-usage cache（已被 ~/.config/claude-usage-bar/data/ 取代）
                     if let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first {

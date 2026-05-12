@@ -1,7 +1,11 @@
 import SwiftUI
 
 struct PopoverView: View {
-    @ObservedObject var service: UsageService
+    @ObservedObject var coordinator: ProviderCoordinator
+    /// Claude provider（登录 UX / polling 设置 / Sign Out 等 Claude 专属 UI 直接用它）。
+    /// 单独 `@ObservedObject` —— 这样 `isAuthenticated`/`isAwaitingCode`/`accounts`/`lastError` 变化能驱动重渲染
+    /// （`coordinator` 只有 `primaryProviderID` 是 `@Published`，不覆盖 `coordinator.claude` 的变化）。
+    @ObservedObject var claude: UsageService
     @ObservedObject var historyService: UsageHistoryService
     @ObservedObject var notificationService: NotificationService
     @ObservedObject var appUpdater: AppUpdater
@@ -11,34 +15,27 @@ struct PopoverView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            if !setupComplete && !service.isAuthenticated {
+            if !setupComplete && !claude.isAuthenticated {
                 SetupView(
-                    service: service,
+                    service: claude,
                     notificationService: notificationService,
                     onComplete: { setupComplete = true }
                 )
-            } else if service.isAwaitingCode {
+            } else if claude.isAwaitingCode {
                 // v0.1.3 G2-A/G3-R3: 提升 CodeEntryView 路由到 isAuthenticated 之外，
                 // 让"添加账号"流程（已 isAuthenticated + isAwaitingCode）也能看到 CodeEntry
-                Text(service.accounts.isEmpty ? "登录" : "添加账号")
+                Text(claude.accounts.isEmpty ? "登录" : "添加账号")
                     .font(.headline)
-                CodeEntryView(service: service)
-                if let error = service.lastError {
+                CodeEntryView(service: claude)
+                if let error = claude.lastError {
                     Label(error, systemImage: "exclamationmark.triangle")
                         .foregroundStyle(.red)
                         .font(.caption)
                 }
             } else {
-                AccountSwitcherView(service: service)  // accounts.count <= 1 时自隐藏
-                ProviderTabBar(selection: $selectedProvider)
-                if !service.isAuthenticated {
-                    signInView
-                } else if selectedProvider == .claude {
-                    usageView
-                } else {
-                    ProviderComingSoonView(provider: selectedProvider,
-                                           onBackToClaude: { selectedProvider = .claude })
-                }
+                AccountSwitcherView(service: claude)  // accounts.count <= 1 时自隐藏
+                ProviderTabBar(selection: $selectedProvider, availableIDs: coordinator.availableIDs)
+                providerArea
             }
         }
         .padding()
@@ -48,109 +45,68 @@ struct PopoverView: View {
                            startPoint: .top, endPoint: .bottom)
             .ignoresSafeArea()
         )
+        .task(id: selectedProvider) {
+            // 切到非 Claude 的可用 provider 时拉一次（Claude 有后台 polling，不在此重拉，避免改其行为）。
+            guard selectedProvider != .claude, coordinator.isAvailable(selectedProvider) else { return }
+            await coordinator.refreshNow(selectedProvider)
+        }
     }
 
+    // MARK: - Provider 内容区路由
+
     @ViewBuilder
-    private var signInView: some View {
-        // v0.1.3: isAwaitingCode 路由已提升到 body 顶层，本 view 仅处理"未登录且未等 code"场景
-        Text("Sign in to view your usage.")
-            .font(.subheadline)
-            .foregroundStyle(.secondary)
-
-        Button("Sign in with Claude") {
-            service.startOAuthFlow()
-        }
-        .buttonStyle(.borderedProminent)
-        .frame(maxWidth: .infinity)
-
-        if let error = service.lastError {
-            Label(error, systemImage: "exclamationmark.triangle")
-                .foregroundStyle(.red)
-                .font(.caption)
-        }
-
-        Divider()
-        HStack {
-            settingsButton
-            Spacer()
-            Button("Quit") {
-                NSApplication.shared.terminate(nil)
+    private var providerArea: some View {
+        if selectedProvider == .claude {
+            if !claude.isAuthenticated {
+                signInView
+            } else {
+                claudeUsageArea
             }
-            .buttonStyle(.borderless)
-        }
-    }
-
-    @ViewBuilder
-    private var usageView: some View {
-        // TODO(perf): trend 在 body 每次重渲染都 filter+max O(n) 算两次。
-        // 30 天 history 上限 ~千条点，菜单栏 popover 打开时无交互重渲染，影响可接受；
-        // 若未来 polling 频率↑或 retention↑超过 ~万点，把 trend 计算移到
-        // UsageService @Published 属性按 polling 周期缓存。G5 review R2 noted。
-        let points = historyService.history.dataPoints
-        let trend5h = computeTrend(
-            currentPct: service.usage?.fiveHour?.utilization,
-            points: points,
-            metric: \.pct5h
-        )
-        let trend7d = computeTrend(
-            currentPct: service.usage?.sevenDay?.utilization,
-            points: points,
-            metric: \.pct7d
-        )
-        // TODO(perf): pacePct 与 trend5h/7d 一样在 body 每帧重算（v0.0.9 G5 R2 / v0.0.11 G5 R2）；
-        // 30 天 ~千点 history 下 < 1ms 影响小；polling↑/retention↑ 至 ~万点时迁
-        // UsageService @Published 缓存。
-        let pacePct5h = expectedPacePct(
-            resetDate: service.usage?.fiveHour?.resetsAtDate,
-            windowDuration: 5 * 3600
-        )
-        let pacePct7d = expectedPacePct(
-            resetDate: service.usage?.sevenDay?.resetsAtDate,
-            windowDuration: 604_800   // 7 天
-        )
-
-        UsageCard {
-            UsageHeroCard(
-                label: "Session",
-                bucket: service.usage?.fiveHour,
-                trend: trend5h,
-                pacePct: pacePct5h,
-                icon: "clock"
-            )
-        }
-
-        UsageCard {
-            UsageHeroCard(
-                label: "Weekly",
-                bucket: service.usage?.sevenDay,
-                trend: trend7d,
-                pacePct: pacePct7d,
-                icon: "calendar"
-            )
-        }
-
-        if let opus = service.usage?.sevenDayOpus,
-           opus.utilization != nil {
-            UsageCard {
-                Text("Per-Model (7 day)")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                UsageBucketRow(label: "Opus", bucket: opus)
-                if let sonnet = service.usage?.sevenDaySonnet {
-                    UsageBucketRow(label: "Sonnet", bucket: sonnet)
+        } else if coordinator.isAvailable(selectedProvider),
+                  let runtime = coordinator.runtime(for: selectedProvider) {
+            // v0.2.6 起：泛化的 provider 用量区（目前没有可用的非 Claude provider，此分支待 Codex 落地后生效）
+            if coordinator.provider(selectedProvider)?.isConfigured == true {
+                ProviderUsageSection(runtime: runtime)
+                if let error = runtime.lastError {
+                    UsageCard {
+                        Label(error, systemImage: "exclamationmark.triangle")
+                            .foregroundStyle(.red).font(.caption)
+                    }
                 }
+                if let updated = runtime.lastUpdated {
+                    HStack {
+                        Text("Updated \(updated, style: .relative) ago").font(.caption).foregroundStyle(.secondary)
+                        Spacer()
+                    }
+                }
+                bottomBar
+            } else {
+                ProviderUnconfiguredView(provider: selectedProvider,
+                                         onBackToClaude: { selectedProvider = .claude })
+                bottomBar
             }
+        } else {
+            ProviderComingSoonView(provider: selectedProvider,
+                                   onBackToClaude: { selectedProvider = .claude })
         }
+    }
 
-        if let extra = service.usage?.extraUsage, extra.isEnabled {
-            UsageCard { ExtraUsageRow(extra: extra) }
-        }
+    // MARK: - Claude 已登录的用量区（与重构前 usageView 内容/顺序一致）
+
+    @ViewBuilder
+    private var claudeUsageArea: some View {
+        // TODO(perf): trend/pace 在 body 每次重渲染都 O(n) 重算（v0.0.9/v0.0.11 G5 R2 noted）。
+        // 30 天 ~千点 history 下影响可接受；polling↑/retention↑ 至 ~万点时迁 UsageService @Published 缓存。
+        let runtime = coordinator.claude.runtime
+        let points = historyService.history.dataPoints
+        let snap = runtime.snapshot
+        let trend5h = computeTrend(currentPct: snap?.primaryWindow?.utilizationPct, points: points, metric: \.pct5h)
+        let trend7d = computeTrend(currentPct: snap?.secondaryWindow?.utilizationPct, points: points, metric: \.pct7d)
+
+        ProviderUsageSection(runtime: runtime, trendPrimary: trend5h, trendSecondary: trend7d)
 
         UsageCard {
-            UsageChartSectionView(
-                historyService: historyService,
-                recentEvents: usageStats.recentEvents
-            )
+            UsageChartSectionView(historyService: historyService, recentEvents: usageStats.recentEvents)
         }
 
         if !usageStats.dailySpend.isEmpty && !usageStats.dailySpend.allSatisfy({ $0.usd == 0 }) {
@@ -159,7 +115,7 @@ struct PopoverView: View {
             }
         }
 
-        if let error = service.lastError {
+        if let error = runtime.lastError {
             UsageCard {
                 Label(error, systemImage: "exclamationmark.triangle")
                     .foregroundStyle(.red)
@@ -175,20 +131,28 @@ struct PopoverView: View {
             }
         }
 
-        HStack(spacing: 12) {
-            if let updated = service.lastUpdated {
+        if let updated = runtime.lastUpdated {
+            HStack(spacing: 12) {
                 Text("Updated \(updated, style: .relative) ago")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                Spacer()
             }
-            Spacer()
         }
 
+        bottomBar
+    }
+
+    // MARK: - 共用底部栏
+
+    @ViewBuilder
+    private var bottomBar: some View {
         HStack(spacing: 12) {
             settingsButton
             Spacer()
             Button("Refresh") {
-                Task { await service.fetchUsage() }
+                let id = selectedProvider
+                Task { await coordinator.refreshNow(id) }
             }
             .buttonStyle(.borderless)
             .font(.caption)
@@ -204,6 +168,36 @@ struct PopoverView: View {
                 .buttonStyle(.borderless)
                 .font(.caption)
                 .foregroundStyle(.secondary)
+        }
+    }
+
+    @ViewBuilder
+    private var signInView: some View {
+        // v0.1.3: isAwaitingCode 路由已提升到 body 顶层，本 view 仅处理"未登录且未等 code"场景
+        Text("Sign in to view your usage.")
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+
+        Button("Sign in with Claude") {
+            claude.startOAuthFlow()
+        }
+        .buttonStyle(.borderedProminent)
+        .frame(maxWidth: .infinity)
+
+        if let error = claude.lastError {
+            Label(error, systemImage: "exclamationmark.triangle")
+                .foregroundStyle(.red)
+                .font(.caption)
+        }
+
+        Divider()
+        HStack {
+            settingsButton
+            Spacer()
+            Button("Quit") {
+                NSApplication.shared.terminate(nil)
+            }
+            .buttonStyle(.borderless)
         }
     }
 
@@ -343,62 +337,6 @@ private struct CodeEntryView: View {
     private func submit() {
         let value = code
         Task { await service.submitOAuthCode(value) }
-    }
-}
-
-private struct UsageBucketRow: View {
-    let label: String
-    let bucket: UsageBucket?
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Text(label)
-                    .font(.subheadline)
-                Spacer()
-                Text(percentageText)
-                    .font(.subheadline)
-                    .monospacedDigit()
-            }
-            ProgressView(value: (bucket?.utilization ?? 0) / 100.0, total: 1.0)
-                .tint(colorForPct((bucket?.utilization ?? 0) / 100.0))
-            if let resetDate = bucket?.resetsAtDate {
-                Text("Resets \(resetDate, style: .relative)")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-        }
-    }
-
-    private var percentageText: String {
-        guard let pct = bucket?.utilization else { return "—" }
-        return "\(Int(round(pct)))%"
-    }
-}
-
-private struct ExtraUsageRow: View {
-    let extra: ExtraUsage
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("Extra Usage")
-                .font(.subheadline)
-            if let used = extra.usedCreditsAmount, let limit = extra.monthlyLimitAmount {
-                HStack {
-                    Text("\(ExtraUsage.formatUSD(used)) / \(ExtraUsage.formatUSD(limit))")
-                        .font(.caption)
-                        .monospacedDigit()
-                    Spacer()
-                    if let pct = extra.utilization {
-                        Text("\(Int(round(pct)))%")
-                            .font(.caption)
-                            .monospacedDigit()
-                    }
-                }
-                ProgressView(value: (extra.utilization ?? 0) / 100.0, total: 1.0)
-                    .tint(.blue)
-            }
-        }
     }
 }
 

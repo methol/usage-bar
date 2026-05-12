@@ -1,18 +1,14 @@
 import SwiftUI
 
-// popover 顶部的 provider tab 现在直接用 `ProviderID`（见 ProviderID.swift）——
-// 不再有独立的 `ProviderTab` 枚举。
-//
-// 临时（A0 阶段）：`isAvailable` 仍硬编码 `== .claude`；v0.2.5 阶段 C 视图泛化时
-// 改由 `ProviderRegistry` 是否注册了对应 `UsageProvider` 决定，届时移除本扩展。
-extension ProviderID {
-    var isAvailable: Bool { self == .claude }
-}
+// popover 顶部的 provider tab 直接用 `ProviderID`（见 ProviderID.swift）。
+// 「某 provider 可用 vs 占位」由 `ProviderCoordinator.availableIDs`（= 注册表里有没有它）决定，
+// 由调用方传进 `ProviderTabBar(availableIDs:)`。
 
 /// popover 顶部的多 provider 药丸 tab。不可用的 provider 仍可点选，
-/// 由调用方在 selection 非 Claude 时展示 `ProviderComingSoonView`。
+/// 由调用方在 selection 不可用时展示 `ProviderComingSoonView`。
 struct ProviderTabBar: View {
     @Binding var selection: ProviderID
+    let availableIDs: [ProviderID]
 
     var body: some View {
         HStack(spacing: 2) {
@@ -44,11 +40,11 @@ struct ProviderTabBar: View {
 
     private func pillForeground(for provider: ProviderID) -> Color {
         if provider == selection { return .primary }
-        return provider.isAvailable ? .secondary : .secondary.opacity(0.5)
+        return availableIDs.contains(provider) ? .secondary : .secondary.opacity(0.5)
     }
 }
 
-/// 选中一个尚未拉通数据层的 provider 时显示。
+/// 选中一个尚未对接数据层的 provider（占位 tab）时显示。
 struct ProviderComingSoonView: View {
     let provider: ProviderID
     var onBackToClaude: () -> Void
@@ -71,12 +67,39 @@ struct ProviderComingSoonView: View {
     }
 }
 
+/// 选中一个已对接但当前未配置（无凭证）的 provider 时显示。
+/// （v0.2.5 暂时用不到 —— 唯一可用 provider 是 Claude，未登录走 PopoverView 的 signInView；
+/// v0.2.6 Codex tab 在 `~/.codex/auth.json` 缺失时会展示它。）
+struct ProviderUnconfiguredView: View {
+    let provider: ProviderID
+    var onBackToClaude: () -> Void
+
+    var body: some View {
+        VStack(spacing: 10) {
+            Image(systemName: "person.crop.circle.badge.questionmark")
+                .font(.system(size: 28))
+                .foregroundStyle(.secondary)
+            Text("未检测到 \(provider.displayName) 凭证")
+                .font(.subheadline)
+            Text("请先在对应的 CLI / app 里登录 \(provider.displayName)。")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+            Button("← 回到 Claude", action: onBackToClaude)
+                .buttonStyle(.borderless)
+                .font(.caption)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 24)
+    }
+}
+
 #Preview("ProviderTabBar") {
     struct Wrap: View {
         @State var sel: ProviderID = .claude
         var body: some View {
             VStack(spacing: 12) {
-                ProviderTabBar(selection: $sel)
+                ProviderTabBar(selection: $sel, availableIDs: [.claude])
                 if sel != .claude {
                     ProviderComingSoonView(provider: sel, onBackToClaude: { sel = .claude })
                 }

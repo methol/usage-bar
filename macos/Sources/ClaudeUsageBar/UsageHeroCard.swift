@@ -5,9 +5,12 @@ let paceMarkerColor = Color(red: 0.11, green: 0.24, blue: 0.60)
 
 /// 单个用量窗口卡片：图标 + 标题 + 百分比 + 趋势；进度条（含 pace 标记竖线）；
 /// "Resets in:" + "Pace: ±X%" 底行。
+///
+/// v0.2.5：吃 provider 无关的 `UsageWindow`（之前是 Claude 的 `UsageBucket`）——
+/// `utilizationPct`（0...100）与 `resetsAt: Date?` 直接来自 window；其余渲染逻辑不变。
 struct UsageHeroCard: View {
     let label: String
-    let bucket: UsageBucket?
+    let window: UsageWindow?
     var trend: TrendIndicator? = nil
     /// "此刻应该用到多少 %"（0...100）。nil = 不画标记线、不显示 Pace 偏差。
     var pacePct: Double? = nil
@@ -52,13 +55,13 @@ struct UsageHeroCard: View {
         }
     }
 
-    private var pctValue: Double { (bucket?.utilization ?? 0) / 100.0 }
+    private var pctValue: Double { (window?.utilizationPct ?? 0) / 100.0 }
     private var pctColor: Color { colorForPct(pctValue) }
     private var percentageText: String {
-        guard let pct = bucket?.utilization else { return "—" }
+        guard let pct = window?.utilizationPct else { return "—" }
         return "\(Int(round(pct)))%"
     }
-    private var resetLine: String? { formatResetWithClock(date: bucket?.resetsAtDate, now: Date()) }
+    private var resetLine: String? { formatResetWithClock(date: window?.resetsAt, now: Date()) }
 
     /// pace 竖线在进度条上的位置（0...1）。pacePct 为 nil → 不画。
     private var markerFraction: Double? {
@@ -68,7 +71,7 @@ struct UsageHeroCard: View {
 
     /// 当前 % 相对 pace 的有符号偏差（四舍五入）。正 = 用超了。
     private var paceDeviation: Int? {
-        guard let p = pacePct, let current = bucket?.utilization else { return nil }
+        guard let p = pacePct, let current = window?.utilizationPct else { return nil }
         return Int((current - p).rounded())
     }
 
@@ -111,16 +114,18 @@ struct CapsuleProgressBar: View {
 #Preview("UsageHeroCard – Session / Weekly") {
     VStack(alignment: .leading, spacing: 10) {
         UsageHeroCard(label: "Session",
-                      bucket: UsageBucket(utilization: 42, resetsAt: "2099-01-01T23:44:00Z"),
+                      window: UsageWindow(label: "Session", utilizationPct: 42,
+                                          resetsAt: Date().addingTimeInterval(3600), windowDuration: 5 * 3600),
                       trend: TrendIndicator(direction: .down, deltaPct: 2),
                       pacePct: 55,   // pace 55% → 偏差 -13%（绿）
                       icon: "clock")
         UsageHeroCard(label: "Weekly",
-                      bucket: UsageBucket(utilization: 73, resetsAt: "2099-01-08T00:00:00Z"),
+                      window: UsageWindow(label: "Weekly", utilizationPct: 73,
+                                          resetsAt: Date().addingTimeInterval(6 * 24 * 3600), windowDuration: 7 * 24 * 3600),
                       trend: TrendIndicator(direction: .up, deltaPct: 11),
                       pacePct: 50,   // pace 50% → 偏差 +23%（红）
                       icon: "calendar")
-        UsageHeroCard(label: "Session (no data)", bucket: nil, icon: "clock")
+        UsageHeroCard(label: "Session (no data)", window: nil, icon: "clock")
     }
     .padding()
     .frame(width: 360)

@@ -831,12 +831,9 @@ extension UsageService: UsageProvider {
     var isConfigured: Bool { isAuthenticated }
     var supportsBackgroundPolling: Bool { true }
 
-    /// 切 tab / popover Refresh 按钮触发的「按需拉取」：距上次成功 < `refreshThrottleSeconds` 则跳过。
-    /// （后台 polling timer 不受此节流影响 —— 它直接调 `fetchUsage()`。）
+    /// 「按需拉取」（popover Refresh 按钮 / 切 tab）。不做内部节流——节流（如「切 tab 距上次 <Ns 不重拉」）
+    /// 由调用方按需决定（见 `PopoverView`）；Refresh 按钮就是要强制重拉。
     func refreshNow() async {
-        if let last = lastUpdated, Date().timeIntervalSince(last) < Self.refreshThrottleSeconds {
-            return
-        }
         await fetchUsage()
     }
 }
