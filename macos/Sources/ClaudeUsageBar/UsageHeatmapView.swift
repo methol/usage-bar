@@ -88,7 +88,6 @@ struct UsageHeatmapView: View {
     }
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("消费热力图").font(.caption).foregroundStyle(.secondary)
             if isInitializing {
                 HStack { ProgressView().controlSize(.small); Text("统计中…").font(.caption2).foregroundStyle(.secondary) }
             } else {
@@ -123,7 +122,7 @@ struct UsageHeatmapView: View {
                         }
                     }
                 }
-                // 悬停信息行：固定高度避免布局跳动
+                // 悬停信息行：固定高度避免布局跳动（无悬停时留空）
                 Group {
                     if let cell = hovered, let key = cell.dayKey {
                         HStack(spacing: 6) {
@@ -131,8 +130,7 @@ struct UsageHeatmapView: View {
                             UsageMetricBadges(usd: cell.usd, calls: cell.calls, tokens: cell.tokens)
                         }
                     } else {
-                        Text("鼠标悬停查看某天明细")
-                            .foregroundStyle(.tertiary)
+                        Color.clear
                     }
                 }
                 .font(.caption2)

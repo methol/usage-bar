@@ -97,35 +97,34 @@ struct PopoverView: View {
             points: points,
             metric: \.pct7d
         )
-        // TODO(perf): pace5h 与 trend5h/7d 一样在 body 每帧重算（v0.0.9 G5 R2 / v0.0.11 G5 R2）；
+        // TODO(perf): pacePct 与 trend5h/7d 一样在 body 每帧重算（v0.0.9 G5 R2 / v0.0.11 G5 R2）；
         // 30 天 ~千点 history 下 < 1ms 影响小；polling↑/retention↑ 至 ~万点时迁
         // UsageService @Published 缓存。
-        let pace5h = computePaceState(
-            currentPct: service.usage?.fiveHour?.utilization,
-            resetDate: service.usage?.fiveHour?.resetsAtDate
+        let pacePct5h = expectedPacePct(
+            resetDate: service.usage?.fiveHour?.resetsAtDate,
+            windowDuration: 5 * 3600
         )
-        let pace7d = computePaceState(
-            currentPct: service.usage?.sevenDay?.utilization,
+        let pacePct7d = expectedPacePct(
             resetDate: service.usage?.sevenDay?.resetsAtDate,
             windowDuration: 604_800   // 7 天
         )
 
         UsageCard {
             UsageHeroCard(
-                label: "5-Hour",
+                label: "Session",
                 bucket: service.usage?.fiveHour,
                 trend: trend5h,
-                pace: pace5h,
+                pacePct: pacePct5h,
                 icon: "clock"
             )
         }
 
         UsageCard {
             UsageHeroCard(
-                label: "7-Day",
+                label: "Weekly",
                 bucket: service.usage?.sevenDay,
                 trend: trend7d,
-                pace: pace7d,
+                pacePct: pacePct7d,
                 icon: "calendar"
             )
         }
@@ -150,9 +149,7 @@ struct PopoverView: View {
         UsageCard {
             UsageChartSectionView(
                 historyService: historyService,
-                recentEvents: usageStats.recentEvents,
-                fiveHourResetDate: service.usage?.fiveHour?.resetsAtDate,
-                sevenDayResetDate: service.usage?.sevenDay?.resetsAtDate
+                recentEvents: usageStats.recentEvents
             )
         }
 

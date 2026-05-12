@@ -253,3 +253,16 @@ ForEach(pace5h) { p in
 - [x] SC5 — 死代码 UsageChartView 删除 + 13 条新单测；swift build -c release / swift test(175) / make release-artifacts 全绿
 
 > 备注：manual_checks 三项（popover 目测、折线图目测、dark mode 目测）尚待 user 在本机确认 —— 实施环境无法做可视化验证，已用 `make app` 烟测确认进程不崩溃。若目测发现样式问题，作为 v0.2.4 范围内的 follow-up 修。
+
+## Post-implement amendment log
+
+> 实施完成后基于 user 反馈的范围内调整（v0.2.4 仍在 in-progress，未发版）。原 SC1~SC5 主体不变，下面记差异。
+
+### 2026-05-12 · 迭代 1（user 反馈：面积图太丑 / 文案太多 / 标题 / segmented 出戏）
+
+- **撤销折线图 pace 面积**（原 SC3 的面积图部分）：删除 `PacePoint` / `UsagePaceArea` 与 `chartView` 里的两组 `AreaMark`；`UsageChartSectionView` / `UsageChartContentView` 去掉 `fiveHourResetDate` / `sevenDayResetDate` 参数；删 `UsagePaceAreaTests`。折线图回到"只有两条折线 + 悬停 tooltip"。
+- **pace 改成进度条上的标记竖线**：新增 `expectedPacePct(resetDate:windowDuration:now:)`（= 当前窗口内 elapsed 比例 ×100）；`CapsuleProgressBar` 加 `marker: Double?` 画一根深蓝色（`paceMarkerColor`）竖线；`UsageHeroCard` 把 `pace: PaceState?` 换成 `pacePct: Double?`。卡片底行右侧不再显示 `Pace: safe/fast`，改显示有符号偏差 `Pace: +X% / -X%`（负=绿、正=红=用超了）；删 `paceWord(_:)`。`computePaceState` / `PaceState` 暂保留（仅测试在用），后续可清理。
+- **卡片标题**：`5-Hour` → `Session`、`7-Day` → `Weekly`（图标 clock/calendar 不变）。
+- **去冗余文案**（SC2 范围微调，目标"简洁优雅"）：`LocalCostCard` 去掉"本地 N 天估算"标题文字（连带去掉 `periodLabel` 参数），col1 留空；`UsageHeatmapView` 去掉"消费热力图"标题与"鼠标悬停查看某天明细"提示（悬停信息行保留固定高度避免布局跳动）。
+- **周期切换 segmented 重做**：新增通用 `PillPicker<Item>`（药丸式，配色随卡片审美，不用系统 `.segmented`），`UsageChartSectionView` 的时间范围选择器改用它（与 `ProviderTabBar` 视觉一致）。
+- 测试：删 `UsagePaceAreaTests`，`PaceCalculatorTests` 加 4 条 `expectedPacePct` case；`swift build -c release` / `swift test`(174) / `make release-artifacts` 全绿；`make app` 烟测进程不崩溃。可视化目测仍待 user。

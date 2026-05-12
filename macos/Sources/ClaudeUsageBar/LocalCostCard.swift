@@ -29,7 +29,6 @@ struct UsageMetricBadges: View {
 
 struct LocalCostCard: View {
     let summary: CostSummary
-    var periodLabel: String = "30 天"
     @State private var expanded = false
 
     private var totalCalls: Int { summary.perModel.reduce(0) { $0 + $1.calls } }
@@ -44,12 +43,11 @@ struct LocalCostCard: View {
             // ── Header + rows in one Grid (5 columns) ─────────────────────
             // col1: name/title (expands), col2: calls, col3: tokens, col4: amount, col5: chevron
             Grid(alignment: .trailing, horizontalSpacing: 12, verticalSpacing: 3) {
-                // Header row (always shown)
+                // Header row (always shown) —— col1 留空（去掉"本地 N 天估算"提示文字）
                 GridRow {
-                    Text("本地 \(periodLabel)估算")
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Color.clear
+                        .frame(maxWidth: .infinity, maxHeight: 1)
                         .gridColumnAlignment(.leading)
-                        .foregroundStyle(.secondary)
                     HStack(spacing: 2) {
                         Image(systemName: "number").imageScale(.small)
                         Text(ExtraUsage.formatTokens(totalCalls))

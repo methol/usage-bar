@@ -61,49 +61,12 @@ enum UsageChartInterpolation {
     }
 }
 
-// MARK: - Pace area
-
-struct PacePoint: Identifiable {
-    let id = UUID()
-    let date: Date
-    let pct: Double   // 0...100
-}
-
-/// pace 面积序列：在 [domainStart, domainEnd] 上等距采样 sampleCount+1 个点，
-/// 每点求其所在 windowDuration 窗口内 elapsed 比例 ×100。窗口序列由当前 `reset`
-/// 按 windowDuration 步长向过去回推（Claude 5h 窗口非固定网格、无历史 reset 记录，
-/// 回推是可接受近似 —— pace 面积只作参考线，不要求精确历史窗口对齐）。
-enum UsagePaceArea {
-    static func series(reset: Date?,
-                       windowDuration: TimeInterval,
-                       domainStart: Date,
-                       domainEnd: Date,
-                       sampleCount: Int = 240) -> [PacePoint] {
-        guard let reset, windowDuration > 0, sampleCount > 0, domainEnd > domainStart else { return [] }
-        let span = domainEnd.timeIntervalSince(domainStart)
-        var out: [PacePoint] = []
-        out.reserveCapacity(sampleCount + 1)
-        for i in 0...sampleCount {
-            let t = domainStart.addingTimeInterval(span * Double(i) / Double(sampleCount))
-            let kRaw = floor(reset.timeIntervalSince(t) / windowDuration)
-            let k = max(0.0, kRaw)
-            let windowStart = reset.addingTimeInterval(-windowDuration * (k + 1))
-            let frac = t.timeIntervalSince(windowStart) / windowDuration
-            let clamped = min(max(frac, 0), 1)
-            out.append(PacePoint(date: t, pct: clamped * 100))
-        }
-        return out
-    }
-}
-
 // MARK: - UsageChartSectionView
-// 趋势图 + 跟随 picker 时间窗口的估算费用卡（Change A/B）
+// 趋势图 + 跟随 picker 时间窗口的估算费用卡
 
 struct UsageChartSectionView: View {
     @ObservedObject var historyService: UsageHistoryService
     let recentEvents: [StoredUsageEvent]
-    var fiveHourResetDate: Date? = nil
-    var sevenDayResetDate: Date? = nil
 
     @State private var selectedRange: TimeRange = .day1
 
@@ -114,33 +77,14 @@ struct UsageChartSectionView: View {
         return summary.scannedFileCount > 0 ? summary : nil
     }
 
-    private var periodLabel: String {
-        switch selectedRange {
-        case .hour1: return "1 小时"
-        case .hour6: return "6 小时"
-        case .day1:  return "1 天"
-        case .day7:  return "7 天"
-        case .day30: return "30 天"
-        }
-    }
-
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Picker("", selection: $selectedRange) {
-                ForEach(TimeRange.allCases) { range in
-                    Text(range.rawValue).tag(range)
-                }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
+            PillPicker(items: TimeRange.allCases, selection: $selectedRange) { $0.rawValue }
 
-            UsageChartContentView(historyService: historyService,
-                                  selectedRange: selectedRange,
-                                  fiveHourResetDate: fiveHourResetDate,
-                                  sevenDayResetDate: sevenDayResetDate)
+            UsageChartContentView(historyService: historyService, selectedRange: selectedRange)
 
             if let cost = costSummary {
-                LocalCostCard(summary: cost, periodLabel: periodLabel)
+                LocalCostCard(summary: cost)
             }
         }
     }
@@ -150,8 +94,6 @@ struct UsageChartSectionView: View {
 private struct UsageChartContentView: View {
     @ObservedObject var historyService: UsageHistoryService
     let selectedRange: TimeRange
-    var fiveHourResetDate: Date? = nil
-    var sevenDayResetDate: Date? = nil
     @State private var hoverDate: Date?
 
     var body: some View {
@@ -170,28 +112,11 @@ private struct UsageChartContentView: View {
     private func chartView(points: [UsageDataPoint]) -> some View {
         let now = Date()
         let domainStart = now.addingTimeInterval(-selectedRange.interval)
-        let pace5h = UsagePaceArea.series(reset: fiveHourResetDate, windowDuration: 5 * 3600,
-                                          domainStart: domainStart, domainEnd: now)
-        let pace7d = UsagePaceArea.series(reset: sevenDayResetDate, windowDuration: 7 * 24 * 3600,
-                                          domainStart: domainStart, domainEnd: now)
         let interpolated = hoverDate.flatMap {
             UsageChartInterpolation.interpolateValues(at: $0, in: points)
         }
 
         Chart {
-            // pace 面积（先画 = 在底层；不进图例 —— 用直接 foregroundStyle(Color) 而非 by:）
-            ForEach(pace7d) { p in
-                AreaMark(x: .value("Time", p.date), y: .value("Pace 7d", p.pct))
-            }
-            .foregroundStyle(Color.orange.opacity(0.08))
-            .interpolationMethod(.linear)
-
-            ForEach(pace5h) { p in
-                AreaMark(x: .value("Time", p.date), y: .value("Pace 5h", p.pct))
-            }
-            .foregroundStyle(Color.blue.opacity(0.10))
-            .interpolationMethod(.linear)
-
             ForEach(points) { point in
                 LineMark(
                     x: .value("Time", point.timestamp),

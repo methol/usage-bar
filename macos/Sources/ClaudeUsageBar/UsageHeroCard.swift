@@ -1,12 +1,16 @@
 import SwiftUI
 
-/// 单个用量窗口卡片：图标 + 标题 + 百分比 + 趋势；进度条；"Resets in:" + "Pace:" 底行。
-/// （v0.2.4 起去掉 v0.0.8 的 hero / secondary 双尺寸，5h 与 7d 等权。）
+/// pace 标记竖线的颜色（"深蓝色"）。light/dark 都够对比。
+let paceMarkerColor = Color(red: 0.11, green: 0.24, blue: 0.60)
+
+/// 单个用量窗口卡片：图标 + 标题 + 百分比 + 趋势；进度条（含 pace 标记竖线）；
+/// "Resets in:" + "Pace: ±X%" 底行。
 struct UsageHeroCard: View {
     let label: String
     let bucket: UsageBucket?
     var trend: TrendIndicator? = nil
-    var pace: PaceState? = nil
+    /// "此刻应该用到多少 %"（0...100）。nil = 不画标记线、不显示 Pace 偏差。
+    var pacePct: Double? = nil
     var icon: String = "gauge"
 
     var body: some View {
@@ -27,9 +31,9 @@ struct UsageHeroCard: View {
                         .foregroundStyle(trend.direction == .up ? .red : .green)
                 }
             }
-            CapsuleProgressBar(value: pctValue, color: pctColor)
+            CapsuleProgressBar(value: pctValue, color: pctColor, marker: markerFraction)
                 .frame(height: 8)
-            if resetLine != nil || paceWordValue != nil {
+            if resetLine != nil || paceDeviation != nil {
                 HStack(alignment: .firstTextBaseline) {
                     if let resetLine {
                         Text("Resets in: \(resetLine)")
@@ -37,10 +41,11 @@ struct UsageHeroCard: View {
                             .foregroundStyle(.secondary)
                     }
                     Spacer()
-                    if let pw = paceWordValue {
-                        Text("Pace: \(pw.text)")
+                    if let dev = paceDeviation {
+                        Text("Pace: \(dev > 0 ? "+" : "")\(dev)%")
                             .font(.caption)
-                            .foregroundStyle(pw.color)
+                            .monospacedDigit()
+                            .foregroundStyle(dev > 0 ? .red : .green)
                     }
                 }
             }
@@ -54,7 +59,18 @@ struct UsageHeroCard: View {
         return "\(Int(round(pct)))%"
     }
     private var resetLine: String? { formatResetWithClock(date: bucket?.resetsAtDate, now: Date()) }
-    private var paceWordValue: (text: String, color: Color)? { paceWord(pace) }
+
+    /// pace 竖线在进度条上的位置（0...1）。pacePct 为 nil → 不画。
+    private var markerFraction: Double? {
+        guard let p = pacePct else { return nil }
+        return min(max(p / 100.0, 0), 1)
+    }
+
+    /// 当前 % 相对 pace 的有符号偏差（四舍五入）。正 = 用超了。
+    private var paceDeviation: Int? {
+        guard let p = pacePct, let current = bucket?.utilization else { return nil }
+        return Int((current - p).rounded())
+    }
 
     private func trendText(for t: TrendIndicator) -> String {
         let arrow = t.direction == .up ? "▲" : "▼"
@@ -62,18 +78,10 @@ struct UsageHeroCard: View {
     }
 }
 
-/// PaceState → 卡片底行短标签。inReserve / onPace → "safe" 绿；inDeficit → "fast" 红；nil → 不显示。
-func paceWord(_ pace: PaceState?) -> (text: String, color: Color)? {
-    switch pace {
-    case nil: return nil
-    case .onPace, .inReserve: return ("safe", .green)
-    case .inDeficit: return ("fast", .red)
-    }
-}
-
 struct CapsuleProgressBar: View {
-    let value: Double  // 期望 0...1，越界自动 clamp
+    let value: Double            // 期望 0...1，越界自动 clamp
     let color: Color
+    var marker: Double? = nil    // 0...1：pace 标记竖线位置；nil = 不画
 
     var body: some View {
         Capsule()
@@ -85,22 +93,32 @@ struct CapsuleProgressBar: View {
                         .frame(width: max(0, min(1, value)) * geo.size.width)
                 }
             }
+            .overlay(alignment: .leading) {
+                if let marker {
+                    GeometryReader { geo in
+                        RoundedRectangle(cornerRadius: 1)
+                            .fill(paceMarkerColor)
+                            .frame(width: 2.5, height: geo.size.height + 4)
+                            .offset(x: max(0, min(1, marker)) * geo.size.width - 1.25, y: -2)
+                    }
+                }
+            }
     }
 }
 
-#Preview("UsageHeroCard – 5h / 7d") {
+#Preview("UsageHeroCard – Session / Weekly") {
     VStack(alignment: .leading, spacing: 10) {
-        UsageHeroCard(label: "5-Hour",
+        UsageHeroCard(label: "Session",
                       bucket: UsageBucket(utilization: 42, resetsAt: "2099-01-01T23:44:00Z"),
                       trend: TrendIndicator(direction: .down, deltaPct: 2),
-                      pace: .inReserve(percentUnder: 5),
+                      pacePct: 55,   // pace 55% → 偏差 -13%（绿）
                       icon: "clock")
         UsageHeroCard(label: "Weekly",
                       bucket: UsageBucket(utilization: 73, resetsAt: "2099-01-08T00:00:00Z"),
                       trend: TrendIndicator(direction: .up, deltaPct: 11),
-                      pace: .inDeficit(percentOver: 14, runsOutIn: 259_200),
+                      pacePct: 50,   // pace 50% → 偏差 +23%（红）
                       icon: "calendar")
-        UsageHeroCard(label: "5-Hour (no data)", bucket: nil, icon: "clock")
+        UsageHeroCard(label: "Session (no data)", bucket: nil, icon: "clock")
     }
     .padding()
     .frame(width: 360)
