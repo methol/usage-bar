@@ -32,6 +32,7 @@ updated: 2026-05-12
 | `2026-05-12-codex-provider` | Codex provider 第一条数据源：`CodexProvider: UsageProvider` 读 `~/.codex/auth.json` OAuth → `wham/usage`，复用 v0.2.5 泛化视图层 | implemented | v0.2.6 | [文件](./2026-05-12-codex-provider.md) |
 | `2026-05-12-claude-keychain-reimport` | Claude refresh 永久失败（单账号）时回退读 Claude CLI Keychain 续上凭证（修「Session expired」误报）；复用 v0.1.1 的 `ClaudeCLICredentialsStrategy` | implemented | v0.2.7 | [文件](./2026-05-12-claude-keychain-reimport.md) |
 | `2026-05-12-codex-history-trend` | Codex 历史采样持久化 + Session/Weekly 卡趋势箭头 + 额度折线图：泛化 `UsageHistoryService(filename:directory:)`、`UsageChartSectionView` 加 `primaryLabel/secondaryLabel`、`CodexProvider` 自持 `history-codex.json` + 5 分钟轻量采样 timer | implemented | v0.2.8 | [文件](./2026-05-12-codex-history-trend.md) |
+| `2026-05-12-codex-cost-heatmap` | Codex 本机 session JSONL 扫描 → 估算成本 + 消费热力图 + 去 Plan 卡：抽 `ModelPriceTable` 协议 + `OpenAIPricing` 估价表、`CodexRolloutCostParser`/`CodexUsageCollector`、`UsageStatsService`/`ScanCursorStore` per-provider、`ProviderCostContext` 接进 Codex tab（Claude 零回归） | implemented | v0.2.9 | [文件](./2026-05-12-codex-cost-heatmap.md) |
 
 > 新增 spec 时在表格 append 一行；状态由 spec frontmatter 同步。
 

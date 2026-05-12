@@ -23,7 +23,7 @@
 
 **Files:** Create `ModelPricing.swift`, `OpenAIPricing.swift`, `Tests/.../OpenAIPricingTests.swift`; Modify `ClaudePricing.swift`, `UsageAggregator.swift`, `UsageEventStore.swift`, `LocalCostCard.swift`.
 
-- [ ] **Step 1: 写 `OpenAIPricingTests.swift`（失败测试）**
+- [x] **Step 1: 写 `OpenAIPricingTests.swift`（失败测试）**
 
 ```swift
 import XCTest
@@ -59,9 +59,9 @@ final class OpenAIPricingTests: XCTestCase {
 }
 ```
 
-- [ ] **Step 2: 跑确认失败** — `cd /Users/methol/data/code-methol/usage-bar/macos && swift test --filter OpenAIPricingTests` → 编译失败（`OpenAIPricing`/`ModelUnitPricing`/`OpenAIModelPriceTable`/`ClaudeModelPriceTable` 不存在）。
+- [x] **Step 2: 跑确认失败** — `cd /Users/methol/data/code-methol/usage-bar/macos && swift test --filter OpenAIPricingTests` → 编译失败（`OpenAIPricing`/`ModelUnitPricing`/`OpenAIModelPriceTable`/`ClaudeModelPriceTable` 不存在）。
 
-- [ ] **Step 3: 新建 `ModelPricing.swift`**
+- [x] **Step 3: 新建 `ModelPricing.swift`**
 
 ```swift
 import Foundation
@@ -95,7 +95,7 @@ struct ProviderCostContext {
 }
 ```
 
-- [ ] **Step 4: 改 `ClaudePricing.swift` —— 加适配器（表/静态方法字节不动）**
+- [x] **Step 4: 改 `ClaudePricing.swift` —— 加适配器（表/静态方法字节不动）**
 
 在文件末尾追加：
 ```swift
@@ -115,7 +115,7 @@ struct ClaudeModelPriceTable: ModelPriceTable {
 ```
 （确认 `ClaudeModelPricing` 的字段名 —— Explore 报告是 `inputUSDPerMTok` / `outputUSDPerMTok` / `cacheReadUSDPerMTok` / `cacheWriteUSDPerMTok`；实施时读文件核对，名字不一致就照实际改。）
 
-- [ ] **Step 5: 新建 `OpenAIPricing.swift`**
+- [x] **Step 5: 新建 `OpenAIPricing.swift`**
 
 ```swift
 import Foundation
@@ -178,18 +178,18 @@ struct OpenAIModelPriceTable: ModelPriceTable {
 }
 ```
 
-- [ ] **Step 6: 改 `UsageAggregator.swift`** —— 给 `usdForBucket` / `dailySpend` / `monthlySpend` / `costForEvents` / `rolling30dSummary` 加 `pricing: ModelPriceTable = ClaudeModelPriceTable.shared`，给 `foldByDay/foldByMonth/foldByYear` 加 `normalize: @Sendable (String)->String = { ClaudePricing.normalize($0) }`；把内部写死的 `ClaudePricing.normalize` 换成参数 `normalize`，`ClaudePricing.lookup(model:)` 换成 `pricing.lookup(_:)`、`ClaudePricing.cost(for:input:output:cacheRead:cacheWrite:)` 换成 `(pricing.lookup(m) ?? <zero>)`?? —— 注意 `ClaudePricing.cost(for: ClaudeModelPricing?, ...)` 接受 nil（未知 → 0）；`ModelUnitPricing` 没有「nil 版本」，所以写：`let unit = pricing.lookup(normalizedModel); let usd = unit?.cost(input:..., output:..., cacheRead:..., cacheWrite:...) ?? 0; let isUnknown = (unit == nil)`。读 `UsageAggregator.swift` 现有 `usdForBucket` 实现照搬这个结构。其余（`dailySpend`/`monthlySpend` 只是聚合金额、`costForEvents`/`rolling30dSummary` 内部调 `usdForBucket`/fold —— 把 `pricing`/`normalize` 一路透传）不动。
+- [x] **Step 6: 改 `UsageAggregator.swift`** —— 给 `usdForBucket` / `dailySpend` / `monthlySpend` / `costForEvents` / `rolling30dSummary` 加 `pricing: ModelPriceTable = ClaudeModelPriceTable.shared`，给 `foldByDay/foldByMonth/foldByYear` 加 `normalize: @Sendable (String)->String = { ClaudePricing.normalize($0) }`；把内部写死的 `ClaudePricing.normalize` 换成参数 `normalize`，`ClaudePricing.lookup(model:)` 换成 `pricing.lookup(_:)`、`ClaudePricing.cost(for:input:output:cacheRead:cacheWrite:)` 换成 `(pricing.lookup(m) ?? <zero>)`?? —— 注意 `ClaudePricing.cost(for: ClaudeModelPricing?, ...)` 接受 nil（未知 → 0）；`ModelUnitPricing` 没有「nil 版本」，所以写：`let unit = pricing.lookup(normalizedModel); let usd = unit?.cost(input:..., output:..., cacheRead:..., cacheWrite:...) ?? 0; let isUnknown = (unit == nil)`。读 `UsageAggregator.swift` 现有 `usdForBucket` 实现照搬这个结构。其余（`dailySpend`/`monthlySpend` 只是聚合金额、`costForEvents`/`rolling30dSummary` 内部调 `usdForBucket`/fold —— 把 `pricing`/`normalize` 一路透传）不动。
 
-- [ ] **Step 7: 改 `UsageEventStore.swift`** —— `rebuildAllAggregates(normalize: @Sendable (String)->String = { ClaudePricing.normalize($0) })` 与 `rebuildAggregates(forDayKeys: Set<String>, normalize: @Sendable (String)->String = { ClaudePricing.normalize($0) })`：把 `normalize` 透传给它们内部调的 `UsageAggregator.foldBy*`。读现有这两个方法体照改。其余不动。
+- [x] **Step 7: 改 `UsageEventStore.swift`** —— `rebuildAllAggregates(normalize: @Sendable (String)->String = { ClaudePricing.normalize($0) })` 与 `rebuildAggregates(forDayKeys: Set<String>, normalize: @Sendable (String)->String = { ClaudePricing.normalize($0) })`：把 `normalize` 透传给它们内部调的 `UsageAggregator.foldBy*`。读现有这两个方法体照改。其余不动。
 
-- [ ] **Step 8: 改 `LocalCostCard.swift`** —— `struct LocalCostCard` 加 `var displayName: (String) -> String = { ClaudePricing.displayName($0) }`；把 `Text(ClaudePricing.displayName(row.normalizedModel))` 改成 `Text(displayName(row.normalizedModel))`。
+- [x] **Step 8: 改 `LocalCostCard.swift`** —— `struct LocalCostCard` 加 `var displayName: (String) -> String = { ClaudePricing.displayName($0) }`；把 `Text(ClaudePricing.displayName(row.normalizedModel))` 改成 `Text(displayName(row.normalizedModel))`。
 
-- [ ] **Step 9: build + 全量 test（G4 + 守 SC8 零回归）**
+- [x] **Step 9: build + 全量 test（G4 + 守 SC8 零回归）**
 
 Run: `cd /Users/methol/data/code-methol/usage-bar/macos && swift build -c release && swift test`
 Expected: build OK；全部 tests PASS（既有 `UsageAggregatorTests` / `ClaudePricingTests` / `UsageEventStoreTests` / `UsageStatsServiceTests`(Claude) 不动全绿 + 新 `OpenAIPricingTests` 绿）。
 
-- [ ] **Step 10: Commit**
+- [x] **Step 10: Commit**
 
 ```bash
 cd /Users/methol/data/code-methol/usage-bar
@@ -205,7 +205,7 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 
 **Files:** Create `CodexRolloutCostParser.swift`, `Tests/.../CodexRolloutCostParserTests.swift`.
 
-- [ ] **Step 1: 写 `CodexRolloutCostParserTests.swift`（失败测试）** —— 见 spec §3.3 的 `CodexRolloutCostParserTests` 清单，写成实际 XCTest：
+- [x] **Step 1: 写 `CodexRolloutCostParserTests.swift`（失败测试）** —— 见 spec §3.3 的 `CodexRolloutCostParserTests` 清单，写成实际 XCTest：
 
 ```swift
 import XCTest
@@ -279,9 +279,9 @@ final class CodexRolloutCostParserTests: XCTestCase {
 
 > 注：`StoredUsageEvent` 的 `Codable` key 名以 `UsageStoreTypes.swift` 实际为准（Explore 报告是 `ts/msgId/reqId/sessionId/model/inputTokens/outputTokens/cacheReadInputTokens/cacheCreationInputTokens`）—— 实施时读文件核对，`allowed` 集合照实际填。`testNormalSequence` 里 `reqId == "3"` 取决于行号从 0 起：lines[0]=session_meta, [1]=turn_context, [2]=token_count(null,跳过), [3]=token_count → reqId "3"。
 
-- [ ] **Step 2: 跑确认失败** — `swift test --filter CodexRolloutCostParserTests` → 编译失败。
+- [x] **Step 2: 跑确认失败** — `swift test --filter CodexRolloutCostParserTests` → 编译失败。
 
-- [ ] **Step 3: 新建 `CodexRolloutCostParser.swift`**
+- [x] **Step 3: 新建 `CodexRolloutCostParser.swift`**
 
 ```swift
 import Foundation
@@ -350,11 +350,11 @@ enum CodexRolloutCostParser {
 
 > ⚠️ 实施时核对 `StoredUsageEvent` 的初始化器签名（参数名/顺序）与 `UsageStoreTypes.swift` 一致；若 `JSONSerialization` 把整数解析成 `NSNumber` 而 `as? Int` 失败，改成 `(lt["input_tokens"] as? NSNumber)?.intValue ?? 0`（Foundation JSON 数字一般能 `as? Int`，但保险起见实测）。
 
-- [ ] **Step 4: 跑确认通过** — `swift test --filter CodexRolloutCostParserTests` → all PASS（若 `reqId`/字段名/数字桥接有出入，按上面注释调）。
+- [x] **Step 4: 跑确认通过** — `swift test --filter CodexRolloutCostParserTests` → all PASS（若 `reqId`/字段名/数字桥接有出入，按上面注释调）。
 
-- [ ] **Step 5: build + 全量 test** — `swift build -c release && swift test` → 全绿。
+- [x] **Step 5: build + 全量 test** — `swift build -c release && swift test` → 全绿。
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add macos/Sources/ClaudeUsageBar/CodexRolloutCostParser.swift macos/Tests/ClaudeUsageBarTests/CodexRolloutCostParserTests.swift
@@ -369,9 +369,9 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 
 **Files:** Modify `ScanCursorStore.swift`; Create `CodexUsageCollector.swift`, `Tests/.../CodexUsageCollectorTests.swift`.
 
-- [ ] **Step 1: 改 `ScanCursorStore.swift`** —— `init(dataDirOverride: URL? = nil, provider: ProviderID = .claude)`；cursor 文件名 `provider == .claude ? "scan-cursor.json" : "scan-cursor-\(provider.rawValue).json"`，仍放在原 `dataDir`。其余不动。读现有 `init` 照改。
+- [x] **Step 1: 改 `ScanCursorStore.swift`** —— `init(dataDirOverride: URL? = nil, provider: ProviderID = .claude)`；cursor 文件名 `provider == .claude ? "scan-cursor.json" : "scan-cursor-\(provider.rawValue).json"`，仍放在原 `dataDir`。其余不动。读现有 `init` 照改。
 
-- [ ] **Step 2: 写 `CodexUsageCollectorTests.swift`（失败测试）** —— 见 spec §3.3 清单：
+- [x] **Step 2: 写 `CodexUsageCollectorTests.swift`（失败测试）** —— 见 spec §3.3 清单：
 
 ```swift
 import XCTest
@@ -439,9 +439,9 @@ final class CodexUsageCollectorTests: XCTestCase {
 
 > 注：`UsageEventStore.init` / `readDayAggregates` / `CollectResult.newEventCount` 的精确签名以现有文件为准；`CodexUsageCollector.scanRoots(env:home:fileExists:)` 的参数名仿 `ClaudeUsageCollector.scanRoots(env:home:fileExists:)`（Explore 报告有这个测试变体 —— 读 `ClaudeUsageCollector.swift` 照搬签名）。
 
-- [ ] **Step 3: 跑确认失败** — `swift test --filter CodexUsageCollectorTests` → 编译失败。
+- [x] **Step 3: 跑确认失败** — `swift test --filter CodexUsageCollectorTests` → 编译失败。
 
-- [ ] **Step 4: 新建 `CodexUsageCollector.swift`** —— 对照 `ClaudeUsageCollector.swift` 的结构（读它）；关键差异：
+- [x] **Step 4: 新建 `CodexUsageCollector.swift`** —— 对照 `ClaudeUsageCollector.swift` 的结构（读它）；关键差异：
   - `scanRoots()` = `$CODEX_HOME/sessions` 优先、否则 `~/.codex/sessions`（存在才纳入）；`scanRoots(env:home:fileExists:)` 测试变体。
   - 枚举 `*.jsonl`；对每个文件读 `size`/`mtime` → `await cursor.nextReadOffset(for: file, currentSize: size, currentMTime: mtime)` —— **返回 nil（没变）→ skip；非 nil → 整文件读全部行**（不管返回的 offset 是几，都从 0 读）。
   - `let sid = CodexRolloutCostParser.sessionId(fromFileName: file.lastPathComponent)`；`let events = CodexRolloutCostParser.parseFile(lines: allLines, sessionId: sid)`；累加到 `collected`；`await cursor.updateCursor(for: file, size: size, mtime: mtime, lineOffset: allLines.count)`。
@@ -451,11 +451,11 @@ final class CodexUsageCollectorTests: XCTestCase {
   - **绝不出现 `print` / `NSLog` / `os_log`**（SC9）—— ⚠️ 注意 `ClaudeUsageCollector` 里有一行 `NSLog` 打 parse error（`ClaudeUsageCollector.swift` 约 :63）、`ScanCursorStore`/`UsageEventStore` 也有 `NSLog`；**「对照 Claude collector 结构」时不要把那行 `NSLog` 抄过来** —— Codex 路径解析失败就静默跳过（rollout 文件含用户对话原文，连「第几行解析失败」都不打）。
   - `: UsageCollecting` conformance（协议在 Task 4 定义；本 Task 先只写 `func collect() async -> CollectResult`、Task 4 再补 `: UsageCollecting`，或把「定义 `UsageCollecting`」提到本 Task 开头 —— 实施时挑，编过即可）。
 
-- [ ] **Step 5: 跑确认通过** — `swift test --filter CodexUsageCollectorTests` → all PASS。`testSecondCollectSkipsUnchangedFile` / `testAppendedLineReParsesAndDedups` 是 cursor + 去重逻辑的关键 —— 若不过，回到 Step 4 核对 `nextReadOffset` 的「没变返回 nil」语义 + `mergeEvents` 的 `(msgId,reqId)` 去重。
+- [x] **Step 5: 跑确认通过** — `swift test --filter CodexUsageCollectorTests` → all PASS。`testSecondCollectSkipsUnchangedFile` / `testAppendedLineReParsesAndDedups` 是 cursor + 去重逻辑的关键 —— 若不过，回到 Step 4 核对 `nextReadOffset` 的「没变返回 nil」语义 + `mergeEvents` 的 `(msgId,reqId)` 去重。
 
-- [ ] **Step 6: build + 全量 test** — `swift build -c release && swift test` → 全绿（既有 `ScanCursorStoreTests` 不动全绿）。
+- [x] **Step 6: build + 全量 test** — `swift build -c release && swift test` → 全绿（既有 `ScanCursorStoreTests` 不动全绿）。
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add macos/Sources/ClaudeUsageBar/{ScanCursorStore,CodexUsageCollector}.swift macos/Tests/ClaudeUsageBarTests/CodexUsageCollectorTests.swift
@@ -470,7 +470,7 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 
 **Files:** Modify `UsageStatsService.swift`, `ClaudeUsageCollector.swift`（加 `: UsageCollecting`）, `CodexUsageCollector.swift`（加 `: UsageCollecting`）; Modify `Tests/.../UsageStatsServiceTests.swift`（追加 Codex 端到端）.
 
-- [ ] **Step 1: 写失败测试（追加到 `UsageStatsServiceTests.swift`）**
+- [x] **Step 1: 写失败测试（追加到 `UsageStatsServiceTests.swift`）**
 
 ```swift
     func testCodexStatsEndToEnd() async throws {
@@ -498,9 +498,9 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 
 > `UsageStatsService` 是 `@MainActor` —— DI init 的调用、`await refresh()`、读 `@Published` 都要在 MainActor 上（测试方法标 `@MainActor` 或用 `await MainActor.run`，按既有 `UsageStatsServiceTests` 的写法照搬）。`ISO8601DateFormatter().string(from:)` 不带 fractional seconds —— parser 的 `iso8601` 兜底那个 plain `ISO8601DateFormatter()` 会接住。
 
-- [ ] **Step 2: 跑确认失败** — `swift test --filter UsageStatsServiceTests` → 编译失败（`UsageStatsService.init(store:collector:pricing:)` 不存在 / `collector` 类型不匹配）。
+- [x] **Step 2: 跑确认失败** — `swift test --filter UsageStatsServiceTests` → 编译失败（`UsageStatsService.init(store:collector:pricing:)` 不存在 / `collector` 类型不匹配）。
 
-- [ ] **Step 3: 改 `UsageStatsService.swift`**
+- [x] **Step 3: 改 `UsageStatsService.swift`**
   - 加 `protocol UsageCollecting: Sendable { func collect() async -> CollectResult }`（放本文件顶部或 `UsageProvider.swift` 旁边 —— 实施时挑；倾向本文件）。
   - DI init：`init(store: UsageEventStore, collector: any UsageCollecting, pricing: ModelPriceTable = ClaudeModelPriceTable.shared)`；存 `private let pricing: ModelPriceTable`。
   - `refresh()` 里调 `UsageAggregator` 的**三处**（`UsageStatsService.swift` 现有 `refresh()` 体里只有这三个：`dailySpend(from:)`、`monthlySpend(from:)`、`rolling30dSummary(dayAggregates:now:scannedFileCount:parseErrorCount:)`）各加 `pricing: pricing`；`costForEvents` 不在 `refresh()` 里（它在 `UsageChartSectionView` —— Task 5 处理）。读现有 `refresh()` 体照改。
@@ -522,13 +522,13 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
     ```
   - `static let shared` 不变。
 
-- [ ] **Step 4: `ClaudeUsageCollector` / `CodexUsageCollector` 加 `: UsageCollecting`** —— 它们已有 `func collect() async -> CollectResult`，只需在 actor 声明加 conformance。
+- [x] **Step 4: `ClaudeUsageCollector` / `CodexUsageCollector` 加 `: UsageCollecting`** —— 它们已有 `func collect() async -> CollectResult`，只需在 actor 声明加 conformance。
 
-- [ ] **Step 5: 跑确认通过** — `swift test --filter UsageStatsServiceTests` → all PASS（含新 `testCodexStatsEndToEnd` + 既有 Claude 用例）。
+- [x] **Step 5: 跑确认通过** — `swift test --filter UsageStatsServiceTests` → all PASS（含新 `testCodexStatsEndToEnd` + 既有 Claude 用例）。
 
-- [ ] **Step 6: build + 全量 test** — `swift build -c release && swift test` → 全绿。
+- [x] **Step 6: build + 全量 test** — `swift build -c release && swift test` → 全绿。
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add macos/Sources/ClaudeUsageBar/{UsageStatsService,ClaudeUsageCollector,CodexUsageCollector}.swift macos/Tests/ClaudeUsageBarTests/UsageStatsServiceTests.swift
@@ -543,11 +543,11 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 
 **Files:** Modify `ProviderUsageSection.swift`, `UsageChartView.swift`, `PopoverView.swift`, `CodexProvider.swift`, `ClaudeUsageBarApp.swift`. 无新增单测（纯 SwiftUI 组合 + 接线）—— 由 `swift build` + Task 6 的 `manual_checks` 覆盖；`UsageAggregator.costForEvents`/`UsageHeatmapView` 本身已有测试。
 
-- [ ] **Step 1: `ProviderUsageSection.swift`** —— 删掉渲染 `snap?.planLabel` 那张 `UsageCard`（连同它的 `if let plan = ...`）。
+- [x] **Step 1: `ProviderUsageSection.swift`** —— 删掉渲染 `snap?.planLabel` 那张 `UsageCard`（连同它的 `if let plan = ...`）。
 
-- [ ] **Step 2: `UsageChartView.swift`** —— `UsageChartSectionView` 加 `var costContext: ProviderCostContext? = nil`；`costSummary` 计算改 `UsageAggregator.costForEvents(recentEvents, since: cutoff, now: Date(), pricing: costContext?.pricing ?? ClaudeModelPriceTable.shared)`；`LocalCostCard(summary: cost, displayName: costContext?.displayName ?? { ClaudePricing.displayName($0) })`。
+- [x] **Step 2: `UsageChartView.swift`** —— `UsageChartSectionView` 加 `var costContext: ProviderCostContext? = nil`；`costSummary` 计算改 `UsageAggregator.costForEvents(recentEvents, since: cutoff, now: Date(), pricing: costContext?.pricing ?? ClaudeModelPriceTable.shared)`；`LocalCostCard(summary: cost, displayName: costContext?.displayName ?? { ClaudePricing.displayName($0) })`。
 
-- [ ] **Step 3: `PopoverView.swift`**
+- [x] **Step 3: `PopoverView.swift`**
   - `ProviderHistorySection` 加 `var costStats: UsageStatsService? = nil`（普通 `let`，**不**是 `@ObservedObject` —— Optional 不能）、`var costContext: ProviderCostContext? = nil`。`codexStats` 的 `@Published` 变化要能驱动重渲染 → 把「折线图(带 cost 卡) + 热力图」那段拆进一个内层、持非-Optional `@ObservedObject` 的子 view `ProviderCostArea`。具体（`PopoverView.swift` 内、`ProviderHistorySection` 旁，`private struct`）：
 
 ```swift
@@ -594,16 +594,16 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
   - `providerArea` 的 Codex 分支：`let costStats: UsageStatsService? = (selectedProvider == .codex ? codexStats : nil)`；`let costContext: ProviderCostContext? = (selectedProvider == .codex ? ProviderCostContext(pricing: OpenAIModelPriceTable.shared, displayName: { OpenAIPricing.displayName($0) }) : nil)`；连同 v0.2.8 的 `history`（trend/linechart）一起传进 `ProviderUsageArea(... history:, costStats:, costContext:, bottomBar:)`。
   - Claude 的 `claudeUsageArea` 不动。
 
-- [ ] **Step 4: `CodexProvider.swift`** —— 加 `var onPollTick: (@MainActor () -> Void)? = nil`；`startPolling()` 的「立即一次」`Task { [weak self] in await self?.refreshNow() }` 后面 + timer sink 里，加 `onPollTick?()`（在 sink 闭包里直接调，sink 已在 main run loop；立即那次在 `Task` 里调 `await self?.refreshNow()` 之外也调一次 `self?.onPollTick?()` —— 或更简单：`startPolling()` 末尾 `onPollTick?()` 调一次 + 每次 sink 调一次）。
+- [x] **Step 4: `CodexProvider.swift`** —— 加 `var onPollTick: (@MainActor () -> Void)? = nil`；`startPolling()` 的「立即一次」`Task { [weak self] in await self?.refreshNow() }` 后面 + timer sink 里，加 `onPollTick?()`（在 sink 闭包里直接调，sink 已在 main run loop；立即那次在 `Task` 里调 `await self?.refreshNow()` 之外也调一次 `self?.onPollTick?()` —— 或更简单：`startPolling()` 末尾 `onPollTick?()` 调一次 + 每次 sink 调一次）。
 
-- [ ] **Step 5: `ClaudeUsageBarApp.swift`**
+- [x] **Step 5: `ClaudeUsageBarApp.swift`**
   - 加 `@StateObject private var codexStats = UsageStatsService(provider: .codex)`。
   - `PopoverView(coordinator:, claude:, historyService:, notificationService:, appUpdater:, codexStats: codexStats)`。
   - `.task` 里：`await usageStats.refresh()` 之后加 `await codexStats.refresh()`；`if let codex = coordinator.provider(.codex) as? CodexProvider { codex.onPollTick = { Task.detached { await codexStats.refresh() } } }`（放在现有 `codex.startPolling()` 之前）。
 
-- [ ] **Step 6: build + 全量 test** — `cd /Users/methol/data/code-methol/usage-bar/macos && swift build -c release && swift test` → build OK；全部 tests PASS（无新测试，回归确认）。
+- [x] **Step 6: build + 全量 test** — `cd /Users/methol/data/code-methol/usage-bar/macos && swift build -c release && swift test` → build OK；全部 tests PASS（无新测试，回归确认）。
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add macos/Sources/ClaudeUsageBar/{ProviderUsageSection,UsageChartView,PopoverView,CodexProvider,ClaudeUsageBarApp}.swift
@@ -616,7 +616,7 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 
 ## Task 6: 全量验收 + 回填文档（G6）
 
-- [ ] **Step 1: build + test + artifacts + verify**
+- [x] **Step 1: build + test + artifacts + verify**
 
 ```bash
 cd /Users/methol/data/code-methol/usage-bar/macos && swift build -c release && swift test
@@ -625,9 +625,9 @@ grep -rn 'print(\|NSLog\|os_log' macos/Sources/ClaudeUsageBar/CodexRolloutCostPa
 ```
 Expected: build OK；全部 tests PASS；zip/dmg 产出 + verify "Release archive looks good"；grep 无命中。
 
-- [ ] **Step 2: `make install` + 手动 smoke** — 重开 app，切 Codex tab：折线图下方有估算费用卡（模型名 `GPT-5.x`）、tab 底有消费热力图、无「Plan」卡；Claude tab 不变。把观察记到 spec evidence + Verification log。
+- [x] **Step 2: `make install` + 手动 smoke** — 重开 app，切 Codex tab：折线图下方有估算费用卡（模型名 `GPT-5.x`）、tab 底有消费热力图、无「Plan」卡；Claude tab 不变。把观察记到 spec evidence + Verification log。
 
-- [ ] **Step 3: 回填 spec/version** — `2026-05-12-codex-cost-heatmap.md`：`spec_criteria[].done` 全 `true` + 填 `evidence`，Verification log 全勾，`status: accepted` → `implemented`。`docs/versions/v0.2.9-codex-cost-heatmap.md`：`status: planned` → `in-progress`，填 `release_notes_zh`（改进：Codex tab 加估算费用卡 + 消费热力图、去掉 Plan 卡；内部：抽 ModelPriceTable 协议 + OpenAIPricing 估价表 + CodexRolloutCostParser/CodexUsageCollector；隐私：rollout 文件只抽 token/model/时间、不落对话原文），G6 checklist 勾上。`docs/versions/README.md` + `docs/superpowers/specs/README.md` 同步状态。`docs/superpowers/plans/2026-05-12-codex-cost-heatmap.md`：勾掉本 plan 的步骤（除 Task 7 的 G5/PR）。Commit。
+- [x] **Step 3: 回填 spec/version** — `2026-05-12-codex-cost-heatmap.md`：`spec_criteria[].done` 全 `true` + 填 `evidence`，Verification log 全勾，`status: accepted` → `implemented`。`docs/versions/v0.2.9-codex-cost-heatmap.md`：`status: planned` → `in-progress`，填 `release_notes_zh`（改进：Codex tab 加估算费用卡 + 消费热力图、去掉 Plan 卡；内部：抽 ModelPriceTable 协议 + OpenAIPricing 估价表 + CodexRolloutCostParser/CodexUsageCollector；隐私：rollout 文件只抽 token/model/时间、不落对话原文），G6 checklist 勾上。`docs/versions/README.md` + `docs/superpowers/specs/README.md` 同步状态。`docs/superpowers/plans/2026-05-12-codex-cost-heatmap.md`：勾掉本 plan 的步骤（除 Task 7 的 G5/PR）。Commit。
 
 - [ ] **Step 4: G5 + PR + merge** — 独立 reviewer（codex `codex-rescue` / `general-purpose` subagent）code-review + security-review（敏感面：读 `~/.codex/sessions/**` 含完整对话/代码的文件 → 只抽 token；新增 `data/codex/`）。verdict approved 后 `gh pr create`（中文，含 spec id + version 链接），等 CI（"build" job）绿 → `git checkout main && git merge --ff-only feat/v0.2.9-codex-cost-heatmap && git push origin main` + 删分支。G5 verdict append 进 spec `reviews:`。`make install` 装最终 main。
 

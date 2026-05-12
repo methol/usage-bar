@@ -44,7 +44,7 @@ placeholder ─首个 spec 落地─► planned ─开发开始─► in-progres
 | [v0.2.6](./v0.2.6-codex-provider.md) | codex-provider | in-progress | 2026-05-12 | 🔌 Codex provider（第一条数据源：`~/.codex/auth.json` → `wham/usage`；代码已 merge 到 main） |
 | [v0.2.7](./v0.2.7-claude-keychain-reimport.md) | claude-keychain-reimport | in-progress | 2026-05-12 | 🔧 Claude refresh 失败 → 回退读 Claude CLI Keychain（修「Session expired」误报） |
 | [v0.2.8](./v0.2.8-codex-history-trend.md) | codex-history-trend | in-progress | 2026-05-13 | 🔌 Codex 历史采样 + 趋势箭头 + 折线图（泛化 UsageHistoryService / UsageChartSectionView） |
-| [v0.2.9](./v0.2.9-codex-cost-heatmap.md) | codex-cost-heatmap | planned | 2026-05-14 | 🔌 Codex 本地 session JSONL 扫描 → 成本/token → 消费热力图（Codex tab 全面对齐 Claude） |
+| [v0.2.9](./v0.2.9-codex-cost-heatmap.md) | codex-cost-heatmap | in-progress | 2026-05-14 | 🔌 Codex 本地 session JSONL 扫描 → 估算成本/token → 消费热力图 + 去 Plan 卡（Codex tab 全面对齐 Claude） |
 
 > **目标（用户 2026-05-12 定）**：把 Codex tab 做到和 Claude tab 界面/功能一致 —— v0.2.6 已上额度窗口卡 + pace；v0.2.8 补趋势 + 折线图；v0.2.9 补成本 + 消费热力图。v0.2.7 是穿插的独立小修（Claude 凭证回退）。新版本立项时按 §7.1 命名规范 append 即可。
 >

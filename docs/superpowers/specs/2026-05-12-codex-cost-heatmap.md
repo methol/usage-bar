@@ -1,7 +1,7 @@
 ---
 id: 2026-05-12-codex-cost-heatmap
 title: Codex 本机 session JSONL 扫描 → 估算成本 + 消费热力图（泛化定价层 + Codex collector）
-status: accepted
+status: implemented
 created: 2026-05-12
 updated: 2026-05-12
 owner: claude-code
@@ -13,44 +13,44 @@ related_specs: [2026-05-11-local-cost-scan, 2026-05-12-usage-store-redesign, 202
 spec_criteria:
   - id: SC1
     criterion: "**定价层泛化（纯结构，Claude 零回归）**：新增 `protocol ModelPriceTable: Sendable { func normalize(_ model: String) -> String; func lookup(_ model: String) -> ModelUnitPricing?; func displayName(_ model: String) -> String }` + `struct ModelUnitPricing: Equatable, Sendable { let inputUSDPerMTok, outputUSDPerMTok, cacheReadUSDPerMTok, cacheWriteUSDPerMTok: Double; func cost(input:output:cacheRead:cacheWrite: Int) -> Double }`（公式同 `ClaudePricing.cost`）。`ClaudePricing` 加 `struct ClaudeModelPriceTable: ModelPriceTable`（三方法转发既有静态方法、`lookup` 把 `ClaudeModelPricing` 映成 `ModelUnitPricing`）+ `static let shared`；既有 `ClaudeModelPricing` / `enum ClaudePricing` 与定价表**完全不动**。`UsageAggregator` 的定价/折叠函数加默认参数：`usdForBucket` / `dailySpend` / `monthlySpend` / `costForEvents` / `rolling30dSummary` 加 `pricing: ModelPriceTable = ClaudeModelPriceTable.shared`；`foldByDay/foldByMonth/foldByYear` 加 `normalize: @Sendable (String) -> String = { ClaudePricing.normalize($0) }`（用于 agg key 规范化）。`UsageEventStore.rebuildAllAggregates()` / `rebuildAggregates(forDayKeys:)` 加 `normalize:` 同默认（转发给 fold）。`LocalCostCard` 加 `displayName: (String) -> String = { ClaudePricing.displayName($0) }`。**所有新参数均有 Claude-默认 → 既有 Claude 调用点一行不改**。"
-    done: false
-    evidence: null
+    done: true
+    evidence: "`ModelPricing.swift`（`ModelPriceTable: Sendable` + `ModelUnitPricing` + `ProviderCostContext`）；`ClaudePricing.swift` 加 `ClaudeModelPriceTable`（表/静态方法字节不变）；`UsageAggregator` 的 `usdForBucket/dailySpend/monthlySpend/costForEvents/rolling30dSummary` 加 `pricing:` Claude-默认、`foldBy*` 加 `normalize:` Claude-默认；`UsageEventStore.rebuild*` 加 `normalize:`；`LocalCostCard` 加 `displayName:`。commit 7ba564e。224→ 全绿（Claude 调用点未改）。"
   - id: SC2
     criterion: "**OpenAI 估价表**：新增 `enum OpenAIPricing`（结构对照 `ClaudePricing`）+ `struct OpenAIModelPriceTable: ModelPriceTable` + `static let shared`。`table: [String: ModelUnitPricing]` 收录 `gpt-5.5` / `gpt-5.1` / `gpt-5` / `gpt-5-codex` / `gpt-5-mini` / `gpt-5-nano` / `o3` / `o4-mini`；表头注释写明 `snapshotDate` + 「**这些是 best-effort 估算（按 OpenAI 模型 list price 推算），非真实账单 —— Codex 套餐是包额度计费**；过期了改这张表」+ 每项标注来源/置信度（无确切来源的标 `// UNVERIFIED — list-price estimate`）。`normalize`：strip 尾部 `-YYYY-MM-DD` 或 `-YYYYMMDD` 日期后缀 + 小写。`displayName`：`gpt-5.5`→`GPT-5.5`、`gpt-5-codex`→`GPT-5 Codex`、`gpt-5-mini`→`GPT-5 mini`、`o4-mini`→`o4-mini`、未知 → 原样。`lookup` 未知模型 → nil（→ `usdForBucket` 既有 `isUnknownPricing` 分支）。"
-    done: false
-    evidence: null
+    done: true
+    evidence: "`OpenAIPricing.swift`：8 个模型估价（gpt-5.5/5.1/5/codex/mini/nano/o3/o4-mini），每项 `// UNVERIFIED — list-price estimate` + `snapshotDate = 2026-05-12` + 表头「估算非账单」声明；`normalize` strip `-YYYY-MM-DD`/`-YYYYMMDD` + 小写；`displayName` GPT-5.x 等；`lookup` 未知 → nil。`OpenAIModelPriceTable: ModelPriceTable`。`OpenAIPricingTests`(5) 全绿。commit 7ba564e。"
   - id: SC3
     criterion: "**Codex rollout 解析器**：新增 `enum CodexRolloutCostParser { static func parseFile(lines: [String], sessionId: String) -> [StoredUsageEvent]; static func sessionId(fromFileName name: String) -> String }`。`parseFile` 是**有状态状态机**：按行（`lineIndex` 从 0）顺序解析 —— ① 行能解出 `payload.model`（来自 `turn_context`，**若 `session_meta` / `collaboration_mode.settings.model` 也带 model 则一并接受**；主路径是 `turn_context.payload.model`）→ 更新「当前模型」；② 行 `type==\"event_msg\"` 且 `payload.type==\"token_count\"` 且 `payload.info.last_token_usage` 非 null（`info` 为 null 的 token_count —— 只带 `rate_limits` —— 跳过）→ 产出 `StoredUsageEvent`：`ts` = 该行顶层 `timestamp`（解析失败用 `Date()`）；`model` = 当前模型（**若此前还没见过任何 model 行 → `\"unknown\"`**）；令 `lt = info.last_token_usage`：`cacheReadInputTokens = max(lt.cached_input_tokens, 0)`、`inputTokens = max(lt.input_tokens - lt.cached_input_tokens, 0)`、`outputTokens = max(lt.output_tokens, 0)`（已含 reasoning，OpenAI 按 output 计）、`cacheCreationInputTokens = 0`（OpenAI 自动 prompt caching，无 cache-write 计费）；`sessionId` = 传入；`msgId = \"\\(sessionId):\\(lineIndex)\"`、`reqId = String(lineIndex)`（rollout 文件 append-only → 行号稳定 → `UsageEventStore` 的 `(msgId,reqId)` 去重对「同文件重复扫」幂等）；③ 非法 JSON 行 / 缺字段 → 跳过、**不抛**。`sessionId(fromFileName:)`：从 `rollout-<ISO8601>-<uuid>.jsonl` 取末尾 uuid（5 段 `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`），取不出 → 用整文件名（去扩展名）。"
-    done: false
-    evidence: null
+    done: true
+    evidence: "`CodexRolloutCostParser.swift`：状态机（`turn_context.payload.model` / `collaboration_mode.settings.model` → 当前模型；`event_msg`/`token_count`/`info.last_token_usage` → `StoredUsageEvent`，`info==null` 跳过；`inputTokens = max(input-cached,0)`、`cacheReadInputTokens = cached`、`outputTokens = output`、`cacheCreationInputTokens = 0`；`msgId = sessionId:lineIndex`、`reqId = lineIndex`；坏 JSON 跳过不抛；`model = \"unknown\"` 若未见 model 行）；`sessionId(fromFileName:)` 取末尾 uuid。`CodexRolloutCostParserTests`(7，含字段集合断言) 全绿。commit （CodexRolloutCostParser 提交）。"
   - id: SC4
     criterion: "**Codex collector + cursor per-provider**：(a) `ScanCursorStore.init` 加 `provider: ProviderID = .claude`；cursor 文件名按 provider 区分 —— `.claude` 仍是 `<dataDir>/scan-cursor.json`（**保旧名 → 零迁移**），其它 → `<dataDir>/scan-cursor-<provider>.rawValue.json`（仍在**同一个 shared `dataDir`**，不是 `data/<provider>/` 子目录 —— `dataDirOverride` 语义不变）。(b) 新增 `actor CodexUsageCollector`（对照 `ClaudeUsageCollector`）：`init(store: UsageEventStore, cursor: ScanCursorStore, scanRootsOverride: [URL]? = nil)`；`collect() -> CollectResult`（`inFlight` 防重入 → 枚举各 root 下 `*.jsonl` → 对每个文件读 size/mtime，`cursor.nextReadOffset(...)` 返回 nil（没变）则跳过、否则**整文件从头读全部行**（不用 line-resume —— rollout 的「当前模型」依赖前文，re-parse 全文 + `UsageEventStore` 去重最简单且正确）→ `CodexRolloutCostParser.parseFile(lines:, sessionId: CodexRolloutCostParser.sessionId(fromFileName:))` → 收集 events → `cursor.updateCursor(for:, size:, mtime:, lineOffset: lines.count)`（占满，下次没变就跳过）→ 全部文件后 `store.mergeEvents(all)` → dirty 时 `store.rebuildAllAggregates(normalize: { OpenAIPricing.normalize($0) })` 否则 `store.rebuildAggregates(forDayKeys: touched, normalize: { OpenAIPricing.normalize($0) })` → `cursor.flush()` → 返回 `CollectResult`）。(c) `static func scanRoots() -> [URL]` = `$CODEX_HOME/sessions` 优先、否则 `~/.codex/sessions`（存在才纳入）+ `static func scanRoots(env:home:fileExists:)` 测试变体。"
-    done: false
-    evidence: null
+    done: true
+    evidence: "`ScanCursorStore.init(provider:.claude)` —— Claude 保 `scan-cursor.json`、其它 `scan-cursor-<provider>.json`（同 dataDir）；`CodexUsageCollector.swift`（actor，对照 `ClaudeUsageCollector`：`inFlight`、枚举 `*.jsonl`、`cursor.nextReadOffset` 判变没变、变了整文件 re-parse、`mergeEvents`、dirty→`rebuildAllAggregates(normalize:{OpenAIPricing.normalize})` 否则增量、`flush()`）；`scanRoots()` = `$CODEX_HOME/sessions` 优先否则 `~/.codex/sessions`；**无任何日志输出**。`CodexUsageCollectorTests`(5) 全绿。"
   - id: SC5
     criterion: "**`UsageStatsService` 泛化（Claude 零回归）**：新增 `protocol UsageCollecting: Sendable { func collect() async -> CollectResult }`（`ClaudeUsageCollector` / `CodexUsageCollector` 都 conform —— 它们是 actor，已 Sendable）。`UsageStatsService` 的 DI init 改成 `init(store: UsageEventStore, collector: any UsageCollecting, pricing: ModelPriceTable = ClaudeModelPriceTable.shared)`；`refresh()` 里 `UsageAggregator.dailySpend/monthlySpend/rolling30dSummary/costForEvents` 调用都带 `pricing: self.pricing`。既有 `convenience init()`（Claude）+ `static let shared`（Claude）**不变**。新增 `convenience init(provider: ProviderID)`：`.codex` → `UsageEventStore(provider:.codex)` + `CodexUsageCollector(store:, cursor: ScanCursorStore(provider:.codex))` + `pricing: OpenAIModelPriceTable.shared`；`.claude` → 等价于现 `init()`。"
-    done: false
-    evidence: null
+    done: true
+    evidence: "`UsageStatsService`：`protocol UsageCollecting: Sendable`（`ClaudeUsageCollector`/`CodexUsageCollector` conform）；`init(store:collector: any UsageCollecting, pricing: ModelPriceTable = ClaudeModelPriceTable.shared)`；`refresh()` 三处聚合（`dailySpend/monthlySpend/rolling30dSummary`）带 `pricing:`；`convenience init()`/`static let shared` 不变；新增 `convenience init(provider:)`。`UsageStatsServiceTests` 追加 `testCodexStatsEndToEnd` 全绿。"
   - id: SC6
     criterion: "**App / 后台接线**：`CodexProvider` 加 `var onPollTick: (@MainActor () -> Void)? = nil`（默认 nil）；`startPolling()` 的「立即拉一次」与「每次 5 分钟 timer sink」里，在 `refreshNow()` 之外（不阻塞）调 `onPollTick?()`。`ClaudeUsageBarApp` 加 `@StateObject private var codexStats = UsageStatsService(provider: .codex)`；`PopoverView(...)` 多传 `codexStats: codexStats`；`.task` 里在 `await usageStats.refresh()` 之后 `await codexStats.refresh()`；并 `if let codex = coordinator.provider(.codex) as? CodexProvider { codex.onPollTick = { Task.detached { await codexStats.refresh() } } }`（在 `codex.startPolling()` 之前设）。"
-    done: false
-    evidence: null
+    done: true
+    evidence: "`CodexProvider.onPollTick: (@MainActor () -> Void)?`，`startPolling()` 立即一次 + 每 timer sink 调；`ClaudeUsageBarApp` 加 `@StateObject codexStats = UsageStatsService(provider:.codex)`，`PopoverView(... codexStats:)`，`.task` 里 `await codexStats.refresh()` + `codex.onPollTick = { Task.detached { await codexStats.refresh() } }`（在 `startPolling()` 前）。build 通过。"
   - id: SC7
     criterion: "**Codex tab UI（对齐 Claude）**：(a) 去掉 Codex tab 的「Plan: Free」卡 —— `ProviderUsageSection` 删掉渲染 `snap?.planLabel` 的那张 `UsageCard`（`planLabel` 字段保留在 `ProviderUsageSnapshot`，只是不渲染）。(b) 新增 `struct ProviderCostContext { let pricing: any ModelPriceTable; let displayName: (String) -> String }`（取代会到处穿的 `(pricing:displayName:)` tuple —— 兑现 v0.2.8 G5 nit）。`UsageChartSectionView` 加 `var costContext: ProviderCostContext? = nil`：`costSummary` 用 `UsageAggregator.costForEvents(recentEvents, since:, now:, pricing: costContext?.pricing ?? ClaudeModelPriceTable.shared)`；`LocalCostCard(summary: cost, displayName: costContext?.displayName ?? { ClaudePricing.displayName($0) })`。Claude 调用点（`UsageChartSectionView(historyService:recentEvents:primaryLabel:secondaryLabel:)`）走默认 → 不变。(c) `PopoverView.ProviderHistorySection` 加 `var costStats: UsageStatsService? = nil`、`var costContext: ProviderCostContext? = nil`：折线图传 `recentEvents: costStats?.recentEvents ?? []`、`costContext`；若 `costStats != nil` 且 `costStats.dailySpend` 非空且不全 0 → 其后 `UsageCard { UsageHeatmapView(daySpends: costStats.dailySpend, isInitializing: costStats.isInitializing) }`。`ProviderUsageArea` 加 `var costStats`/`var costContext` 透传给 `ProviderHistorySection`。`providerArea` 的 Codex 分支：`costStats = codexStats`、`costContext = ProviderCostContext(pricing: OpenAIModelPriceTable.shared, displayName: { OpenAIPricing.displayName($0) })`。Claude tab 的 `claudeUsageArea` **不动**。"
-    done: false
-    evidence: null
+    done: true
+    evidence: "`ProviderUsageSection` 删 planLabel 卡（仅注释保留语义）；`ProviderCostContext` 在 `ModelPricing.swift`；`UsageChartSectionView.costContext: ProviderCostContext?`（costSummary / LocalCostCard 用它，Claude 默认）；`PopoverView`：`ProviderHistorySection` 加 `costStats`/`costContext` + 内层 `ProviderCostArea`（持 `@ObservedObject stats`，渲染折线图含估算费用卡 + 消费热力图），`ProviderUsageArea` 透传，`providerArea` Codex 分支构造 `ProviderCostContext(pricing: OpenAIModelPriceTable.shared, displayName: { OpenAIPricing.displayName($0) })` + `codexStats`；`claudeUsageArea` 不动。build 通过。"
   - id: SC8
     criterion: "**Claude / 既有行为零回归**：`ClaudeModelPricing` / `enum ClaudePricing` 的定价表与静态方法字节不变（`ClaudePricingTests` 全绿）；`UsageAggregator` / `UsageEventStore` / `UsageStatsService` / `LocalCostCard` / `UsageChartSectionView` 的新参数全有 Claude-默认 → Claude 调用点不改（`UsageAggregatorTests` / `UsageStatsServiceTests`(Claude) / `UsageEventStoreTests` 全绿）；`ScanCursorStore` 默认 `provider:.claude` → cursor 文件名 `scan-cursor.json` 不变（`ScanCursorStoreTests` 全绿）；`JSONLCostParser` / `ClaudeUsageCollector` 字节不变；Claude tab `claudeUsageArea`（trend → ProviderUsageSection → chart+costcard → heatmap）渲染不变；`MenuBarLabel` / `SettingsView` 不动（Codex 仍 `supportsBackgroundPolling=false`，不进 primary 下拉 —— Settings 重做是 v0.2.10）；Codex tab 的 v0.2.8 折线图 + Session/Weekly 趋势照旧。"
-    done: false
-    evidence: null
+    done: true
+    evidence: "237 tests 全绿（含既有 `ClaudePricingTests`/`UsageAggregatorTests`/`UsageEventStoreTests`/`ScanCursorStoreTests`/`UsageStatsServiceTests`(Claude)）；`ClaudePricing` 表/静态方法、`JSONLCostParser`、`ClaudeUsageCollector`、`UsageEventStore` 的 init/路径/权限、`MenuBarLabel`/`SettingsView`、Codex `supportsBackgroundPolling`（仍 false）均未改；Claude tab `claudeUsageArea` 渲染不变。"
   - id: SC9
     criterion: "**安全 / 隐私（Codex 路径硬约束）**：`CodexRolloutCostParser` / `CodexUsageCollector` 落盘的**只有** `StoredUsageEvent`（= token 计数 + model 名 + ts + 合成 ids）+ `ScanCursorFile`（path/size/mtime/lineOffset）—— **绝不持久化或日志输出** rollout 文件里的 prompt / 代码 / 对话内容、文件**绝对路径**、或 sessionId 之外的任何原文（rollout 文件含用户完整对话）。新增的 `data/codex/*.json` 与 `scan-cursor-codex.json` 沿用 `UsageEventStore` 既有的目录 0700 / 文件 0600（写入路径不变 → 自动继承）。代码里不出现 `print`/`NSLog`/`os_log` 打印解析中的行内容或路径；单测的 token fixture 用明显假值（如 `1000`/`600` 这种整数，不放像真 token 的串）；`CodexRolloutCostParserTests` 断言「产出的 `StoredUsageEvent` 字段集合 = {ts, msgId, reqId, sessionId, model, inputTokens, outputTokens, cacheReadInputTokens, cacheCreationInputTokens}」（即只有这些）。"
-    done: false
-    evidence: null
+    done: true
+    evidence: "`CodexRolloutCostParser.swift` / `CodexUsageCollector.swift` 落盘只有 `StoredUsageEvent` + `ScanCursorFile`，无 print/NSLog/os_log（SC_AUTO_NO_RAW_LOG grep 无命中，连注释里的函数名字面量也去掉了）；`data/codex/*.json` + `scan-cursor-codex.json` 沿用 `UsageEventStore`/`ScanCursorStore` 既有 0700/0600；测试 fixture 用明显假整数（1000/600/…）；`CodexRolloutCostParserTests.testStoredEventHasOnlyAllowedFields` 断言字段集合 ⊆ {ts,msgId,reqId,sessionId,model,inputTokens,outputTokens,cacheReadInputTokens,cacheCreationInputTokens}。"
   - id: SC10
     criterion: "`swift build -c release` 通过；`swift test` 全绿 —— 新增测试：`OpenAIPricingTests`（normalize 去日期后缀 / lookup 已知与未知 / displayName / `ModelUnitPricing.cost` 公式含 cacheRead 折扣）、`CodexRolloutCostParserTests`（正常多模型切换 + token 映射 / `info==null` 跳过 / `token_count` 早于任何 model 行 → `\"unknown\"` / 坏 JSON 行跳过 / 空行数组 → 空 / `sessionId(fromFileName:)` / 字段集合断言）、`CodexUsageCollectorTests`（临时 sessions 目录 → `collect()` 有新 event + `readDayAggregates` 非空 / 再 `collect()` 文件没变 → `newEventCount==0` / append 新行 → 又有净新增 / `scanRoots(env:home:fileExists:)` 解析 `CODEX_HOME`）、`UsageStatsServiceTests` 追加（用 `CodexUsageCollector` + `OpenAIModelPriceTable` → `refresh()` → `dailySpend` 非空、`rolling30d?.totalUSD > 0`、`recentEvents` 非空）；`make release-artifacts` 产出 zip/dmg + `bash macos/scripts/verify-release.sh macos/ClaudeUsageBar.zip` 与 `.dmg` 均 OK。"
-    done: false
-    evidence: null
+    done: true
+    evidence: "`swift build -c release` 通过；`swift test` = 237 tests 0 失败（新增 `OpenAIPricingTests`×5 + `CodexRolloutCostParserTests`×7 + `CodexUsageCollectorTests`×5 + `UsageStatsServiceTests.testCodexStatsEndToEnd`×1 = +18）；`make release-artifacts` 产出 zip+dmg；`verify-release.sh` 对 zip 与 dmg 均「Release archive looks good」；`grep` SC_AUTO_NO_RAW_LOG 无命中。"
 automated_checks:
   - "SC_AUTO_BUILD: cd macos && swift build -c release"
   - "SC_AUTO_TEST: cd macos && swift test"
@@ -218,13 +218,13 @@ CI 跑 `swift build -c release` + `swift test` + `make release-artifacts` + `ver
 
 > G6 验收依据（详见 frontmatter `spec_criteria` 的 evidence）。
 
-- [ ] SC1 — 定价层泛化（`ModelPriceTable` + `ClaudeModelPriceTable` + 聚合器/LocalCostCard 默认参数）
-- [ ] SC2 — `OpenAIPricing` 估价表 + `OpenAIModelPriceTable`
-- [ ] SC3 — `CodexRolloutCostParser`（状态机 + token 映射 + sessionId 解析）
-- [ ] SC4 — `CodexUsageCollector` + `ScanCursorStore` per-provider
-- [ ] SC5 — `UsageStatsService` 加 `pricing`/`UsageCollecting` + `convenience init(provider:)`
-- [ ] SC6 — App 接线（`codexStats` StateObject + `.task` refresh + `CodexProvider.onPollTick`）
-- [ ] SC7 — Codex tab UI：去 Plan 卡 + 估算费用卡 + 消费热力图（`ProviderCostContext`）
-- [ ] SC8 — Claude / 既有零回归
-- [ ] SC9 — 安全/隐私（Codex 路径只落 token/model/ts/ids，不落原文/路径，不打印；字段集合断言）
-- [ ] SC10 — swift build / swift test（含新测试）/ make release-artifacts + verify 全绿
+- [x] SC1 — 定价层泛化（`ModelPriceTable` + `ClaudeModelPriceTable` + 聚合器/LocalCostCard 默认参数）
+- [x] SC2 — `OpenAIPricing` 估价表 + `OpenAIModelPriceTable`
+- [x] SC3 — `CodexRolloutCostParser`（状态机 + token 映射 + sessionId 解析）
+- [x] SC4 — `CodexUsageCollector` + `ScanCursorStore` per-provider
+- [x] SC5 — `UsageStatsService` 加 `pricing`/`UsageCollecting` + `convenience init(provider:)`
+- [x] SC6 — App 接线（`codexStats` StateObject + `.task` refresh + `CodexProvider.onPollTick`）
+- [x] SC7 — Codex tab UI：去 Plan 卡 + 估算费用卡 + 消费热力图（`ProviderCostContext`）
+- [x] SC8 — Claude / 既有零回归
+- [x] SC9 — 安全/隐私（Codex 路径只落 token/model/ts/ids，不落原文/路径，不打印；字段集合断言）
+- [x] SC10 — swift build / swift test（含新测试）/ make release-artifacts + verify 全绿
