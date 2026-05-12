@@ -43,7 +43,8 @@ actor CodexUsageCollector: UsageCollecting {
                 let attrs = (try? fm.attributesOfItem(atPath: file.path)) ?? [:]
                 let size = (attrs[.size] as? Int) ?? 0
                 let mtime = (attrs[.modificationDate] as? Date) ?? Date(timeIntervalSince1970: 0)
-                // nil = 没变 → 跳过；非 nil（首见 / 变大 / 变小 / mtime 回退）→ 整文件 re-parse
+                // 只用 nextReadOffset 判「文件变没变」—— 返回的 offset 数值本身不用（rollout 的「当前模型」依赖前文，
+                // 必须整文件 re-parse）：nil = 没变 → 跳过；非 nil（首见 / 变大 / 变小 / mtime 回退）→ 整文件 re-parse。
                 guard await cursor.nextReadOffset(for: file, currentSize: size, currentMTime: mtime) != nil else { continue }
                 guard let raw = try? String(contentsOf: file, encoding: .utf8) else { continue }
                 let allLines = raw.split(separator: "\n", omittingEmptySubsequences: true).map(String.init)

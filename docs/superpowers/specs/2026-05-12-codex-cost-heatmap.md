@@ -72,6 +72,14 @@ reviews:
       5 should-fix：① `(pricing:displayName:)` tuple 该结构化 —— 已改成 `struct ProviderCostContext`（兑现 v0.2.8 G5 nit）；② `ModelPriceTable`/`ModelUnitPricing`/`UsageCollecting` 加 `: Sendable`（refresh 在 Task.detached 里用 pricing）—— 已加；③ fold/rebuild 仍固定用 Claude normalizer —— 已给 `foldBy*` / `rebuildAggregates` 加 `normalize:` 默认参数（Codex collector 传 `OpenAIPricing.normalize`）；④ 补「token_count 早于任何 model 行 → unknown」parser 测试 —— 已进 SC10 测试清单；⑤ SC 粒度偏大 —— 已把原 SC5/SC6/SC8 拆成 SC5/SC6/SC7/SC8/SC9/SC10（共 10 条）。
       3 nit：SC3 措辞「session_meta 的 model」—— 改成「若存在则读，主路径 turn_context」；OpenAIPricing 值标 `// UNVERIFIED — list-price estimate` + snapshotDate；`automated_checks` 补 `verify-release.sh`。均已应用。
       `ModelPriceTable` seam 选点（只覆盖 normalize/lookup/displayName 三个真实用点 + 保 ClaudePricing 不动）、`CodexRolloutCostParser` 不复用 `JSONLCostParser`（不同数据源）—— 均获认可（praise）。
+  - gate: G5
+    date: 2026-05-12
+    reviewer: codex (codex-rescue subagent, independent)
+    scope: code-review + security-review（敏感面：读 ~/.codex/sessions/** rollout 文件——含用户完整对话/代码；新增 data/codex/ 落盘）
+    verdict: approved-with-nits
+    notes: >
+      无 must-fix / should-fix。逐项确认：SC9（落盘只有 StoredUsageEvent + ScanCursorFile、无 print/NSLog/os_log、data/codex 继承 0700/0600、fixture 假整数、字段集合断言守住）；SC8（ClaudePricing 表/静态方法字节不变、ClaudeUsageCollector 仅加协议 conformance、新参数全 Claude-默认、ScanCursorStore 默认仍 scan-cursor.json）；parser token 映射 / info==null 跳过 / 绝对行号幂等 / 坏 JSON 不抛；collector cursor 只判变没变 + 整文件 re-parse + (msgId,reqId) 去重 + inFlight 防重入 + scanRoots CODEX_HOME 优先；Sendable/并发无隐患；SwiftUI 第二个同型 stats 走构造参数 + ProviderCostArea 套路正确 + 去 planLabel 卡只影响 Codex。swift build -c release 零警告、swift test 237 全绿。
+      2 nit：① `CodexUsageCollector.swift` 的 `guard nextReadOffset(...) != nil` 处加注释说明「返回值数值本身不用、只判 nil」（已应用，commit）；② `ProviderHistorySection` else 分支 `recentEvents: []` 是 v0.2.8 历史遗留、非本 PR 范围（不改）。
 ---
 
 # Codex 本机 session JSONL 扫描 → 估算成本 + 消费热力图
