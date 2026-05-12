@@ -96,20 +96,26 @@ struct PopoverView: View {
             currentPct: service.usage?.fiveHour?.utilization,
             resetDate: service.usage?.fiveHour?.resetsAtDate
         )
-
-        UsageHeroCard(
-            size: .hero,
-            label: "5-Hour",
-            bucket: service.usage?.fiveHour,
-            trend: trend5h,
-            pace: pace5h
+        let pace7d = computePaceState(
+            currentPct: service.usage?.sevenDay?.utilization,
+            resetDate: service.usage?.sevenDay?.resetsAtDate,
+            windowDuration: 604_800   // 7 天
         )
 
         UsageHeroCard(
-            size: .secondary,
+            label: "5-Hour",
+            bucket: service.usage?.fiveHour,
+            trend: trend5h,
+            pace: pace5h,
+            icon: "clock"
+        )
+
+        UsageHeroCard(
             label: "7-Day",
             bucket: service.usage?.sevenDay,
-            trend: trend7d
+            trend: trend7d,
+            pace: pace7d,
+            icon: "calendar"
         )
 
         if let opus = service.usage?.sevenDayOpus,
