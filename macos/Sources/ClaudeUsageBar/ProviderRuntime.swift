@@ -27,10 +27,13 @@ final class ProviderRuntime: ObservableObject {
         self.lastError = nil
     }
 
-    /// 一次失败：设 lastError；`clearSnapshot` 为 true 时清空旧 snapshot（凭证类失败），否则保留。
+    /// 一次失败：设 lastError；`clearSnapshot` 为 true 时清空旧 snapshot（凭证类失败）连同 lastUpdated，否则保留。
     func setError(_ message: String, clearSnapshot: Bool) {
         self.lastError = message
-        if clearSnapshot { self.snapshot = nil }
+        if clearSnapshot {
+            self.snapshot = nil
+            self.lastUpdated = nil   // 不留「无 snapshot 但 lastUpdated 残留」的歧义状态（G5 nit）
+        }
     }
 
     /// 清空全部（登出 / 切账号 / session 失效等）。

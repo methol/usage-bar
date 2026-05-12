@@ -61,6 +61,11 @@ reviews:
     date: 2026-05-12
     verdict: ready-with-revisions
     notes: "plan 基本 ready。3 必改：①A0 漏了 UsageEventStore.swift 的 provider 字段 + ProviderTabTests 处理要写明 — 已补；②primaryProviderID 不能在 ObservableObject 里用 @AppStorage — 改 @Published+手动 UserDefaults（§3.1 + 实施分期 D 已改）；③B 步要点名 setupComplete 迁移 + SettingsWindowContent 注入换 coordinator + 为 spy 给 UsageHistoryService/NotificationService 抽协议或去 final — 已补进 A2/B。建议（拆 A2/C/E、SC7 grep 作 C 硬证据、钉 utilizationPct=0..100、#Preview 跟符号、NotificationService 是 push 模型）已采纳。实施期决定：不把 UsageService 改名为 ClaudeUsageProvider，保留类名只 conform 协议，减少机械改名回归面。"
+  - gate: G5
+    by: codex (gpt-5.x, codex-rescue subagent)
+    date: 2026-05-12
+    verdict: approved-with-nits
+    notes: "无必改。8 项（行为零回归 / SwiftUI 观察链 / 协议并发 / 映射保真 / MenuBarLabel 单位 / 测试覆盖 / 死代码 / SC7）全通过。3 nits：①ProviderRuntime.setError(clearSnapshot:true) 未清 lastUpdated — 已修；②非-Claude provider 的 error/updated 在 PopoverView 父视图直读 runtime（父未直接 observe）—— v0.2.5 只 Claude 注册不阻断，v0.2.6 接 Codex 时抽成 @ObservedObject 子视图；③UsageModel.swift 注释『分换算成元』— 已改『美分→美元 ÷100』。"
 ---
 
 # 多供应商架构重构（Claude 行为不变）
@@ -196,7 +201,7 @@ reviews:
 
 ## 6. 后续工作（不在本 spec 范围）
 
-- v0.2.6 Codex provider（新增 `CodexUsageProvider`，复用本 spec 全部泛化层）—— spec 已存在：[`2026-05-12-codex-provider.md`](./2026-05-12-codex-provider.md)
+- v0.2.6 Codex provider（新增 `CodexUsageProvider`，复用本 spec 全部泛化层）—— spec 已存在：[`2026-05-12-codex-provider.md`](./2026-05-12-codex-provider.md)。落地时顺手处理 G5 nit ②：把 `PopoverView` 里「非-Claude provider 的 error 卡 + 'Updated X ago'」那段抽成一个 `@ObservedObject var runtime` 的子视图，让它能跟随该 runtime 重渲染（v0.2.5 只 Claude 注册不构成阻断）
 - 历史样本 per-provider 化（泛化 `UsageHistoryService`/`history.json`），让非 Claude provider 也有趋势箭头
 - 通知阈值 per-provider 化
 - per-provider 的 OAuth/凭证 UX 各自演化（Codex 是只读文件，Cursor/Copilot/Gemini 未定）

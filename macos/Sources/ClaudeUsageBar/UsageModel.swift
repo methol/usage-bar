@@ -222,7 +222,7 @@ extension UsageResponse {
     /// - `seven_day` → `secondaryWindow`（label "Weekly"，窗口 7d）
     /// - `seven_day_opus` / `seven_day_sonnet` → `extraWindows`（保留旧 popover 逻辑：
     ///   Sonnet 行仅在 Opus 行存在——即 `seven_day_opus.utilization != nil`——时一并显示）
-    /// - `extra_usage` → `creditLine`（金额已由 `ExtraUsage.usedCreditsAmount`/`monthlyLimitAmount` 把分换算成元）
+    /// - `extra_usage` → `creditLine`（金额已由 `ExtraUsage.usedCreditsAmount`/`monthlyLimitAmount` 把美分换算成美元 ÷100；渲染为 `$X.XX`）
     /// - Claude 暂无套餐字段 → `planLabel == nil`
     func asProviderSnapshot() -> ProviderUsageSnapshot {
         let sevenDayInterval: TimeInterval = 7 * 24 * 60 * 60
