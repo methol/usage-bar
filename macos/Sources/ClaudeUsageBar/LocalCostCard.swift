@@ -1,5 +1,32 @@
 import SwiftUI
 
+/// Three icon+value badges: $ amount · # calls · cube tokens.
+/// Used both in the cost card total header AND the heatmap hover line.
+struct UsageMetricBadges: View {
+    let usd: Double
+    let calls: Int
+    let tokens: Int
+
+    var body: some View {
+        HStack(spacing: 8) {
+            HStack(spacing: 2) {
+                Image(systemName: "dollarsign.circle.fill")
+                Text(ExtraUsage.formatUSDCompact(usd))
+            }
+            HStack(spacing: 2) {
+                Image(systemName: "number")
+                Text(ExtraUsage.formatTokens(calls))
+            }
+            HStack(spacing: 2) {
+                Image(systemName: "cube.fill")
+                Text(ExtraUsage.formatTokens(tokens))
+            }
+        }
+        .imageScale(.small)
+        .foregroundStyle(.secondary)
+    }
+}
+
 struct LocalCostCard: View {
     let summary: CostSummary
     var periodLabel: String = "30 天"
@@ -14,66 +41,71 @@ struct LocalCostCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            // ── Collapsed header (always shown) ──────────────────────────
-            HStack(spacing: 4) {
-                Text("本地 \(periodLabel)估算")
+            // ── Header + rows in one Grid ──────────────────────────────────
+            HStack(alignment: .center, spacing: 4) {
+                Grid(alignment: .trailing, horizontalSpacing: 12, verticalSpacing: 3) {
+                    // Header row (always shown)
+                    GridRow {
+                        Text("本地 \(periodLabel)估算")
+                            .gridColumnAlignment(.leading)
+                            .foregroundStyle(.secondary)
+                        HStack(spacing: 2) {
+                            Image(systemName: "number").imageScale(.small)
+                            Text(ExtraUsage.formatTokens(totalCalls))
+                        }
+                        .foregroundStyle(.secondary)
+                        HStack(spacing: 2) {
+                            Image(systemName: "cube.fill").imageScale(.small)
+                            Text(ExtraUsage.formatTokens(totalTokens))
+                        }
+                        .foregroundStyle(.secondary)
+                        HStack(spacing: 2) {
+                            Image(systemName: "dollarsign.circle.fill").imageScale(.small)
+                            Text(ExtraUsage.formatUSDCompact(summary.totalUSD))
+                                .fontWeight(.medium)
+                        }
+                        .foregroundStyle(.secondary)
+                    }
                     .font(.caption)
-                    .foregroundStyle(.secondary)
-                Spacer()
-                HStack(spacing: 8) {
-                    HStack(spacing: 2) {
-                        Image(systemName: "dollarsign.circle.fill")
-                            .imageScale(.small)
-                            .foregroundStyle(.secondary)
-                        Text(ExtraUsage.formatUSDCompact(summary.totalUSD))
-                            .fontWeight(.medium)
-                    }
-                    HStack(spacing: 2) {
-                        Image(systemName: "number")
-                            .imageScale(.small)
-                            .foregroundStyle(.secondary)
-                        Text(ExtraUsage.formatTokens(totalCalls))
-                    }
-                    HStack(spacing: 2) {
-                        Image(systemName: "cube.fill")
-                            .imageScale(.small)
-                            .foregroundStyle(.secondary)
-                        Text(ExtraUsage.formatTokens(totalTokens))
+
+                    // Divider spanning all 4 columns (only when expanded)
+                    if expanded {
+                        GridRow {
+                            Divider()
+                                .gridCellColumns(4)
+                                .gridCellUnsizedAxes(.horizontal)
+                                .padding(.vertical, 1)
+                        }
+
+                        // Per-model rows
+                        ForEach(summary.perModel.sorted(by: { $0.usd > $1.usd }), id: \.normalizedModel) { row in
+                            let rowTokens = row.inputTokens + row.outputTokens + row.cacheReadTokens + row.cacheCreationTokens
+                            GridRow {
+                                Text(row.normalizedModel)
+                                    .gridColumnAlignment(.leading)
+                                    .foregroundStyle(row.isUnknownPricing ? Color.orange.opacity(0.8) : .secondary)
+                                    .lineLimit(1)
+                                    .truncationMode(.middle)
+                                Text(ExtraUsage.formatTokens(row.calls))
+                                    .foregroundStyle(.secondary)
+                                Text(ExtraUsage.formatTokens(rowTokens))
+                                    .foregroundStyle(.tertiary)
+                                Text(row.isUnknownPricing ? "—" : ExtraUsage.formatUSDCompact(row.usd))
+                            }
+                            .font(.caption2)
+                        }
                     }
                 }
-                .font(.caption)
+
+                // Chevron outside the Grid
                 Image(systemName: expanded ? "chevron.up" : "chevron.down")
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
                     .padding(.leading, 2)
             }
 
-            // ── Expanded section ──────────────────────────────────────────
+            // ── Footnotes (only when expanded) ───────────────────────────
             if expanded {
-                Divider().padding(.vertical, 1)
-                VStack(alignment: .leading, spacing: 2) {
-                    ForEach(summary.perModel.sorted(by: { $0.usd > $1.usd }), id: \.normalizedModel) { row in
-                        let rowTokens = row.inputTokens + row.outputTokens + row.cacheReadTokens + row.cacheCreationTokens
-                        HStack(spacing: 0) {
-                            Text(row.normalizedModel)
-                                .font(.caption2)
-                                .foregroundStyle(row.isUnknownPricing ? Color.orange.opacity(0.8) : .secondary)
-                                .lineLimit(1)
-                                .truncationMode(.middle)
-                            Spacer(minLength: 4)
-                            HStack(spacing: 10) {
-                                Text(ExtraUsage.formatTokens(row.calls))
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                                Text(ExtraUsage.formatTokens(rowTokens))
-                                    .font(.caption2)
-                                    .foregroundStyle(.tertiary)
-                                Text(row.isUnknownPricing ? "—" : ExtraUsage.formatUSDCompact(row.usd))
-                                    .font(.caption2)
-                            }
-                        }
-                    }
-                }
                 if summary.unknownModelCount > 0 {
                     Text("含 \(summary.unknownModelCount) 条未知模型调用（价格表过时？）")
                         .font(.caption2)

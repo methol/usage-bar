@@ -7,6 +7,7 @@ struct UsageHeatmapModel {
         let date: Date?
         let usd: Double
         let calls: Int
+        let tokens: Int
         let bucket: Int          // 0...8
     }
     /// weeks[w][d]：w = 第 w 列（最旧→最新），d = 0(周日)...6(周六)。共 53 列。
@@ -59,11 +60,11 @@ struct UsageHeatmapModel {
             guard let weekStart = cal.date(byAdding: .weekOfYear, value: -colBack, to: startOfRefWeek) else { continue }
             var col: [Cell] = []
             for d in 0..<7 {
-                guard let date = cal.date(byAdding: .day, value: d, to: weekStart) else { col.append(Cell(dayKey: nil, date: nil, usd: 0, calls: 0, bucket: 0)); continue }
-                if date > referenceDate { col.append(Cell(dayKey: nil, date: nil, usd: 0, calls: 0, bucket: 0)); continue }
+                guard let date = cal.date(byAdding: .day, value: d, to: weekStart) else { col.append(Cell(dayKey: nil, date: nil, usd: 0, calls: 0, tokens: 0, bucket: 0)); continue }
+                if date > referenceDate { col.append(Cell(dayKey: nil, date: nil, usd: 0, calls: 0, tokens: 0, bucket: 0)); continue }
                 let key = dayFmt.string(from: date)
                 let sp = spendByKey[key]
-                let cell = Cell(dayKey: key, date: date, usd: sp?.usd ?? 0, calls: sp?.calls ?? 0, bucket: bucket(for: sp?.usd ?? 0))
+                let cell = Cell(dayKey: key, date: date, usd: sp?.usd ?? 0, calls: sp?.calls ?? 0, tokens: sp?.tokens ?? 0, bucket: bucket(for: sp?.usd ?? 0))
                 col.append(cell); byKey[key] = cell
             }
             cols.append(col)
@@ -125,7 +126,10 @@ struct UsageHeatmapView: View {
                 // 悬停信息行：固定高度避免布局跳动
                 Group {
                     if let cell = hovered, let key = cell.dayKey {
-                        Text("\(key) · ≈ \(ExtraUsage.formatUSDCompact(cell.usd)) · \(cell.calls) 次")
+                        HStack(spacing: 6) {
+                            Text(key)
+                            UsageMetricBadges(usd: cell.usd, calls: cell.calls, tokens: cell.tokens)
+                        }
                     } else {
                         Text("鼠标悬停查看某天明细")
                             .foregroundStyle(.tertiary)

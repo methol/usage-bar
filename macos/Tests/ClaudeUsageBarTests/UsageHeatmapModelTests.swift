@@ -2,10 +2,10 @@ import XCTest
 @testable import ClaudeUsageBar
 
 final class UsageHeatmapModelTests: XCTestCase {
-    private func day(_ s: String, usd: Double, calls: Int = 1) -> DaySpend {
+    private func day(_ s: String, usd: Double, calls: Int = 1, tokens: Int = 0) -> DaySpend {
         let f = DateFormatter(); f.calendar = Calendar(identifier: .gregorian); f.timeZone = TimeZone.current
         f.locale = Locale(identifier: "en_US_POSIX"); f.dateFormat = "yyyy-MM-dd"
-        return DaySpend(dayKey: s, date: f.date(from: s)!, usd: usd, calls: calls)
+        return DaySpend(dayKey: s, date: f.date(from: s)!, usd: usd, calls: calls, tokens: tokens)
     }
 
     /// 新语义：网格从最早数据那周铺到 referenceDate 那周。

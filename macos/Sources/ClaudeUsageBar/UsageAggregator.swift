@@ -63,7 +63,11 @@ enum UsageAggregator {
         return dayAggregates.compactMap { (dayKey, bucket) -> DaySpend? in
             guard let date = f.date(from: dayKey) else { return nil }
             let c = usdForBucket(bucket)
-            return DaySpend(dayKey: dayKey, date: date, usd: c.usd, calls: bucket.values.reduce(0) { $0 + $1.calls })
+            let calls = bucket.values.reduce(0) { $0 + $1.calls }
+            let tokens = bucket.values.reduce(0) {
+                $0 + $1.inputTokens + $1.outputTokens + $1.cacheReadInputTokens + $1.cacheCreationInputTokens
+            }
+            return DaySpend(dayKey: dayKey, date: date, usd: c.usd, calls: calls, tokens: tokens)
         }.sorted { $0.dayKey < $1.dayKey }
     }
     static func monthlySpend(from monthAggregates: [String: [String: TokenSums]]) -> [MonthSpend] {
@@ -116,5 +120,5 @@ enum UsageAggregator {
     }
 }
 
-struct DaySpend: Equatable { let dayKey: String; let date: Date; let usd: Double; let calls: Int }
+struct DaySpend: Equatable { let dayKey: String; let date: Date; let usd: Double; let calls: Int; let tokens: Int }
 struct MonthSpend: Equatable { let monthKey: String; let usd: Double; let calls: Int }
