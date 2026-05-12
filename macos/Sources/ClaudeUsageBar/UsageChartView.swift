@@ -67,6 +67,9 @@ enum UsageChartInterpolation {
 struct UsageChartSectionView: View {
     @ObservedObject var historyService: UsageHistoryService
     let recentEvents: [StoredUsageEvent]
+    /// 两条线 / 图例的文字（默认 Claude 的 `5h`/`7d`；Codex 传 `Session`/`Weekly`）。
+    var primaryLabel: String = "5h"
+    var secondaryLabel: String = "7d"
 
     @State private var selectedRange: TimeRange = .day1
 
@@ -81,7 +84,8 @@ struct UsageChartSectionView: View {
         VStack(alignment: .leading, spacing: 12) {
             PillPicker(items: TimeRange.allCases, selection: $selectedRange) { $0.rawValue }
 
-            UsageChartContentView(historyService: historyService, selectedRange: selectedRange)
+            UsageChartContentView(historyService: historyService, selectedRange: selectedRange,
+                                  primaryLabel: primaryLabel, secondaryLabel: secondaryLabel)
 
             if let cost = costSummary {
                 LocalCostCard(summary: cost)
@@ -94,6 +98,8 @@ struct UsageChartSectionView: View {
 private struct UsageChartContentView: View {
     @ObservedObject var historyService: UsageHistoryService
     let selectedRange: TimeRange
+    let primaryLabel: String
+    let secondaryLabel: String
     @State private var hoverDate: Date?
 
     var body: some View {
@@ -122,7 +128,7 @@ private struct UsageChartContentView: View {
                     x: .value("Time", point.timestamp),
                     y: .value("Usage", point.pct5h * 100)
                 )
-                .foregroundStyle(by: .value("Window", "5h"))
+                .foregroundStyle(by: .value("Window", primaryLabel))
                 .interpolationMethod(.catmullRom)
             }
 
@@ -131,7 +137,7 @@ private struct UsageChartContentView: View {
                     x: .value("Time", point.timestamp),
                     y: .value("Usage", point.pct7d * 100)
                 )
-                .foregroundStyle(by: .value("Window", "7d"))
+                .foregroundStyle(by: .value("Window", secondaryLabel))
                 .interpolationMethod(.catmullRom)
             }
 
@@ -176,8 +182,8 @@ private struct UsageChartContentView: View {
             }
         }
         .chartForegroundStyleScale([
-            "5h": Color.blue,
-            "7d": Color.orange
+            primaryLabel: Color.blue,
+            secondaryLabel: Color.orange
         ])
         .chartLegend(.visible)
         .chartPlotStyle { plot in
