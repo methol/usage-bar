@@ -25,13 +25,14 @@ struct ProviderTabBar: View {
                     Text(provider.displayName)
                         .font(.caption.weight(provider == selection ? .semibold : .regular))
                         .foregroundStyle(pillForeground(for: provider))
-                        .padding(.vertical, 4)
                         .frame(maxWidth: .infinity)
+                        .padding(.vertical, 5)
                         .background(
                             RoundedRectangle(cornerRadius: 7, style: .continuous)
                                 .fill(provider == selection ? Color(nsColor: .controlBackgroundColor) : .clear)
                                 .shadow(color: provider == selection ? .black.opacity(0.12) : .clear, radius: 1, y: 0.5)
                         )
+                        .contentShape(Rectangle())   // 整个药丸（含两侧空白）都可点
                 }
                 .buttonStyle(.plain)
             }

@@ -43,11 +43,12 @@ struct LocalCostCard: View {
             // ── Header + rows in one Grid (5 columns) ─────────────────────
             // col1: name/title (expands), col2: calls, col3: tokens, col4: amount, col5: chevron
             Grid(alignment: .trailing, horizontalSpacing: 12, verticalSpacing: 3) {
-                // Header row (always shown) —— col1 留空（去掉"本地 N 天估算"提示文字）
+                // Header row (always shown)
                 GridRow {
-                    Color.clear
-                        .frame(maxWidth: .infinity, maxHeight: 1)
+                    Text("Usage")
+                        .frame(maxWidth: .infinity, alignment: .leading)
                         .gridColumnAlignment(.leading)
+                        .foregroundStyle(.secondary)
                     HStack(spacing: 2) {
                         Image(systemName: "number").imageScale(.small)
                         Text(ExtraUsage.formatTokens(totalCalls))
@@ -84,7 +85,7 @@ struct LocalCostCard: View {
                     ForEach(summary.perModel.sorted(by: { $0.usd > $1.usd }), id: \.normalizedModel) { row in
                         let rowTokens = row.inputTokens + row.outputTokens + row.cacheReadTokens + row.cacheCreationTokens
                         GridRow {
-                            Text(row.normalizedModel)
+                            Text(ClaudePricing.displayName(row.normalizedModel))
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .gridColumnAlignment(.leading)
                                 .foregroundStyle(row.isUnknownPricing ? Color.orange.opacity(0.8) : .secondary)

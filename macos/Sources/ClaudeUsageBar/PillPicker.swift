@@ -13,13 +13,14 @@ struct PillPicker<Item: Hashable>: View {
                     Text(label(item))
                         .font(.caption.weight(item == selection ? .semibold : .regular))
                         .foregroundStyle(item == selection ? .primary : .secondary)
-                        .padding(.vertical, 4)
                         .frame(maxWidth: .infinity)
+                        .padding(.vertical, 5)
                         .background(
                             RoundedRectangle(cornerRadius: 7, style: .continuous)
                                 .fill(item == selection ? Color(nsColor: .controlBackgroundColor) : .clear)
                                 .shadow(color: item == selection ? .black.opacity(0.12) : .clear, radius: 1, y: 0.5)
                         )
+                        .contentShape(Rectangle())   // 整段药丸（含两侧空白）都可点
                 }
                 .buttonStyle(.plain)
             }

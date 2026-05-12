@@ -17,6 +17,9 @@ struct UsageHeatmapModel {
 
     func cell(forDayKey key: String) -> Cell? { byDayKey[key] }
 
+    /// 最新一天（= 当前列里最后一个非占位格 = 今天）。用作 hover 信息行的默认显示。
+    var todayCell: Cell? { weeks.last?.last(where: { $0.dayKey != nil }) }
+
     init(daySpends: [DaySpend], referenceDate: Date = Date()) {
         var cal = Calendar(identifier: .gregorian)
         cal.timeZone = TimeZone.current
@@ -122,9 +125,9 @@ struct UsageHeatmapView: View {
                         }
                     }
                 }
-                // 悬停信息行：固定高度避免布局跳动（无悬停时留空）
+                // 信息行：默认显示今天，hover 时显示悬停那天（固定高度避免布局跳动）
                 Group {
-                    if let cell = hovered, let key = cell.dayKey {
+                    if let cell = hovered ?? m.todayCell, let key = cell.dayKey {
                         HStack(spacing: 6) {
                             Text(key)
                             UsageMetricBadges(usd: cell.usd, calls: cell.calls, tokens: cell.tokens)

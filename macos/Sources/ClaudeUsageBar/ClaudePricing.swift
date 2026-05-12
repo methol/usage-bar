@@ -40,6 +40,25 @@ enum ClaudePricing {
         return table[normalize(model)]
     }
 
+    /// 给 UI 用的简短别名：`claude-opus-4-7` → `Opus 4.7`、`claude-3-5-sonnet` → `Sonnet 3.5`、
+    /// `claude-3-opus` → `Opus 3`。识别不出 family（如 `<synthetic>`）→ 原样返回。
+    static func displayName(_ model: String) -> String {
+        let m = model.lowercased()
+        let family: String?
+        if m.contains("opus") { family = "Opus" }
+        else if m.contains("sonnet") { family = "Sonnet" }
+        else if m.contains("haiku") { family = "Haiku" }
+        else { family = nil }
+        guard let fam = family else { return model }
+        // 取 "-" 分隔的纯数字段；排掉像 8 位日期那样的长数字
+        let nums = m.split(separator: "-").compactMap { Int($0) }.filter { $0 < 1000 }
+        switch nums.count {
+        case 0:  return fam
+        case 1:  return "\(fam) \(nums[0])"
+        default: return "\(fam) \(nums[0]).\(nums[1])"
+        }
+    }
+
     static func cost(for pricing: ClaudeModelPricing?, input: Int, output: Int, cacheRead: Int, cacheWrite: Int) -> Double {
         guard let p = pricing else { return 0 }
         return (Double(input) * p.inputUSDPerMTok
