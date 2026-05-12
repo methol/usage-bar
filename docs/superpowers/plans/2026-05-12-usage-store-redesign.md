@@ -361,7 +361,8 @@ actor UsageEventStore {
         var result: [StoredUsageEvent] = []
         for f in files where f.pathExtension == "json" {
             let name = f.deletingPathExtension().lastPathComponent  // "YYYY-MM" or "agg-day" ...
-            guard name.count == 7, name <= toKey, name >= fromKey else { continue }   // 跳过 agg-*
+            // G3 R4：用 !hasPrefix("agg") 明确排除 agg-* 文件（"agg-day" 也是 7 字符，光靠 count 不够稳）
+            guard !name.hasPrefix("agg"), name.count == 7, name <= toKey, name >= fromKey else { continue }
             if let mf = loadMonth(name) {
                 result.append(contentsOf: mf.events.filter { $0.ts >= from && $0.ts < to })
             }
@@ -445,9 +446,9 @@ final class UsageAggregatorTests: XCTestCase {
     }
 
     func testFoldByDayKeysUseLocalTimeZone() {
-        let events = [ev("2026-05-11T10:00:00.000Z", msg: "a"), ev("2026-05-11T20:00:00.000Z", msg: "b")]
+        // G3 R2：两个 ts 取相邻 3 小时，确保在所有现实时区（UTC-12~UTC+14）都落同一本地日。
+        let events = [ev("2026-05-11T10:00:00.000Z", msg: "a"), ev("2026-05-11T13:00:00.000Z", msg: "b")]
         let byDay = UsageAggregator.foldByDay(events: events)
-        // 同一本地日（UTC+0~+14 的用户当天都是 05-11；测试机时区可能不同，但两条同 ts 区间应落同一桶）
         XCTAssertEqual(byDay.keys.count, 1)
         XCTAssertEqual(byDay.values.first?["claude-opus-4-7"]?.calls, 2)
     }
@@ -477,17 +478,17 @@ final class UsageAggregatorTests: XCTestCase {
     }
 
     func testRolling30dSummaryWindowBoundary() {
+        // G3 B1：用明确在窗内 / 窗外的日期（不卡边界）。now - 30d ≈ 2026-04-12；
+        // 04-20 明确在窗内，04-01 明确在窗外。dayKey 按本地 00:00 转 Date，所以不取恰好 30 天那天。
         let now = iso("2026-05-12T12:00:00.000Z")
-        // agg-day 桶：恰好 30 天前（含）/ 31 天前（不含）
         let dayAgg: [String: [String: TokenSums]] = [
-            "2026-04-12": ["claude-opus-4-7": { var s = TokenSums(); s.calls = 1; s.inputTokens = 1_000_000; return s }()],
-            "2026-04-11": ["claude-opus-4-7": { var s = TokenSums(); s.calls = 1; s.inputTokens = 1_000_000; return s }()],
+            "2026-04-20": ["claude-opus-4-7": { var s = TokenSums(); s.calls = 1; s.inputTokens = 1_000_000; return s }()],
+            "2026-04-01": ["claude-opus-4-7": { var s = TokenSums(); s.calls = 1; s.inputTokens = 1_000_000; return s }()],
         ]
         let summary = UsageAggregator.rolling30dSummary(dayAggregates: dayAgg, now: now)
-        // 2026-04-12 在窗内（now - 30d = 2026-04-12），2026-04-11 在窗外
         XCTAssertEqual(summary.windowDays, 30)
         XCTAssertGreaterThan(summary.totalUSD, 0)
-        XCTAssertEqual(summary.perModel.reduce(0) { $0 + $1.calls }, 1)
+        XCTAssertEqual(summary.perModel.reduce(0) { $0 + $1.calls }, 1)   // 只有 04-20 计入
     }
 }
 ```
@@ -605,7 +606,7 @@ struct DaySpend: Equatable { let dayKey: String; let date: Date; let usd: Double
 struct MonthSpend: Equatable { let monthKey: String; let usd: Double; let calls: Int }
 ```
 
-> 注：`rolling30dSummary` 的窗口边界用 `>=` cutoff（恰好 30 天前的本地日包含）。测试 `testRolling30dSummaryWindowBoundary` 里 `2026-04-12 >= 2026-05-12 - 30d` 成立、`2026-04-11` 不成立——但注意它按**本地日的 00:00** 转 Date，与 `now` 的时刻比较；若测试机时区导致边界微差，把测试里的两个日期改成明确在窗内/外（如 `2026-04-13` / `2026-04-01`）。
+> 注（G3 B1）：`rolling30dSummary` 的窗口判定是 `localDay(00:00, 本地时区) >= now - 30*86400`。这意味着"恰好 30 天前那一天"会因为 `00:00 < now 的时刻` 而被排除——这不是 bug，是按整天聚合的自然结果。所以测试 fixture 必须用**明确在窗内 / 明确在窗外**的日期（如上 `2026-04-20` / `2026-04-01`），不要卡 30 天整边界。
 
 - [ ] **Step 4: 运行 UsageAggregator 测试确认通过**
 
@@ -699,14 +700,26 @@ func testCorruptedMonthFileTreatedAsEmpty() async throws {
         saveAgg("year", buckets: UsageAggregator.foldByYear(events: allEvents))
     }
 
-    /// 增量重建：只重算给定本地 dayKey 对应的 day 桶，以及它们所属的 UTC month/year 桶。
-    /// 实现策略（简单且正确）：受影响的 day 集合 → 它们覆盖的 UTC 月集合 → 读这些月的明细 → 重算这些 day/month/year 桶覆盖回去。
+    /// 增量重建：只读**受影响的月明细文件**（G3 B2：不全读所有月），重算受影响的 day/month/year 桶覆盖回去。
     func rebuildAggregates(forDayKeys dayKeys: Set<String>) {
         guard !dayKeys.isEmpty else { return }
-        // 1. 找出这些 day 涉及的 UTC 月（一个本地日可能跨两个 UTC 月）：保守起见，读所有月明细里 localDayKey ∈ dayKeys 的事件。
-        //    数据量不大（agg 是缓存，明细才是源），全读 + 过滤即可；若未来明细膨胀再优化。
-        let allEvents = allMonthKeys().flatMap { eventsForMonth($0) }
-        let touchedEvents = allEvents.filter { dayKeys.contains(UsageAggregator.localDayKey($0.ts)) }
+        // 1. 由 dayKeys 推候选 UTC 月：一个本地日 [00:00 local, +24h) 的 UTC ts 范围最多跨 2 个 UTC 月。
+        let dayFmt = DateFormatter(); dayFmt.calendar = Calendar(identifier: .gregorian)
+        dayFmt.timeZone = TimeZone.current; dayFmt.locale = Locale(identifier: "en_US_POSIX"); dayFmt.dateFormat = "yyyy-MM-dd"
+        var candidateMonths = Set<String>()
+        for dk in dayKeys {
+            guard let start = dayFmt.date(from: dk) else { continue }
+            let end = start.addingTimeInterval(24 * 3600 - 1)
+            candidateMonths.insert(Self.utcMonthKey(start))
+            candidateMonths.insert(Self.utcMonthKey(end))
+        }
+        // 2. 重算 year 桶需要那一年的全部月 → 把候选年的所有已存在月文件纳入读取集。
+        let candidateYears = Set(candidateMonths.map { String($0.prefix(4)) })
+        let monthsToLoad = Set(allMonthKeys().filter { mk in
+            candidateMonths.contains(mk) || candidateYears.contains(String(mk.prefix(4)))
+        })
+        let loadedEvents = monthsToLoad.flatMap { eventsForMonth($0) }   // 只读这些月，不是全部
+        let touchedEvents = loadedEvents.filter { dayKeys.contains(UsageAggregator.localDayKey($0.ts)) }
         let touchedMonthKeys = Set(touchedEvents.map { UsageAggregator.utcMonthKey($0.ts) })
         let touchedYearKeys = Set(touchedEvents.map { UsageAggregator.utcYearKey($0.ts) })
 
@@ -716,9 +729,8 @@ func testCorruptedMonthFileTreatedAsEmpty() async throws {
         for k in dayKeys { day[k] = nil }
         for k in touchedMonthKeys { month[k] = nil }
         for k in touchedYearKeys { year[k] = nil }
-        // 重算 month/year 时需要这些月的全部事件
-        let monthEvents = allEvents.filter { touchedMonthKeys.contains(UsageAggregator.utcMonthKey($0.ts)) }
-        let yearEvents = allEvents.filter { touchedYearKeys.contains(UsageAggregator.utcYearKey($0.ts)) }
+        let monthEvents = loadedEvents.filter { touchedMonthKeys.contains(UsageAggregator.utcMonthKey($0.ts)) }
+        let yearEvents = loadedEvents.filter { touchedYearKeys.contains(UsageAggregator.utcYearKey($0.ts)) }
         for (k, v) in UsageAggregator.foldByDay(events: touchedEvents) { day[k] = v }
         for (k, v) in UsageAggregator.foldByMonth(events: monthEvents) { month[k] = v }
         for (k, v) in UsageAggregator.foldByYear(events: yearEvents) { year[k] = v }
@@ -1151,16 +1163,16 @@ actor ClaudeUsageCollector {
             return lastResult
         }
         let dirty = await store.mergeEvents(collected)
-        // 损坏月：清贡献该月的文件游标 → 下次重读重建（贡献该月的文件无法精确反查 → 保守清所有 mtime/size 已记录的文件中、属于该月的；简化：清整张游标里 lineOffset>0 的项，让下一轮全读重建。罕见路径，可接受。）
-        if !dirty.isEmpty {
-            // 简化策略：损坏发生时下一轮做一次全扫即可。无精确反查，不实现按月清——直接 rebuildAllAggregates 兜底。
+        let touchedDays = Set(collected.map { UsageAggregator.localDayKey($0.ts) })
+        if dirty.isEmpty {
+            // 正常路径：只重算受影响的 day/month/year 桶（rebuildAggregates 内部只读受影响月明细）。
+            await store.rebuildAggregates(forDayKeys: touchedDays)
+        } else {
+            // 罕见路径（损坏月被当空覆盖）：该月"原本有、现在丢了"的事件无源可找回；
+            // 直接 rebuildAllAggregates 一次让所有 agg 桶回到与现存明细一致的状态（spec §3.3 已 accept）。
+            // 不再额外调 rebuildAggregates（避免重复重建）。
             await store.rebuildAllAggregates()
         }
-        var touchedDays = Set(collected.map { UsageAggregator.localDayKey($0.ts) })
-        // dirty 月被当空覆盖后又重新 merge 了 collected 里属于该月的事件 → 它们的 day 已在 touchedDays。
-        // 但 dirty 月里"原本有、现在丢了"的事件没法找回（无源），其 day 桶在 rebuildAllAggregates 里已按现状重算。
-        await store.rebuildAggregates(forDayKeys: touchedDays)
-        if !dirty.isEmpty { touchedDays.formUnion([]) }  // no-op；保留注释表明已 rebuildAll
         lastResult = CollectResult(newEventCount: collected.count, scannedFileCount: scanned, parseErrorCount: parseErrors, touchedDayKeys: touchedDays)
         return lastResult
     }
@@ -1188,7 +1200,7 @@ actor ClaudeUsageCollector {
 }
 ```
 
-> 注：上面 dirty 月处理用了"简化策略"（损坏即 `rebuildAllAggregates` 兜底，不按月精确清游标）——这与 spec §3.3"该月按空 + log type，accepted（罕见）"一致；spec 也允许"无可重读源 → 该月按空"。`testCorruptedMonthFileTreatedAsEmpty`（Task 2）已覆盖 store 层；collector 层不需额外 case。`#"..."#` raw string literal 用于测试里含引号的半行。
+> 注：dirty 月（明细文件损坏被当空覆盖）走 `rebuildAllAggregates` 兜底一次——与 spec §3.3"该月按空 + log type，accepted（罕见）"一致；spec 也允许"无可重读源 → 该月按空"。正常路径走 `rebuildAggregates(forDayKeys:)`（内部只读受影响月明细，见 Task 2 Step 6 的 G3 B2 实现）。`testCorruptedMonthFileTreatedAsEmpty`（Task 2）已覆盖 store 层；collector 层不需额外 case。`#"..."#` raw string literal 用于测试里含引号的半行。
 
 - [ ] **Step 4: 运行确认通过**
 
@@ -1495,6 +1507,7 @@ struct UsageHeatmapModel {
     init(daySpends: [DaySpend], referenceDate: Date = Date()) {
         var cal = Calendar(identifier: .gregorian)
         cal.timeZone = TimeZone.current
+        cal.firstWeekday = 1   // G3 R3：固定周日为每周第一天（GitHub 贡献图惯例），不随 locale 变
         let dayFmt = DateFormatter(); dayFmt.calendar = cal; dayFmt.timeZone = TimeZone.current
         dayFmt.locale = Locale(identifier: "en_US_POSIX"); dayFmt.dateFormat = "yyyy-MM-dd"
 
@@ -1671,7 +1684,7 @@ git rm macos/Sources/ClaudeUsageBar/LocalCostScanner.swift macos/Tests/ClaudeUsa
 
 - [ ] **Step 5: 改 UsageServiceMultiAccountTests.swift（若需要）**
 
-`grep -n localCost30d macos/Tests/ClaudeUsageBarTests/UsageServiceMultiAccountTests.swift`。若有断言切账号后 `localCost30d == nil`，删掉那条断言（行为已改：不再清）。若该测试构造 `UsageService()` 无参——给 `usageStats` 参数加默认值（见 Step 3 决策 A）后无需改构造。
+`grep -n localCost30d macos/Tests/ClaudeUsageBarTests/UsageServiceMultiAccountTests.swift`。该测试当前在 ~line 78 有 `service.localCost30d = CostSummary(...)`（写入）+ ~line 85 有 `XCTAssertNil(service.localCost30d)`（断言）。**两行都要删**（属性已从 `UsageService` 移除，写入行也编译不过；行为已改：切账号不再清本机统计）。该测试构造 `UsageService(credentialsStore:localProfileLoader:)` 传 2 个具名参数——给 `usageStats` 参数加默认值 `= .shared`（见 Step 3 决策 A）后该构造仍合法，无需改。
 
 - [ ] **Step 6: 加 Caches 旧目录清理**
 
@@ -1788,6 +1801,14 @@ EOF
 ## Self-Review 记录
 
 - **Spec coverage**：SC1(Task1+2 schema/目录/权限) / SC2(Task1+2 UsageEventStore) / SC3(Task3 ScanCursorStore) / SC4(Task4 ClaudeUsageCollector) / SC5(Task2 UsageAggregator) / SC6(Task5 UsageStatsService) / SC7(Task6 UsageHeatmapView+Model) / SC8(Task7 UsageService) / SC9(Task7 App/Popover/LocalCostCard) / SC10(Task7 删 LocalCostScanner + Caches) / SC11(每 Task 的隐私守护 step + Task7 Step8) / SC12(各 Task 测试，≈30 case) / SC13(各 Task build/test step + Task7 Step7) / SC14(Task0 + Task8 文档) — 全覆盖。
-- **G3 review pending**：本 plan 写完后应交独立 reviewer 做 plan-review（G3 gate），再开始执行。已知薄弱点已在 plan 内标注：(a) `rebuildAggregates(forDayKeys:)` 用"全读明细 + 过滤"的简化实现（明细膨胀时再优化，已在代码注释说明）；(b) 损坏月 + 无源的兜底是 `rebuildAllAggregates`（spec §3.3 已 accept）；(c) `ClaudeUsageBarApp` 注入方式留了 A/B 两选项，推荐 A(singleton)；(d) 几个时区/mtime 边界 case 标了 flaky fallback。
+- **G3 review 已完成**（独立 general-purpose subagent，verdict approved-after-revisions，2 BLOCKING + 4 RECOMMENDED + 8 NOTES，全数受理）：
+  - B1 → `testRolling30dSummaryWindowBoundary` fixture 改用明确在窗内/外的日期（`2026-04-20` / `2026-04-01`），note 改正原因说明。
+  - B2 → `rebuildAggregates(forDayKeys:)` 改为只读受影响月明细（由 dayKeys 推候选 UTC 月 + 候选年的全部月），不再全读所有月；collector 的 dirty 分支不再重复 rebuild（dirty 走 rebuildAll，正常走 rebuildAggregates，二选一）。
+  - R1 → Task 7 Step 5 明确删 multi-account 测试的"写入行 + 断言行"两行。
+  - R2 → `testFoldByDayKeysUseLocalTimeZone` 两个 ts 改相邻 3 小时（所有现实时区同本地日）。
+  - R3 → `UsageHeatmapModel.init` 加 `cal.firstWeekday = 1`（固定周日起始）。
+  - R4 → `queryEvents` 用 `!name.hasPrefix("agg")` 排除 agg 文件。
+  - NOTES（N1~N8）多为确认 / 微调建议，已在对应处吸收（注入决策 A 明确推荐、测试数 ≈159 ≥144、注释更正等）；其余无需 plan 改动。
+- 剩余已知薄弱点：(a) `ClaudeUsageBarApp` 注入用决策 A（`UsageStatsService.shared` singleton + `usageStats:` 参数默认 `.shared`），与旧 `LocalCostScanner.shared` 一致；(b) 损坏月 + 无源的兜底是 `rebuildAllAggregates`（spec §3.3 已 accept）；(c) `JSONEncoder.iso8601` 丢亚秒——对按天聚合无影响。
 - **Type consistency**：`StoredUsageEvent` 字段（`cacheReadInputTokens`/`cacheCreationInputTokens`）在 store/aggregator/collector 一致；`JSONLUsageEvent`（v0.1.2）字段名 `cacheReadInputTokens`/`cacheCreationInputTokens` —— ⚠️ 执行时核对 v0.1.2 `JSONLCostParser.swift` 里实际字段名，若是 `cacheReadInputTokens` 则直接用，若不同则在 Task 4 Step 3 的 `StoredUsageEvent(...)` 构造处映射。`CostSummary`/`ModelCost` 字段沿用 v0.1.2 原样（Task 2 只是移动文件）。`DaySpend`/`MonthSpend` 在 aggregator 定义、stats service 与 heatmap 复用，字段一致。
 - **Placeholder scan**：无 "TBD/TODO/implement later"；每个 code step 都有完整代码；`UsageEventStore.defaultConfigDir()` 草稿里那行笔误已显式标注要删。

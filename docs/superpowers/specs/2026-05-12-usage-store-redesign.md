@@ -118,6 +118,24 @@ reviews:
       - Confirmed correct 全部 ✅（隐私 schema 约束、rebuildAggregates 覆盖式幂等、UTC 月归档权衡、actor/MainActor 工艺、
         退役 LocalCostScanner 调用方迁移点全覆盖、provider 不做 protocol YAGNI、不动 history.json/OAuth 隔离边界）。
     artifacts: ["G2 review subagent output (agentId a1915deb108c2734a)"]
+  - gate: G3
+    reviewer: claude-code (general-purpose subagent, agentId af11b01410ef94e29, plan-review)
+    date: 2026-05-12
+    verdict: approved-after-revisions
+    summary: |
+      对实施 plan（docs/superpowers/plans/2026-05-12-usage-store-redesign.md）的 G3 review。
+      原始 verdict: approved-after-revisions（2 BLOCKING + 4 RECOMMENDED + 8 NOTES）。全数受理：
+      - BLOCKING B1 (testRolling30dSummaryWindowBoundary fixture 卡 30 天整边界 → 按本地 00:00 转 Date 后被排除，断言必失败) accepted —
+        fixture 改用明确在窗内/外的日期（2026-04-20 / 2026-04-01）；plan 内 note 改正原因说明（不是时区微差，是按整天聚合的自然结果）。
+      - BLOCKING B2 (rebuildAggregates(forDayKeys:) 全读所有月明细，与 spec §5 风险2"只读受影响月"承诺背离；重度用户每个有新事件的 tick 全量 JSON parse) accepted —
+        改为由 dayKeys 推候选 UTC 月（一本地日 ≤2 UTC 月）+ 候选年的全部已存在月，只 eventsForMonth 这些；collector dirty 分支去掉重复 rebuild（dirty→rebuildAll，正常→rebuildAggregates，二选一）。
+      - RECOMMENDED R1 (multi-account 测试还有 localCost30d 写入行，不止断言行) accepted — Task 7 Step 5 明确删两行。
+      - RECOMMENDED R2 (testFoldByDayKeysUseLocalTimeZone 在 UTC±13/14 时区跨日 flaky) accepted — 两个 ts 改相邻 3 小时。
+      - RECOMMENDED R3 (heatmap 周起始随 locale firstWeekday 变) accepted — UsageHeatmapModel.init 加 cal.firstWeekday = 1。
+      - RECOMMENDED R4 (queryEvents 靠 name.count==7 排 agg 文件不稳，"agg-day" 也 7 字符) accepted — 改 !name.hasPrefix("agg")。
+      - NOTES N1~N8 confirmed / 微调：UsageEventStore.defaultConfigDir 笔误行 plan 已标注删除；JSONEncoder.iso8601 丢亚秒对按天聚合无影响；注入决策 A（UsageStatsService.shared singleton + usageStats: 参数默认 .shared）确认正确（保 multi-account 2 参构造编译、与旧 LocalCostScanner.shared 一致）；测试数核对 = 131 - 7（LocalCostScannerTests）+ ≈35 新增 = ≈159 ≥ 144；mtime / partial-line / parseError 等 case 逻辑确认正确。
+      - Confirmed correct 全部 ✅（JSONLUsageEvent 字段名匹配、CostSummary/ModelCost 移动后字段一致、ClaudePricing 三函数签名用对、ExtraUsage.formatUSD 存在、SC1~SC14 映射准确、TDD 顺序正确、mock fixture 无真实 token 前缀、UsageService/ClaudeUsageBarApp 改动落在真实代码位置）。
+    artifacts: ["G3 review subagent output (agentId af11b01410ef94e29)"]
 ---
 
 # 用量统计与存储重设计
