@@ -1,6 +1,6 @@
 # Codex 历史采样 + 趋势箭头 + 额度折线图 Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** 让 Codex tab 显示历史折线图与趋势箭头（朝「和 Claude tab 一致」），并把 `UsageHistoryService` 泛化成 per-provider —— 全程不动 Claude 既有行为、不动菜单栏。
 
@@ -32,7 +32,7 @@
 - Modify: `macos/Sources/ClaudeUsageBar/UsageHistoryService.swift`
 - Test: `macos/Tests/ClaudeUsageBarTests/UsageHistoryServiceTests.swift` (create)
 
-- [ ] **Step 1: 写失败测试 `UsageHistoryServiceTests.swift`**
+- [x] **Step 1: 写失败测试 `UsageHistoryServiceTests.swift`**
 
 ```swift
 import XCTest
@@ -94,12 +94,12 @@ final class UsageHistoryServiceTests: XCTestCase {
 }
 ```
 
-- [ ] **Step 2: 跑测试确认失败**
+- [x] **Step 2: 跑测试确认失败**
 
 Run: `cd /Users/methol/data/code-methol/usage-bar/macos && swift test --filter UsageHistoryServiceTests`
 Expected: 编译失败（`fileURL`/`backupURL` 不存在、`init(filename:directory:)` 不存在）。
 
-- [ ] **Step 3: 改 `UsageHistoryService.swift`**
+- [x] **Step 3: 改 `UsageHistoryService.swift`**
 
 把 `private static var historyFileURL: URL { … }` 删除，改成：
 
@@ -140,17 +140,17 @@ Expected: 编译失败（`fileURL`/`backupURL` 不存在、`init(filename:direct
 
 然后在 `loadHistory()` / `flushToDisk()` 里把 `Self.historyFileURL` → `fileURL`；`loadHistory()` 里把 `let backup = url.deletingPathExtension().appendingPathExtension("bak.json")` 那行删掉、直接用 `backupURL`（`url` 局部变量改成直接用 `fileURL`）。逻辑其余不动。注意 `init` 里原来的 `terminationObserver` 赋值要保留（上面已含）。
 
-- [ ] **Step 4: 跑测试确认通过**
+- [x] **Step 4: 跑测试确认通过**
 
 Run: `cd /Users/methol/data/code-methol/usage-bar/macos && swift test --filter UsageHistoryServiceTests`
 Expected: 4 tests PASS。
 
-- [ ] **Step 5: 全量 build + test（确认 Claude 路径零回归）**
+- [x] **Step 5: 全量 build + test（确认 Claude 路径零回归）**
 
 Run: `cd /Users/methol/data/code-methol/usage-bar/macos && swift build -c release && swift test`
 Expected: build OK；全部 tests PASS（既有 `UsageChartInterpolationTests` 等不受影响）。
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 cd /Users/methol/data/code-methol/usage-bar
@@ -168,7 +168,7 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 - Modify: `macos/Sources/ClaudeUsageBar/CodexProvider.swift`
 - Test: `macos/Tests/ClaudeUsageBarTests/CodexProviderTests.swift` (append)
 
-- [ ] **Step 1: 写失败测试（追加到 `CodexProviderTests.swift` 类内，`// MARK: - v0.2.8 history sampling` 段）**
+- [x] **Step 1: 写失败测试（追加到 `CodexProviderTests.swift` 类内，`// MARK: - v0.2.8 history sampling` 段）**
 
 复用文件里已有的 `makeCodexHome(authJSON:)` 与 `stubSession(_:)` helper。新建 history 用临时目录。
 
@@ -269,12 +269,12 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 
 > 注意：`testRefreshFreePlanRecordsZeroSession` 假定「`limit_window_seconds == 604800` 的单窗口会被 `normalizedWindows()` 归到 weekly、session 为 nil」。实施时先看 `CodexUsageModel.normalizedWindows()` 的实际行为确认（spec §2 提到 v0.2.6 G5 加了「按 windowSeconds 升序兜底」）。若实际把单个 604800 窗口归到了 session，调整断言或换更明确的 fixture（如显式给一个 secondary_window）。
 
-- [ ] **Step 2: 跑测试确认失败**
+- [x] **Step 2: 跑测试确认失败**
 
 Run: `cd /Users/methol/data/code-methol/usage-bar/macos && swift test --filter CodexProviderTests`
 Expected: 编译失败（`CodexProvider.init(environment:session:history:)`、`.history`、`.isPolling`、`.startPolling()` 不存在）。
 
-- [ ] **Step 3: 改 `CodexProvider.swift`**
+- [x] **Step 3: 改 `CodexProvider.swift`**
 
 ```swift
 import Foundation
@@ -361,17 +361,17 @@ final class CodexProvider: UsageProvider {
 }
 ```
 
-- [ ] **Step 4: 跑测试确认通过**
+- [x] **Step 4: 跑测试确认通过**
 
 Run: `cd /Users/methol/data/code-methol/usage-bar/macos && swift test --filter CodexProviderTests`
 Expected: 全部 PASS（含新增 6 个 + 既有的）。若 `testRefreshFreePlanRecordsZeroSession` 的前提自检失败 → 按 Step 1 末尾的说明调 fixture。（注：G3 review 已确认 `normalizedWindows()` 把单个 604800 窗口归到 weekly、primary 为 nil —— 断言正确，那段 hedge 多半用不上。）
 
-- [ ] **Step 5: 全量 build + test（G4 gate）**
+- [x] **Step 5: 全量 build + test（G4 gate）**
 
 Run: `cd /Users/methol/data/code-methol/usage-bar/macos && swift build -c release && swift test`
 Expected: build OK；全部 tests PASS。
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 cd /Users/methol/data/code-methol/usage-bar
@@ -390,7 +390,7 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 **Files:**
 - Modify: `macos/Sources/ClaudeUsageBar/UsageChartView.swift`
 
-- [ ] **Step 1: 改 `UsageChartView.swift`**
+- [x] **Step 1: 改 `UsageChartView.swift`**
 
 `UsageChartSectionView`：
 
@@ -423,17 +423,17 @@ struct UsageChartSectionView: View {
 
 > 仅这几处字面量替换；颜色映射、插值、hover、轴、`frame(height:120)` 全不动。Claude 调用点（`PopoverView.claudeUsageArea` 里的 `UsageChartSectionView(historyService:recentEvents:)`）走默认参数 `"5h"`/`"7d"` —— 不变。
 
-- [ ] **Step 2: build**
+- [x] **Step 2: build**
 
 Run: `cd /Users/methol/data/code-methol/usage-bar/macos && swift build -c release`
 Expected: OK。
 
-- [ ] **Step 3: 全量 build + test（G4 gate）**
+- [x] **Step 3: 全量 build + test（G4 gate）**
 
 Run: `cd /Users/methol/data/code-methol/usage-bar/macos && swift build -c release && swift test`
 Expected: build OK；全部 tests PASS（含 `UsageChartInterpolationTests` —— 本改动不碰其测的静态函数，回归确认）。
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 cd /Users/methol/data/code-methol/usage-bar
@@ -452,7 +452,7 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 **Files:**
 - Modify: `macos/Sources/ClaudeUsageBar/PopoverView.swift`
 
-- [ ] **Step 1: 加 `ProviderHistorySection`（放在 `PopoverView` 同文件、`ProviderUsageArea` 附近，`private struct`）**
+- [x] **Step 1: 加 `ProviderHistorySection`（放在 `PopoverView` 同文件、`ProviderUsageArea` 附近，`private struct`）**
 
 ```swift
     /// 「带历史的 provider 用量区」：在 ProviderUsageSection 上挂趋势箭头（从 history 算）+ 额度折线图。
@@ -477,7 +477,7 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
     }
 ```
 
-- [ ] **Step 2: 改 `ProviderUsageArea` 让它可选挂 history**
+- [x] **Step 2: 改 `ProviderUsageArea` 让它可选挂 history**
 
 在 `ProviderUsageArea` 加：
 
@@ -499,7 +499,7 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 
 其余（`lastError` 卡 / `Updated … ago` / `bottomBar()`）不动；`else`（unconfigured）分支不动。
 
-- [ ] **Step 3: 改 `providerArea` 的非 Claude 分支传 history**
+- [x] **Step 3: 改 `providerArea` 的非 Claude 分支传 history**
 
 ```swift
         } else if coordinator.isAvailable(selectedProvider),
@@ -517,12 +517,12 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 
 （注意 `history` 的 tuple 元组 label：`ProviderUsageArea.history` 的类型是 `(service:primaryLabel:secondaryLabel:)?`，传无 label 的 `($0.history, "Session", "Weekly")` 元组会自动适配；如编译器挑剔就写全 label。）
 
-- [ ] **Step 4: 全量 build + test（G4 gate）**
+- [x] **Step 4: 全量 build + test（G4 gate）**
 
 Run: `cd /Users/methol/data/code-methol/usage-bar/macos && swift build -c release && swift test`
 Expected: build OK；全部 tests PASS。如有 tuple-label 不匹配的编译错误 → 把 `ProviderUsageArea.history` 改成具名结构体或在传值处补全 label。
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd /Users/methol/data/code-methol/usage-bar
@@ -541,7 +541,7 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 - Modify: `macos/Sources/ClaudeUsageBar/ProviderCoordinator.swift`（注释）
 - Modify: `macos/Sources/ClaudeUsageBar/ClaudeUsageBarApp.swift`
 
-- [ ] **Step 1: `UsageProvider.swift` —— 改 `supportsBackgroundPolling` 文档注释**
+- [x] **Step 1: `UsageProvider.swift` —— 改 `supportsBackgroundPolling` 文档注释**
 
 把现在那行注释（`/// 是否有自己的后台轮询（Claude = true；Codex 第一版 = false…）`）换成：
 
@@ -555,11 +555,11 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 
 同时把该协议顶部那段「后台轮询的 timer 也由实现自己持有（`supportsBackgroundPolling == true` 的 provider 在装配处自行 `startPolling()`）」措辞微调成「持有 timer 的 provider 在装配处自行 `startPolling()`（是否同时是菜单栏 primary 候选由 `supportsBackgroundPolling` 决定）」。
 
-- [ ] **Step 2: `ProviderCoordinator.swift` —— `primaryEligibleIDs` 注释同步**
+- [x] **Step 2: `ProviderCoordinator.swift` —— `primaryEligibleIDs` 注释同步**
 
 把它的 doc 注释改成提到「= `supportsBackgroundPolling == true` 的已注册 provider = 既有稳定后台数据 又能在菜单栏渲染；v0.2.6/v0.2.8 仍只 Claude（Codex 有后台 timer 但菜单栏渲染未 provider-aware）」。逻辑（`registry.availableIDs.filter { … }`）不动。
 
-- [ ] **Step 3: `ClaudeUsageBarApp.swift` —— `.task` 末尾起 Codex 采样**
+- [x] **Step 3: `ClaudeUsageBarApp.swift` —— `.task` 末尾起 Codex 采样**
 
 在 `coordinator.claude.startPolling()` 那一行**之后**加：
 
@@ -569,12 +569,12 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
                     }
 ```
 
-- [ ] **Step 4: build + 全量 test**
+- [x] **Step 4: build + 全量 test**
 
 Run: `cd /Users/methol/data/code-methol/usage-bar/macos && swift build -c release && swift test`
 Expected: build OK；全部 tests PASS。
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd /Users/methol/data/code-methol/usage-bar
@@ -590,22 +590,22 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 
 **Files:** none（只跑命令）
 
-- [ ] **Step 1: build + test**
+- [x] **Step 1: build + test**
 
 Run: `cd /Users/methol/data/code-methol/usage-bar/macos && swift build -c release && swift test`
 Expected: build OK；全部 tests PASS（含新增的 `UsageHistoryServiceTests` + `CodexProviderTests` 增量）。
 
-- [ ] **Step 2: release artifacts + verify**
+- [x] **Step 2: release artifacts + verify**
 
 Run: `cd /Users/methol/data/code-methol/usage-bar && make release-artifacts && bash macos/scripts/verify-release.sh macos/ClaudeUsageBar.zip`
 Expected: zip/dmg 产出；verify 输出 OK（"Codesign verified OK" 等）。
 
-- [ ] **Step 3: 手动 smoke（reinstall 看 UI）**
+- [x] **Step 3: 手动 smoke（reinstall 看 UI）**
 
 Run: `cd /Users/methol/data/code-methol/usage-bar && make install`
 然后退掉旧实例、重开，切到 Codex tab：应看到 Session/Weekly 卡 + 折线图（首开「No history data yet.」，等几个周期 / 多按 Refresh 后出现点）；Settings → Primary Provider 下拉**不**含 Codex。把观察结果记到 spec 的 `spec_criteria` evidence + Verification log。
 
-- [ ] **Step 4: 回填 spec**
+- [x] **Step 4: 回填 spec**
 
 把 `docs/superpowers/specs/2026-05-12-codex-history-trend.md` 的每个 `spec_criteria[].done` 改 `true`、填 `evidence`；`Verification log` 勾上；`status: accepted` → `implemented`（G6 全勾后）。`docs/versions/v0.2.8-codex-history-trend.md`：`status: planned` → `in-progress`，填 `release_notes_zh`（新增：Codex tab 历史折线图 + 趋势箭头；内部：UsageHistoryService 泛化、Codex 5 分钟后台采样）+ G6 checklist 勾上。Commit（含 spec/version 回填 + plan 本文件勾选）。
 

@@ -31,6 +31,7 @@ updated: 2026-05-12
 | `2026-05-12-multi-provider-refactor` | 多供应商架构重构：`UsageProvider` 协议 + `ProviderUsageSnapshot` 统一形状 + per-provider `ProviderRuntime` + Claude 改写成 provider（纯重构） | implemented | v0.2.5 | [文件](./2026-05-12-multi-provider-refactor.md) |
 | `2026-05-12-codex-provider` | Codex provider 第一条数据源：`CodexProvider: UsageProvider` 读 `~/.codex/auth.json` OAuth → `wham/usage`，复用 v0.2.5 泛化视图层 | implemented | v0.2.6 | [文件](./2026-05-12-codex-provider.md) |
 | `2026-05-12-claude-keychain-reimport` | Claude refresh 永久失败（单账号）时回退读 Claude CLI Keychain 续上凭证（修「Session expired」误报）；复用 v0.1.1 的 `ClaudeCLICredentialsStrategy` | implemented | v0.2.7 | [文件](./2026-05-12-claude-keychain-reimport.md) |
+| `2026-05-12-codex-history-trend` | Codex 历史采样持久化 + Session/Weekly 卡趋势箭头 + 额度折线图：泛化 `UsageHistoryService(filename:directory:)`、`UsageChartSectionView` 加 `primaryLabel/secondaryLabel`、`CodexProvider` 自持 `history-codex.json` + 5 分钟轻量采样 timer | implemented | v0.2.8 | [文件](./2026-05-12-codex-history-trend.md) |
 
 > 新增 spec 时在表格 append 一行；状态由 spec frontmatter 同步。
 
