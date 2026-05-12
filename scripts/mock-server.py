@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Mock Anthropic usage API server for testing ClaudeUsageBar.
+Mock Anthropic usage API server for testing UsageBar.
 
 Usage:
     python3 scripts/mock-server.py [--port 8080] [--scenario normal]

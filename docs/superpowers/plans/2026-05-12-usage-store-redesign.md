@@ -13,7 +13,7 @@
 **关键约束（每个 commit 前必跑）:**
 - `cd macos && swift build -c release` → `Build complete!`
 - `cd macos && swift test` → `Executed N tests, with 0 failures`
-- `! grep -nrI -E '(print|NSLog|os_log|os\.log|Logger)\s*[\(,].*([Aa]ccess[Tt]oken|[Rr]efresh[Tt]oken|rawJSON|claudeAiOauth|message\.content|jsonlLine|rawLine|lastPathComponent|sessionId|sessionUUID|fileURL|absJsonlPath|\.path\b|account\.credentials)' macos/Sources/ClaudeUsageBar/` → 无输出
+- `! grep -nrI -E '(print|NSLog|os_log|os\.log|Logger)\s*[\(,].*([Aa]ccess[Tt]oken|[Rr]efresh[Tt]oken|rawJSON|claudeAiOauth|message\.content|jsonlLine|rawLine|lastPathComponent|sessionId|sessionUUID|fileURL|absJsonlPath|\.path\b|account\.credentials)' macos/Sources/UsageBar/` → 无输出
 - `! grep -nrI -E 'sk-ant-(oat|ort|api)[0-9a-zA-Z]|sk-proj-[0-9a-zA-Z]|AKIA[0-9A-Z]{16}' macos/ docs/ CHANGELOG.md` → 无输出
 - 测试 mock JSONL / fixture 全部手写，msgId 用 `msg_mock_...`、reqId 用 `req_mock_...`、sessionId 用 `00000000-mock-...`，绝不含真实 token 前缀。
 
@@ -23,18 +23,18 @@
 
 | 文件 | 责任 |
 |---|---|
-| 🆕 `macos/Sources/ClaudeUsageBar/UsageStoreTypes.swift` | 所有磁盘 schema 的 Codable 类型：`StoredUsageEvent`、`MonthDetailFile`、`TokenSums`、`AggregateFile`、`ScanCursorFile`、`UsageProvider` enum。无逻辑。 |
-| 🆕 `macos/Sources/ClaudeUsageBar/UsageEventStore.swift` | `actor UsageEventStore`：月明细 load / `mergeEvents`（UTC 月分组 + `(msgId,reqId)` 去重 union + atomic write 0600）；`rebuildAggregates(forDayKeys:)` / `rebuildAllAggregates()`；`queryEvents(from:to:)`；`readDayAggregates/readMonthAggregates/readYearAggregates`；目录创建 + 权限。 |
-| 🆕 `macos/Sources/ClaudeUsageBar/ScanCursorStore.swift` | `actor ScanCursorStore`：load/save `scan-cursor.json`；`nextReadOffset(for:currentSize:currentMTime:)`；`updateCursor` / `clearCursor`；损坏丢弃。 |
-| 🆕 `macos/Sources/ClaudeUsageBar/UsageAggregator.swift` | 纯函数（无状态、无 IO）：`foldByDay/foldByMonth/foldByYear(events:)`、`usdForBucket(_:)`、`rolling30dSummary(dayAggregates:now:)`、`dailySpend(from:)`、`monthlySpend(from:)`。 |
-| 🆕 `macos/Sources/ClaudeUsageBar/ClaudeUsageCollector.swift` | `actor ClaudeUsageCollector`：`collect() -> CollectResult`；`scanRoots`（沿用 v0.1.2 优先级）；增量读行 + 部分末行处理 + 空集跳过。 |
-| 🆕 `macos/Sources/ClaudeUsageBar/UsageStatsService.swift` | `@MainActor final class UsageStatsService: ObservableObject`：`@Published rolling30d / dailySpend / monthlySpend / isInitializing`；`refresh()`（Task.detached IO + MainActor.run 写回 + inFlight 节流）。 |
-| 🆕 `macos/Sources/ClaudeUsageBar/UsageHeatmapView.swift` | `struct UsageHeatmapModel`（纯数据：53 周整年网格 + USD→9 档映射）+ `struct UsageHeatmapView: View`。 |
-| 🔧 `macos/Sources/ClaudeUsageBar/UsageService.swift` | 删 `localCost30d` / `refreshLocalCostIfNeeded`；持 `usageStats` 单向强引用；polling tick `Task.detached { await usageStats.refresh() }`；`switchAccount` 删 `localCost30d = nil` 行不替换。 |
-| 🔧 `macos/Sources/ClaudeUsageBar/ClaudeUsageBarApp.swift` | `@StateObject usageStats`；构造 `UsageService` 时注入；`.task` 串入 `await usageStats.refresh()`。 |
-| 🔧 `macos/Sources/ClaudeUsageBar/PopoverView.swift` | `LocalCostCard` 数据源改 `usageStats.rolling30d`；插 `UsageHeatmapView`。 |
-| 🔧 `macos/Sources/ClaudeUsageBar/LocalCostCard.swift` | 接收 `CostSummary?` 来自 `usageStats.rolling30d`；视觉不变。 |
-| 🗑 `macos/Sources/ClaudeUsageBar/LocalCostScanner.swift` + `macos/Tests/ClaudeUsageBarTests/LocalCostScannerTests.swift` | 删除。 |
+| 🆕 `macos/Sources/UsageBar/UsageStoreTypes.swift` | 所有磁盘 schema 的 Codable 类型：`StoredUsageEvent`、`MonthDetailFile`、`TokenSums`、`AggregateFile`、`ScanCursorFile`、`UsageProvider` enum。无逻辑。 |
+| 🆕 `macos/Sources/UsageBar/UsageEventStore.swift` | `actor UsageEventStore`：月明细 load / `mergeEvents`（UTC 月分组 + `(msgId,reqId)` 去重 union + atomic write 0600）；`rebuildAggregates(forDayKeys:)` / `rebuildAllAggregates()`；`queryEvents(from:to:)`；`readDayAggregates/readMonthAggregates/readYearAggregates`；目录创建 + 权限。 |
+| 🆕 `macos/Sources/UsageBar/ScanCursorStore.swift` | `actor ScanCursorStore`：load/save `scan-cursor.json`；`nextReadOffset(for:currentSize:currentMTime:)`；`updateCursor` / `clearCursor`；损坏丢弃。 |
+| 🆕 `macos/Sources/UsageBar/UsageAggregator.swift` | 纯函数（无状态、无 IO）：`foldByDay/foldByMonth/foldByYear(events:)`、`usdForBucket(_:)`、`rolling30dSummary(dayAggregates:now:)`、`dailySpend(from:)`、`monthlySpend(from:)`。 |
+| 🆕 `macos/Sources/UsageBar/ClaudeUsageCollector.swift` | `actor ClaudeUsageCollector`：`collect() -> CollectResult`；`scanRoots`（沿用 v0.1.2 优先级）；增量读行 + 部分末行处理 + 空集跳过。 |
+| 🆕 `macos/Sources/UsageBar/UsageStatsService.swift` | `@MainActor final class UsageStatsService: ObservableObject`：`@Published rolling30d / dailySpend / monthlySpend / isInitializing`；`refresh()`（Task.detached IO + MainActor.run 写回 + inFlight 节流）。 |
+| 🆕 `macos/Sources/UsageBar/UsageHeatmapView.swift` | `struct UsageHeatmapModel`（纯数据：53 周整年网格 + USD→9 档映射）+ `struct UsageHeatmapView: View`。 |
+| 🔧 `macos/Sources/UsageBar/UsageService.swift` | 删 `localCost30d` / `refreshLocalCostIfNeeded`；持 `usageStats` 单向强引用；polling tick `Task.detached { await usageStats.refresh() }`；`switchAccount` 删 `localCost30d = nil` 行不替换。 |
+| 🔧 `macos/Sources/UsageBar/UsageBarApp.swift` | `@StateObject usageStats`；构造 `UsageService` 时注入；`.task` 串入 `await usageStats.refresh()`。 |
+| 🔧 `macos/Sources/UsageBar/PopoverView.swift` | `LocalCostCard` 数据源改 `usageStats.rolling30d`；插 `UsageHeatmapView`。 |
+| 🔧 `macos/Sources/UsageBar/LocalCostCard.swift` | 接收 `CostSummary?` 来自 `usageStats.rolling30d`；视觉不变。 |
+| 🗑 `macos/Sources/UsageBar/LocalCostScanner.swift` + `macos/Tests/UsageBarTests/LocalCostScannerTests.swift` | 删除。 |
 | ✅ 不动 | `JSONLCostParser.swift` `ClaudePricing.swift` `history.json` 及 OAuth/refresh/SetupView/CodeEntry/Settings/Notifications/Strategy/StoredAccount/hero/menubar/pace/trend/chart |
 | 🆕 测试 | `UsageEventStoreTests` / `ScanCursorStoreTests` / `ClaudeUsageCollectorTests` / `UsageAggregatorTests` / `UsageStatsServiceTests` / `UsageHeatmapModelTests`（≥20 case 总计；净测试数 ≥144）|
 | 🔧 文档 | `docs/superpowers/specs/2026-05-11-local-cost-scan.md`（status→superseded）、`docs/superpowers/specs/README.md`、`docs/versions/README.md`、`CHANGELOG.md`、`docs/versions/v0.2.3-usage-store-redesign.md`（status→in-progress）|
@@ -100,15 +100,15 @@ EOF
 ## Task 1: 磁盘 schema 类型 + UsageEventStore（load / merge / atomic write）
 
 **Files:**
-- Create: `macos/Sources/ClaudeUsageBar/UsageStoreTypes.swift`
-- Create: `macos/Sources/ClaudeUsageBar/UsageEventStore.swift`
-- Test: `macos/Tests/ClaudeUsageBarTests/UsageEventStoreTests.swift`
+- Create: `macos/Sources/UsageBar/UsageStoreTypes.swift`
+- Create: `macos/Sources/UsageBar/UsageEventStore.swift`
+- Test: `macos/Tests/UsageBarTests/UsageEventStoreTests.swift`
 
 > 本任务只做 `mergeEvents` + 月明细 load/write + 目录/权限；`rebuildAggregates` 与 agg 类型留 Task 2。
 
 - [ ] **Step 1: 写磁盘 schema 类型文件**
 
-Create `macos/Sources/ClaudeUsageBar/UsageStoreTypes.swift`:
+Create `macos/Sources/UsageBar/UsageStoreTypes.swift`:
 
 ```swift
 import Foundation
@@ -181,11 +181,11 @@ struct ScanCursorFile: Codable, Equatable {
 
 - [ ] **Step 2: 写 UsageEventStore 的失败测试（mergeEvents 去重 + 跨月分组 + 0600）**
 
-Create `macos/Tests/ClaudeUsageBarTests/UsageEventStoreTests.swift`:
+Create `macos/Tests/UsageBarTests/UsageEventStoreTests.swift`:
 
 ```swift
 import XCTest
-@testable import ClaudeUsageBar
+@testable import UsageBar
 
 final class UsageEventStoreTests: XCTestCase {
     private var tmpDir: URL!
@@ -259,7 +259,7 @@ Expected: 编译失败（`UsageEventStore` 未定义）。
 
 - [ ] **Step 4: 实现 UsageEventStore（本任务范围：merge + load/write + 目录/权限）**
 
-Create `macos/Sources/ClaudeUsageBar/UsageEventStore.swift`:
+Create `macos/Sources/UsageBar/UsageEventStore.swift`:
 
 ```swift
 import Foundation
@@ -394,14 +394,14 @@ Expected: `Executed 4 tests, with 0 failures`
 Run:
 ```bash
 cd macos && swift build -c release 2>&1 | tail -2 && swift test 2>&1 | grep -E 'Executed [0-9]+ test' | tail -1
-cd .. && grep -nrI -E '(print|NSLog|os_log)\s*[\(,].*(message\.content|sessionId|fileURL|\.path\b)' macos/Sources/ClaudeUsageBar/ || echo "GUARD-OK"
+cd .. && grep -nrI -E '(print|NSLog|os_log)\s*[\(,].*(message\.content|sessionId|fileURL|\.path\b)' macos/Sources/UsageBar/ || echo "GUARD-OK"
 ```
 Expected: `Build complete!`；测试全绿；`GUARD-OK`。
 
 - [ ] **Step 7: Commit**
 
 ```bash
-git add macos/Sources/ClaudeUsageBar/UsageStoreTypes.swift macos/Sources/ClaudeUsageBar/UsageEventStore.swift macos/Tests/ClaudeUsageBarTests/UsageEventStoreTests.swift
+git add macos/Sources/UsageBar/UsageStoreTypes.swift macos/Sources/UsageBar/UsageEventStore.swift macos/Tests/UsageBarTests/UsageEventStoreTests.swift
 git commit -m "$(cat <<'EOF'
 feat: 用量存储层 schema 类型 + UsageEventStore 月明细 merge/query [spec:2026-05-12-usage-store-redesign]
 
@@ -420,18 +420,18 @@ EOF
 ## Task 2: 聚合（UsageAggregator 折算 + UsageEventStore.rebuildAggregates）
 
 **Files:**
-- Create: `macos/Sources/ClaudeUsageBar/UsageAggregator.swift`
-- Modify: `macos/Sources/ClaudeUsageBar/UsageEventStore.swift`（加 rebuildAggregates / readXxxAggregates）
-- Test: `macos/Tests/ClaudeUsageBarTests/UsageAggregatorTests.swift`
-- Test: `macos/Tests/ClaudeUsageBarTests/UsageEventStoreTests.swift`（加 rebuild 相关 case）
+- Create: `macos/Sources/UsageBar/UsageAggregator.swift`
+- Modify: `macos/Sources/UsageBar/UsageEventStore.swift`（加 rebuildAggregates / readXxxAggregates）
+- Test: `macos/Tests/UsageBarTests/UsageAggregatorTests.swift`
+- Test: `macos/Tests/UsageBarTests/UsageEventStoreTests.swift`（加 rebuild 相关 case）
 
 - [ ] **Step 1: 写 UsageAggregator 的失败测试**
 
-Create `macos/Tests/ClaudeUsageBarTests/UsageAggregatorTests.swift`:
+Create `macos/Tests/UsageBarTests/UsageAggregatorTests.swift`:
 
 ```swift
 import XCTest
-@testable import ClaudeUsageBar
+@testable import UsageBar
 
 final class UsageAggregatorTests: XCTestCase {
     private func iso(_ s: String) -> Date {
@@ -497,11 +497,11 @@ final class UsageAggregatorTests: XCTestCase {
 
 - [ ] **Step 2: 把 CostSummary/ModelCost 移到 UsageStoreTypes.swift**
 
-从 `macos/Sources/ClaudeUsageBar/LocalCostScanner.swift` 顶部剪切 `struct ModelCost` 和 `struct CostSummary` 两个定义，粘贴到 `UsageStoreTypes.swift` 末尾（保持完全一致）。`LocalCostScanner.swift` 此时编译会暂时引用同名类型——没问题，类型只是换了文件。运行 `cd macos && swift build` 确认仍编译。
+从 `macos/Sources/UsageBar/LocalCostScanner.swift` 顶部剪切 `struct ModelCost` 和 `struct CostSummary` 两个定义，粘贴到 `UsageStoreTypes.swift` 末尾（保持完全一致）。`LocalCostScanner.swift` 此时编译会暂时引用同名类型——没问题，类型只是换了文件。运行 `cd macos && swift build` 确认仍编译。
 
 - [ ] **Step 3: 实现 UsageAggregator**
 
-Create `macos/Sources/ClaudeUsageBar/UsageAggregator.swift`:
+Create `macos/Sources/UsageBar/UsageAggregator.swift`:
 
 ```swift
 import Foundation
@@ -778,7 +778,7 @@ Expected: `Build complete!`；测试全绿。再跑两条隐私 grep（同 Task 
 - [ ] **Step 9: Commit**
 
 ```bash
-git add macos/Sources/ClaudeUsageBar/UsageAggregator.swift macos/Sources/ClaudeUsageBar/UsageEventStore.swift macos/Sources/ClaudeUsageBar/UsageStoreTypes.swift macos/Sources/ClaudeUsageBar/LocalCostScanner.swift macos/Tests/ClaudeUsageBarTests/
+git add macos/Sources/UsageBar/UsageAggregator.swift macos/Sources/UsageBar/UsageEventStore.swift macos/Sources/UsageBar/UsageStoreTypes.swift macos/Sources/UsageBar/LocalCostScanner.swift macos/Tests/UsageBarTests/
 git commit -m "$(cat <<'EOF'
 feat: UsageAggregator 折算 + UsageEventStore 聚合重建 [spec:2026-05-12-usage-store-redesign]
 
@@ -798,16 +798,16 @@ EOF
 ## Task 3: ScanCursorStore
 
 **Files:**
-- Create: `macos/Sources/ClaudeUsageBar/ScanCursorStore.swift`
-- Test: `macos/Tests/ClaudeUsageBarTests/ScanCursorStoreTests.swift`
+- Create: `macos/Sources/UsageBar/ScanCursorStore.swift`
+- Test: `macos/Tests/UsageBarTests/ScanCursorStoreTests.swift`
 
 - [ ] **Step 1: 写失败测试**
 
-Create `macos/Tests/ClaudeUsageBarTests/ScanCursorStoreTests.swift`:
+Create `macos/Tests/UsageBarTests/ScanCursorStoreTests.swift`:
 
 ```swift
 import XCTest
-@testable import ClaudeUsageBar
+@testable import UsageBar
 
 final class ScanCursorStoreTests: XCTestCase {
     private var tmpDir: URL!
@@ -867,7 +867,7 @@ Expected: 编译失败（`ScanCursorStore` 未定义）。
 
 - [ ] **Step 3: 实现 ScanCursorStore**
 
-Create `macos/Sources/ClaudeUsageBar/ScanCursorStore.swift`:
+Create `macos/Sources/UsageBar/ScanCursorStore.swift`:
 
 ```swift
 import Foundation
@@ -938,7 +938,7 @@ Run: 同 Task 1 Step 6。Expected: 全绿；`GUARD-OK`。
 - [ ] **Step 6: Commit**
 
 ```bash
-git add macos/Sources/ClaudeUsageBar/ScanCursorStore.swift macos/Tests/ClaudeUsageBarTests/ScanCursorStoreTests.swift
+git add macos/Sources/UsageBar/ScanCursorStore.swift macos/Tests/UsageBarTests/ScanCursorStoreTests.swift
 git commit -m "$(cat <<'EOF'
 feat: ScanCursorStore per-file 增量游标 [spec:2026-05-12-usage-store-redesign]
 
@@ -956,18 +956,18 @@ EOF
 ## Task 4: ClaudeUsageCollector
 
 **Files:**
-- Create: `macos/Sources/ClaudeUsageBar/ClaudeUsageCollector.swift`
-- Test: `macos/Tests/ClaudeUsageBarTests/ClaudeUsageCollectorTests.swift`
+- Create: `macos/Sources/UsageBar/ClaudeUsageCollector.swift`
+- Test: `macos/Tests/UsageBarTests/ClaudeUsageCollectorTests.swift`
 
 > 复用 `JSONLCostParser.parseLine`（v0.1.2，返回 `JSONLUsageEvent?`：含 `messageId/requestId/model/timestamp/inputTokens/outputTokens/cacheCreationInputTokens/cacheReadInputTokens`）。`scanRoots()` 沿用 v0.1.2 `LocalCostScanner.scanRoots()` 的逻辑——把那两个 static 方法（`scanRoots()` 与可注入 overload `scanRoots(env:home:fileExists:)`）**复制**进 `ClaudeUsageCollector`（因为 `LocalCostScanner.swift` Task 7 要删）。
 
 - [ ] **Step 1: 写失败测试**
 
-Create `macos/Tests/ClaudeUsageBarTests/ClaudeUsageCollectorTests.swift`:
+Create `macos/Tests/UsageBarTests/ClaudeUsageCollectorTests.swift`:
 
 ```swift
 import XCTest
-@testable import ClaudeUsageBar
+@testable import UsageBar
 
 final class ClaudeUsageCollectorTests: XCTestCase {
     private var tmpRoot: URL!     // 模拟 ~/.claude/projects
@@ -1087,7 +1087,7 @@ Expected: 编译失败（`ClaudeUsageCollector` 未定义）。
 
 - [ ] **Step 3: 实现 ClaudeUsageCollector**
 
-Create `macos/Sources/ClaudeUsageBar/ClaudeUsageCollector.swift`:
+Create `macos/Sources/UsageBar/ClaudeUsageCollector.swift`:
 
 ```swift
 import Foundation
@@ -1209,12 +1209,12 @@ Expected: `Executed 6 tests, with 0 failures`（`testNoNewEventsReturnsZeroAndNo
 
 - [ ] **Step 5: 全量构建 + 测试 + 隐私守护**
 
-Run: 同 Task 1 Step 6。注意 `! grep ... '\.path\b' macos/Sources/ClaudeUsageBar/` 必须无输出——collector 里有 `file.path`（传给 `attributesOfItem`、`fileExists`），但**不在 NSLog/print 里**，所以 grep（只匹配 `(print|NSLog|...)\s*[\(,].*\.path`）不会命中。确认 `GUARD-OK`。
+Run: 同 Task 1 Step 6。注意 `! grep ... '\.path\b' macos/Sources/UsageBar/` 必须无输出——collector 里有 `file.path`（传给 `attributesOfItem`、`fileExists`），但**不在 NSLog/print 里**，所以 grep（只匹配 `(print|NSLog|...)\s*[\(,].*\.path`）不会命中。确认 `GUARD-OK`。
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add macos/Sources/ClaudeUsageBar/ClaudeUsageCollector.swift macos/Tests/ClaudeUsageBarTests/ClaudeUsageCollectorTests.swift
+git add macos/Sources/UsageBar/ClaudeUsageCollector.swift macos/Tests/UsageBarTests/ClaudeUsageCollectorTests.swift
 git commit -m "$(cat <<'EOF'
 feat: ClaudeUsageCollector 增量采集 [spec:2026-05-12-usage-store-redesign]
 
@@ -1234,16 +1234,16 @@ EOF
 ## Task 5: UsageStatsService
 
 **Files:**
-- Create: `macos/Sources/ClaudeUsageBar/UsageStatsService.swift`
-- Test: `macos/Tests/ClaudeUsageBarTests/UsageStatsServiceTests.swift`
+- Create: `macos/Sources/UsageBar/UsageStatsService.swift`
+- Test: `macos/Tests/UsageBarTests/UsageStatsServiceTests.swift`
 
 - [ ] **Step 1: 写失败测试**
 
-Create `macos/Tests/ClaudeUsageBarTests/UsageStatsServiceTests.swift`:
+Create `macos/Tests/UsageBarTests/UsageStatsServiceTests.swift`:
 
 ```swift
 import XCTest
-@testable import ClaudeUsageBar
+@testable import UsageBar
 
 @MainActor
 final class UsageStatsServiceTests: XCTestCase {
@@ -1328,7 +1328,7 @@ Expected: 编译失败（`UsageStatsService` 未定义）。
 
 - [ ] **Step 3: 实现 UsageStatsService**
 
-Create `macos/Sources/ClaudeUsageBar/UsageStatsService.swift`:
+Create `macos/Sources/UsageBar/UsageStatsService.swift`:
 
 ```swift
 import Foundation
@@ -1397,7 +1397,7 @@ Run: 同 Task 1 Step 6。Expected: 全绿；`GUARD-OK`。
 - [ ] **Step 6: Commit**
 
 ```bash
-git add macos/Sources/ClaudeUsageBar/UsageStatsService.swift macos/Tests/ClaudeUsageBarTests/UsageStatsServiceTests.swift
+git add macos/Sources/UsageBar/UsageStatsService.swift macos/Tests/UsageBarTests/UsageStatsServiceTests.swift
 git commit -m "$(cat <<'EOF'
 feat: UsageStatsService（@MainActor ObservableObject）[spec:2026-05-12-usage-store-redesign]
 
@@ -1416,16 +1416,16 @@ EOF
 ## Task 6: UsageHeatmapModel + UsageHeatmapView
 
 **Files:**
-- Create: `macos/Sources/ClaudeUsageBar/UsageHeatmapView.swift`
-- Test: `macos/Tests/ClaudeUsageBarTests/UsageHeatmapModelTests.swift`
+- Create: `macos/Sources/UsageBar/UsageHeatmapView.swift`
+- Test: `macos/Tests/UsageBarTests/UsageHeatmapModelTests.swift`
 
 - [ ] **Step 1: 写 UsageHeatmapModel 失败测试**
 
-Create `macos/Tests/ClaudeUsageBarTests/UsageHeatmapModelTests.swift`:
+Create `macos/Tests/UsageBarTests/UsageHeatmapModelTests.swift`:
 
 ```swift
 import XCTest
-@testable import ClaudeUsageBar
+@testable import UsageBar
 
 final class UsageHeatmapModelTests: XCTestCase {
     private func day(_ s: String, usd: Double, calls: Int = 1) -> DaySpend {
@@ -1483,7 +1483,7 @@ Expected: 编译失败。
 
 - [ ] **Step 3: 实现 UsageHeatmapModel + UsageHeatmapView**
 
-Create `macos/Sources/ClaudeUsageBar/UsageHeatmapView.swift`:
+Create `macos/Sources/UsageBar/UsageHeatmapView.swift`:
 
 ```swift
 import SwiftUI
@@ -1611,7 +1611,7 @@ Run: 同 Task 1 Step 6（注意 `UsageHeatmapView.swift` 也在 `SC_AUTO_NO_CONT
 - [ ] **Step 6: Commit**
 
 ```bash
-git add macos/Sources/ClaudeUsageBar/UsageHeatmapView.swift macos/Tests/ClaudeUsageBarTests/UsageHeatmapModelTests.swift
+git add macos/Sources/UsageBar/UsageHeatmapView.swift macos/Tests/UsageBarTests/UsageHeatmapModelTests.swift
 git commit -m "$(cat <<'EOF'
 feat: 消费热力图 UsageHeatmapModel + UsageHeatmapView [spec:2026-05-12-usage-store-redesign]
 
@@ -1630,20 +1630,20 @@ EOF
 ## Task 7: 集成 — 接线 + 退役 LocalCostScanner
 
 **Files:**
-- Modify: `macos/Sources/ClaudeUsageBar/UsageService.swift`
-- Modify: `macos/Sources/ClaudeUsageBar/ClaudeUsageBarApp.swift`
-- Modify: `macos/Sources/ClaudeUsageBar/PopoverView.swift`
-- Modify: `macos/Sources/ClaudeUsageBar/LocalCostCard.swift`
-- Delete: `macos/Sources/ClaudeUsageBar/LocalCostScanner.swift`
-- Delete: `macos/Tests/ClaudeUsageBarTests/LocalCostScannerTests.swift`
-- Modify: `macos/Sources/ClaudeUsageBar/UsageServiceMultiAccountTests.swift`（若引用 `localCost30d` 需调整）
+- Modify: `macos/Sources/UsageBar/UsageService.swift`
+- Modify: `macos/Sources/UsageBar/UsageBarApp.swift`
+- Modify: `macos/Sources/UsageBar/PopoverView.swift`
+- Modify: `macos/Sources/UsageBar/LocalCostCard.swift`
+- Delete: `macos/Sources/UsageBar/LocalCostScanner.swift`
+- Delete: `macos/Tests/UsageBarTests/LocalCostScannerTests.swift`
+- Modify: `macos/Sources/UsageBar/UsageServiceMultiAccountTests.swift`（若引用 `localCost30d` 需调整）
 
-> 先看现状再改：`grep -n 'localCost30d\|refreshLocalCostIfNeeded\|LocalCostScanner\|LocalCostCard' macos/Sources/ClaudeUsageBar/*.swift macos/Tests/ClaudeUsageBarTests/*.swift`
+> 先看现状再改：`grep -n 'localCost30d\|refreshLocalCostIfNeeded\|LocalCostScanner\|LocalCostCard' macos/Sources/UsageBar/*.swift macos/Tests/UsageBarTests/*.swift`
 
 - [ ] **Step 1: 删除 LocalCostScanner 及其测试**
 
 ```bash
-git rm macos/Sources/ClaudeUsageBar/LocalCostScanner.swift macos/Tests/ClaudeUsageBarTests/LocalCostScannerTests.swift
+git rm macos/Sources/UsageBar/LocalCostScanner.swift macos/Tests/UsageBarTests/LocalCostScannerTests.swift
 ```
 （`CostSummary`/`ModelCost` 已在 Task 2 移到 `UsageStoreTypes.swift`，所以删 `LocalCostScanner.swift` 不会丢类型。`scanRoots` 已在 Task 4 复制进 collector。）
 
@@ -1657,11 +1657,11 @@ git rm macos/Sources/ClaudeUsageBar/LocalCostScanner.swift macos/Tests/ClaudeUsa
 - `switchAccount(to:)` 里：找到 `localCost30d = nil`（或 `self.localCost30d = nil`）那一行，**删掉，不替换**。其余清状态（`usage`/`lastError`/`accountEmail`）保持。
   - 同步改一行注释：`// 本机 JSONL 统计是跨账号的，不随账号清/重算（spec 2026-05-12 §5 风险12）`
 
-- [ ] **Step 3: 改 ClaudeUsageBarApp.swift**
+- [ ] **Step 3: 改 UsageBarApp.swift**
 
 - 加 `@StateObject private var usageStats = UsageStatsService()`（用 Task 5 的 `convenience init()`）。
 - 构造 `UsageService` 的地方（现有 `@StateObject private var service = UsageService(...)` 或在 `init` 里）改为把 `usageStats` 传进去：`UsageService(..., usageStats: usageStats)`。
-  - ⚠️ `@StateObject` 不能在 `init` 里互相引用。若现有代码是 `@StateObject private var service = UsageService()`，改为：保留 `usageStats` 为 `@StateObject`，把 `service` 也保持 `@StateObject` 但用一个能拿到 `usageStats` 的方式——最简单：让 `UsageService` 的 `usageStats` 参数有默认值 `= UsageStatsService.shared`，并在 `UsageStatsService` 加 `static let shared = UsageStatsService()`；`ClaudeUsageBarApp` 用 `@StateObject private var usageStats = UsageStatsService.shared` 和 `@StateObject private var service = UsageService(usageStats: .shared)`。（singleton 在本 app 是单窗口菜单栏 app，可接受；与 `LocalCostScanner.shared` 的旧模式一致。）
+  - ⚠️ `@StateObject` 不能在 `init` 里互相引用。若现有代码是 `@StateObject private var service = UsageService()`，改为：保留 `usageStats` 为 `@StateObject`，把 `service` 也保持 `@StateObject` 但用一个能拿到 `usageStats` 的方式——最简单：让 `UsageService` 的 `usageStats` 参数有默认值 `= UsageStatsService.shared`，并在 `UsageStatsService` 加 `static let shared = UsageStatsService()`；`UsageBarApp` 用 `@StateObject private var usageStats = UsageStatsService.shared` 和 `@StateObject private var service = UsageService(usageStats: .shared)`。（singleton 在本 app 是单窗口菜单栏 app，可接受；与 `LocalCostScanner.shared` 的旧模式一致。）
 - 在 `.task { ... }` 里，于 `bootstrapFromCLIIfNeeded()` 之后、`startPolling()` 之前加：`await usageStats.refresh()`。
 - 把 `usageStats` 通过 `.environmentObject(usageStats)` 注入到根视图（供 `PopoverView` 用），或作为参数传给 `PopoverView`。沿用项目现有注入风格。
 
@@ -1684,18 +1684,18 @@ git rm macos/Sources/ClaudeUsageBar/LocalCostScanner.swift macos/Tests/ClaudeUsa
 
 - [ ] **Step 5: 改 UsageServiceMultiAccountTests.swift（若需要）**
 
-`grep -n localCost30d macos/Tests/ClaudeUsageBarTests/UsageServiceMultiAccountTests.swift`。该测试当前在 ~line 78 有 `service.localCost30d = CostSummary(...)`（写入）+ ~line 85 有 `XCTAssertNil(service.localCost30d)`（断言）。**两行都要删**（属性已从 `UsageService` 移除，写入行也编译不过；行为已改：切账号不再清本机统计）。该测试构造 `UsageService(credentialsStore:localProfileLoader:)` 传 2 个具名参数——给 `usageStats` 参数加默认值 `= .shared`（见 Step 3 决策 A）后该构造仍合法，无需改。
+`grep -n localCost30d macos/Tests/UsageBarTests/UsageServiceMultiAccountTests.swift`。该测试当前在 ~line 78 有 `service.localCost30d = CostSummary(...)`（写入）+ ~line 85 有 `XCTAssertNil(service.localCost30d)`（断言）。**两行都要删**（属性已从 `UsageService` 移除，写入行也编译不过；行为已改：切账号不再清本机统计）。该测试构造 `UsageService(credentialsStore:localProfileLoader:)` 传 2 个具名参数——给 `usageStats` 参数加默认值 `= .shared`（见 Step 3 决策 A）后该构造仍合法，无需改。
 
 - [ ] **Step 6: 加 Caches 旧目录清理**
 
-在 `ClaudeUsageBarApp.task` 的最开头（或 `UsageStatsService.refresh()` 首次调用前），加一次 best-effort：
+在 `UsageBarApp.task` 的最开头（或 `UsageStatsService.refresh()` 首次调用前），加一次 best-effort：
 ```swift
 // 退役 v0.1.2 的 cost-usage cache（已被 ~/.config/claude-usage-bar/data/ 取代）
 if let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first {
     try? FileManager.default.removeItem(at: caches.appendingPathComponent("claude-usage-bar/cost-usage", isDirectory: true))
 }
 ```
-放在 `ClaudeUsageBarApp.swift` 的 `.task` 里即可（一行 try?，失败无所谓）。
+放在 `UsageBarApp.swift` 的 `.task` 里即可（一行 try?，失败无所谓）。
 
 - [ ] **Step 7: 全量构建 + 测试**
 
@@ -1707,12 +1707,12 @@ Expected: `Build complete!`；`Executed N tests, with 0 failures`，N ≥ 144（
 Run:
 ```bash
 cd /Users/methol/data/code-methol/usage-bar
-! test -e macos/Sources/ClaudeUsageBar/LocalCostScanner.swift && ! test -e macos/Tests/ClaudeUsageBarTests/LocalCostScannerTests.swift && echo "LCS-GONE-OK"
-! grep -nrI -E '(print|NSLog|os_log|os\.log|Logger)\s*[\(,].*([Aa]ccess[Tt]oken|[Rr]efresh[Tt]oken|rawJSON|claudeAiOauth|message\.content|jsonlLine|rawLine|lastPathComponent|sessionId|sessionUUID|fileURL|absJsonlPath|\.path\b|account\.credentials)' macos/Sources/ClaudeUsageBar/ && echo "NO-PRINT-OK"
+! test -e macos/Sources/UsageBar/LocalCostScanner.swift && ! test -e macos/Tests/UsageBarTests/LocalCostScannerTests.swift && echo "LCS-GONE-OK"
+! grep -nrI -E '(print|NSLog|os_log|os\.log|Logger)\s*[\(,].*([Aa]ccess[Tt]oken|[Rr]efresh[Tt]oken|rawJSON|claudeAiOauth|message\.content|jsonlLine|rawLine|lastPathComponent|sessionId|sessionUUID|fileURL|absJsonlPath|\.path\b|account\.credentials)' macos/Sources/UsageBar/ && echo "NO-PRINT-OK"
 ! grep -nrI -E 'sk-ant-(oat|ort|api)[0-9a-zA-Z]|sk-proj-[0-9a-zA-Z]|AKIA[0-9A-Z]{16}' macos/ docs/ CHANGELOG.md && echo "NO-TOKEN-OK"
-! grep -nrIE 'message\.content|StoredUsageEvent[^/]*\.content|Envelope\.Message[^/]*\bcontent\b\s*:' macos/Sources/ClaudeUsageBar/JSONLCostParser.swift macos/Sources/ClaudeUsageBar/UsageEventStore.swift macos/Sources/ClaudeUsageBar/ClaudeUsageCollector.swift macos/Sources/ClaudeUsageBar/UsageHeatmapView.swift && echo "NO-CONTENT-OK"
+! grep -nrIE 'message\.content|StoredUsageEvent[^/]*\.content|Envelope\.Message[^/]*\bcontent\b\s*:' macos/Sources/UsageBar/JSONLCostParser.swift macos/Sources/UsageBar/UsageEventStore.swift macos/Sources/UsageBar/ClaudeUsageCollector.swift macos/Sources/UsageBar/UsageHeatmapView.swift && echo "NO-CONTENT-OK"
 # polling timer 守护：UsageService 里 usageStats / collector / store 引用只在 polling 回调那一处
-grep -n 'usageStats\|UsageEventStore\|ClaudeUsageCollector' macos/Sources/ClaudeUsageBar/UsageService.swift
+grep -n 'usageStats\|UsageEventStore\|ClaudeUsageCollector' macos/Sources/UsageBar/UsageService.swift
 ```
 Expected: `LCS-GONE-OK` / `NO-PRINT-OK` / `NO-TOKEN-OK` / `NO-CONTENT-OK` 都打印；最后一条 grep 输出里 `usageStats` 只出现在属性声明、构造器、polling 回调三处，无 `UsageEventStore`/`ClaudeUsageCollector` 直接出现。
 
@@ -1725,7 +1725,7 @@ feat: 接线新用量存储层 + 退役 LocalCostScanner [spec:2026-05-12-usage-
 
 UsageService 删 localCost30d/refreshLocalCostIfNeeded，持 usageStats 单向强引用，
 polling tick 调 usageStats.refresh；switchAccount 不再清本机统计（跨账号无关）。
-ClaudeUsageBarApp 加 usageStats（singleton 注入）+ .task 串首次 refresh + 清 v0.1.2
+UsageBarApp 加 usageStats（singleton 注入）+ .task 串首次 refresh + 清 v0.1.2
 旧 Caches。PopoverView/LocalCostCard 数据源改 usageStats.rolling30d + 插
 UsageHeatmapView。删除 LocalCostScanner.swift + 其测试（被 store+collector 取代）。
 
@@ -1809,6 +1809,6 @@ EOF
   - R3 → `UsageHeatmapModel.init` 加 `cal.firstWeekday = 1`（固定周日起始）。
   - R4 → `queryEvents` 用 `!name.hasPrefix("agg")` 排除 agg 文件。
   - NOTES（N1~N8）多为确认 / 微调建议，已在对应处吸收（注入决策 A 明确推荐、测试数 ≈159 ≥144、注释更正等）；其余无需 plan 改动。
-- 剩余已知薄弱点：(a) `ClaudeUsageBarApp` 注入用决策 A（`UsageStatsService.shared` singleton + `usageStats:` 参数默认 `.shared`），与旧 `LocalCostScanner.shared` 一致；(b) 损坏月 + 无源的兜底是 `rebuildAllAggregates`（spec §3.3 已 accept）；(c) `JSONEncoder.iso8601` 丢亚秒——对按天聚合无影响。
+- 剩余已知薄弱点：(a) `UsageBarApp` 注入用决策 A（`UsageStatsService.shared` singleton + `usageStats:` 参数默认 `.shared`），与旧 `LocalCostScanner.shared` 一致；(b) 损坏月 + 无源的兜底是 `rebuildAllAggregates`（spec §3.3 已 accept）；(c) `JSONEncoder.iso8601` 丢亚秒——对按天聚合无影响。
 - **Type consistency**：`StoredUsageEvent` 字段（`cacheReadInputTokens`/`cacheCreationInputTokens`）在 store/aggregator/collector 一致；`JSONLUsageEvent`（v0.1.2）字段名 `cacheReadInputTokens`/`cacheCreationInputTokens` —— ⚠️ 执行时核对 v0.1.2 `JSONLCostParser.swift` 里实际字段名，若是 `cacheReadInputTokens` 则直接用，若不同则在 Task 4 Step 3 的 `StoredUsageEvent(...)` 构造处映射。`CostSummary`/`ModelCost` 字段沿用 v0.1.2 原样（Task 2 只是移动文件）。`DaySpend`/`MonthSpend` 在 aggregator 定义、stats service 与 heatmap 复用，字段一致。
 - **Placeholder scan**：无 "TBD/TODO/implement later"；每个 code step 都有完整代码；`UsageEventStore.defaultConfigDir()` 草稿里那行笔误已显式标注要删。

@@ -16,39 +16,39 @@ spec_criteria:
     done: true
     evidence: "see ## Verification log"
   - id: SC2
-    criterion: "新增 macos/Sources/ClaudeUsageBar/UsageEventStore.swift：actor UsageEventStore（构造接受 dataDirOverride: URL? 便于测试）；mergeEvents(_ events:[StoredUsageEvent]) async：按 ts 的 UTC 年月分组 → 对每月 load 现有明细文件 → 以 (msgId, reqId) 元组去重 union → atomic write（mode 0600）；rebuildAggregates(forDayKeys:) / rebuildAllAggregates() async：从明细文件重算受影响的 day/month/year 桶并回写三个 agg 文件；queryEvents(from:to:) / readDayAggregates() / readMonthAggregates() / readYearAggregates() async；月明细 decode 失败 → 该月按空处理 + 返回 dirtyMonths 供 collector 清游标重建；agg 文件损坏 / schemaVersion 不符 → 从明细全量重建"
+    criterion: "新增 macos/Sources/UsageBar/UsageEventStore.swift：actor UsageEventStore（构造接受 dataDirOverride: URL? 便于测试）；mergeEvents(_ events:[StoredUsageEvent]) async：按 ts 的 UTC 年月分组 → 对每月 load 现有明细文件 → 以 (msgId, reqId) 元组去重 union → atomic write（mode 0600）；rebuildAggregates(forDayKeys:) / rebuildAllAggregates() async：从明细文件重算受影响的 day/month/year 桶并回写三个 agg 文件；queryEvents(from:to:) / readDayAggregates() / readMonthAggregates() / readYearAggregates() async；月明细 decode 失败 → 该月按空处理 + 返回 dirtyMonths 供 collector 清游标重建；agg 文件损坏 / schemaVersion 不符 → 从明细全量重建"
     done: true
     evidence: "see ## Verification log"
   - id: SC3
-    criterion: "新增 macos/Sources/ClaudeUsageBar/ScanCursorStore.swift（独立 actor，不并入 UsageEventStore——职责不同：一个是 scan 进度，一个是事实存储）：load/save data/scan-cursor.json；nextReadOffset(for fileURL:, currentSize:, currentMTime:) -> Int? 返回 nil 表示文件无变化整跳过、0 表示需全读（size 变小 / 文件首次见 / mtime 跳变到更早）、N 表示从第 N 行续读；updateCursor(for:, size:, mtime:, lineOffset:)；clearCursor(for:)（dirtyMonths 重建时清相关文件）；游标文件损坏 / schemaVersion 不符 → 丢弃退化为全量扫一次；游标文件 mode 0600"
+    criterion: "新增 macos/Sources/UsageBar/ScanCursorStore.swift（独立 actor，不并入 UsageEventStore——职责不同：一个是 scan 进度，一个是事实存储）：load/save data/scan-cursor.json；nextReadOffset(for fileURL:, currentSize:, currentMTime:) -> Int? 返回 nil 表示文件无变化整跳过、0 表示需全读（size 变小 / 文件首次见 / mtime 跳变到更早）、N 表示从第 N 行续读；updateCursor(for:, size:, mtime:, lineOffset:)；clearCursor(for:)（dirtyMonths 重建时清相关文件）；游标文件损坏 / schemaVersion 不符 → 丢弃退化为全量扫一次；游标文件 mode 0600"
     done: true
     evidence: "see ## Verification log"
   - id: SC4
-    criterion: "新增 macos/Sources/ClaudeUsageBar/ClaudeUsageCollector.swift：actor ClaudeUsageCollector；collect() async -> CollectResult{newEventCount, scannedFileCount, parseErrorCount, touchedDayKeys:Set<String>}：枚举 scanRoots（沿用 v0.1.2 优先级 CLAUDE_CONFIG_DIR/projects 冒号分隔 → ~/.config/claude/projects → ~/.claude/projects）→ 对每个 *.jsonl 问 ScanCursorStore 拿续读偏移 → 增量读行（split by \\n 取 lineOffset 之后的行；**最后一行若原文不以 \\n 结尾视为 CLI 部分写入，不计入本次 lineOffset、不解析，下次重读**）→ JSONLCostParser.parseLine（复用 v0.1.2，schema 仍不含 message.content）→ 收集 StoredUsageEvent（dayKey 用 event ts 的**本地时区**）→ **若 collectedEvents 为空则直接返回 CollectResult，不调 mergeEvents/rebuildAggregates（绝大多数 tick 走此分支，零写盘）** → 否则 UsageEventStore.mergeEvents → rebuildAggregates(forDayKeys: collectedEvents 的本地 dayKey ∪ dirtyMonths 的所有本地 dayKey) → 更新游标到新 size/mtime/lineOffset；parseError 计数不中断；inFlight 节流（上一轮未完成的 collect 调用直接返回上次结果，不并发）"
+    criterion: "新增 macos/Sources/UsageBar/ClaudeUsageCollector.swift：actor ClaudeUsageCollector；collect() async -> CollectResult{newEventCount, scannedFileCount, parseErrorCount, touchedDayKeys:Set<String>}：枚举 scanRoots（沿用 v0.1.2 优先级 CLAUDE_CONFIG_DIR/projects 冒号分隔 → ~/.config/claude/projects → ~/.claude/projects）→ 对每个 *.jsonl 问 ScanCursorStore 拿续读偏移 → 增量读行（split by \\n 取 lineOffset 之后的行；**最后一行若原文不以 \\n 结尾视为 CLI 部分写入，不计入本次 lineOffset、不解析，下次重读**）→ JSONLCostParser.parseLine（复用 v0.1.2，schema 仍不含 message.content）→ 收集 StoredUsageEvent（dayKey 用 event ts 的**本地时区**）→ **若 collectedEvents 为空则直接返回 CollectResult，不调 mergeEvents/rebuildAggregates（绝大多数 tick 走此分支，零写盘）** → 否则 UsageEventStore.mergeEvents → rebuildAggregates(forDayKeys: collectedEvents 的本地 dayKey ∪ dirtyMonths 的所有本地 dayKey) → 更新游标到新 size/mtime/lineOffset；parseError 计数不中断；inFlight 节流（上一轮未完成的 collect 调用直接返回上次结果，不并发）"
     done: true
     evidence: "see ## Verification log"
   - id: SC5
-    criterion: "新增 macos/Sources/ClaudeUsageBar/UsageAggregator.swift：纯函数（无状态、无 IO）。foldByDay/foldByMonth/foldByYear(events:[StoredUsageEvent]) -> [String:[String:TokenSums]]；usdForBucket(_ bucket:[String:TokenSums]) -> Double（对每个 model 用 ClaudePricing.lookup + ClaudePricing.cost 求和；未知模型贡献 0 且计数到 unknownModelCalls）；rolling30dSummary(dayAggregates:now:) -> CostSummary（兼容旧 LocalCostCard 的 CostSummary 形态：generatedAt/windowDays:30/totalUSD/perModel/unknownModelCount/parseErrorCount=0/scannedFileCount 由调用方填）"
+    criterion: "新增 macos/Sources/UsageBar/UsageAggregator.swift：纯函数（无状态、无 IO）。foldByDay/foldByMonth/foldByYear(events:[StoredUsageEvent]) -> [String:[String:TokenSums]]；usdForBucket(_ bucket:[String:TokenSums]) -> Double（对每个 model 用 ClaudePricing.lookup + ClaudePricing.cost 求和；未知模型贡献 0 且计数到 unknownModelCalls）；rolling30dSummary(dayAggregates:now:) -> CostSummary（兼容旧 LocalCostCard 的 CostSummary 形态：generatedAt/windowDays:30/totalUSD/perModel/unknownModelCount/parseErrorCount=0/scannedFileCount 由调用方填）"
     done: true
     evidence: "see ## Verification log"
   - id: SC6
-    criterion: "新增 macos/Sources/ClaudeUsageBar/UsageStatsService.swift：@MainActor ObservableObject；@Published rolling30d: CostSummary? = nil（取代 UsageService.localCost30d）；@Published dailySpend: [DaySpend] = []（DaySpend{dayKey:String, date:Date, usd:Double, calls:Int}，热力图数据源，覆盖最近 ≥ 366 天）；@Published monthlySpend: [MonthSpend] = []；@Published isInitializing: Bool = false；refresh() async（不带 @MainActor 形参约束，内部 Task.detached(.utility) 跑 collector + 读 agg + UsageAggregator 折算，await MainActor.run 写回 published；inFlight 标志防叠加；首次调用 isInitializing=true 直到第一次 collect 完成）；rolling30d == nil 或 scannedFileCount == 0 时保持 nil（不打扰无 JSONL 用户）"
+    criterion: "新增 macos/Sources/UsageBar/UsageStatsService.swift：@MainActor ObservableObject；@Published rolling30d: CostSummary? = nil（取代 UsageService.localCost30d）；@Published dailySpend: [DaySpend] = []（DaySpend{dayKey:String, date:Date, usd:Double, calls:Int}，热力图数据源，覆盖最近 ≥ 366 天）；@Published monthlySpend: [MonthSpend] = []；@Published isInitializing: Bool = false；refresh() async（不带 @MainActor 形参约束，内部 Task.detached(.utility) 跑 collector + 读 agg + UsageAggregator 折算，await MainActor.run 写回 published；inFlight 标志防叠加；首次调用 isInitializing=true 直到第一次 collect 完成）；rolling30d == nil 或 scannedFileCount == 0 时保持 nil（不打扰无 JSONL 用户）"
     done: true
     evidence: "see ## Verification log"
   - id: SC7
-    criterion: "新增 macos/Sources/ClaudeUsageBar/UsageHeatmapView.swift + 其纯数据 helper（UsageHeatmapModel）：GitHub 贡献图风格，53 周 × 7 天整年网格，每格一天；颜色按当天 USD 分 9 档（含 0 档；分档算法（分位数动态 / 固定阈值）由实现决定，但必须保证轻度用户不被压成单色——加测试 testColorBucketsHaveContrastForLightUser 验证小额消费也能拉开梯度）；悬停 tooltip 显示 'YYYY-MM-DD · ≈ $X.XX · N calls'；每格 accessibilityLabel = '日期 + 金额'；数据源 usageStats.dailySpend；usageStats.isInitializing 时显示骨架/'统计中…'；dailySpend 全 0 或空时整张热力图隐藏（与 LocalCostCard 一致策略）；新文件不塞进 PopoverView"
+    criterion: "新增 macos/Sources/UsageBar/UsageHeatmapView.swift + 其纯数据 helper（UsageHeatmapModel）：GitHub 贡献图风格，53 周 × 7 天整年网格，每格一天；颜色按当天 USD 分 9 档（含 0 档；分档算法（分位数动态 / 固定阈值）由实现决定，但必须保证轻度用户不被压成单色——加测试 testColorBucketsHaveContrastForLightUser 验证小额消费也能拉开梯度）；悬停 tooltip 显示 'YYYY-MM-DD · ≈ $X.XX · N calls'；每格 accessibilityLabel = '日期 + 金额'；数据源 usageStats.dailySpend；usageStats.isInitializing 时显示骨架/'统计中…'；dailySpend 全 0 或空时整张热力图隐藏（与 LocalCostCard 一致策略）；新文件不塞进 PopoverView"
     done: true
     evidence: "see ## Verification log"
   - id: SC8
-    criterion: "UsageService.swift 改动：删除 @Published localCost30d 与 refreshLocalCostIfNeeded()；改为持有 usageStatsService 的**强引用**（由 ClaudeUsageBarApp 在构造时注入；单向依赖无环——usageStatsService 不回指 UsageService），polling tick 内 `Task.detached { await usageStatsService.refresh() }`（不阻塞 fetchUsage）；启动链路（ClaudeUsageBarApp.task）在 bootstrapFromCLIIfNeeded 之后、startPolling 之前 await usageStatsService.refresh() 一次（首次全历史回填）；**switchAccount（v0.1.3）不再触碰本机统计**——本机 JSONL 统计是跨账号的，切账号后 rolling30d/dailySpend 重算结果不变，清掉再 refresh 是无意义闪烁；删除 switchAccount 里 `localCost30d = nil` 那行、不替换；polling timer 内除 refresh() 调用外不出现 LocalCostScanner / UsageEventStore / ClaudeUsageCollector 直接引用（grep 守护）"
+    criterion: "UsageService.swift 改动：删除 @Published localCost30d 与 refreshLocalCostIfNeeded()；改为持有 usageStatsService 的**强引用**（由 UsageBarApp 在构造时注入；单向依赖无环——usageStatsService 不回指 UsageService），polling tick 内 `Task.detached { await usageStatsService.refresh() }`（不阻塞 fetchUsage）；启动链路（UsageBarApp.task）在 bootstrapFromCLIIfNeeded 之后、startPolling 之前 await usageStatsService.refresh() 一次（首次全历史回填）；**switchAccount（v0.1.3）不再触碰本机统计**——本机 JSONL 统计是跨账号的，切账号后 rolling30d/dailySpend 重算结果不变，清掉再 refresh 是无意义闪烁；删除 switchAccount 里 `localCost30d = nil` 那行、不替换；polling timer 内除 refresh() 调用外不出现 LocalCostScanner / UsageEventStore / ClaudeUsageCollector 直接引用（grep 守护）"
     done: true
     evidence: "see ## Verification log"
   - id: SC9
-    criterion: "ClaudeUsageBarApp.swift：新增 @StateObject usageStats: UsageStatsService；在构造 UsageService 时把 usageStats 注入（单向强引用；与 historyService / notificationService / appUpdater 同款 wiring）；.task 内串入 await usageStats.refresh()。PopoverView.swift + LocalCostCard.swift：数据源从 service.localCost30d 改为 usageStats.rolling30d（LocalCostCard 视觉不变）；在 LocalCostCard 之后（或合适位置）插入 `if !usageStats.dailySpend.isEmpty && !usageStats.dailySpend.allSatisfy({ $0.usd == 0 }) { UsageHeatmapView(...) }`；不动 hero / secondary / pace / trend / chart / history / settings / AccountSwitcher 既有渲染"
+    criterion: "UsageBarApp.swift：新增 @StateObject usageStats: UsageStatsService；在构造 UsageService 时把 usageStats 注入（单向强引用；与 historyService / notificationService / appUpdater 同款 wiring）；.task 内串入 await usageStats.refresh()。PopoverView.swift + LocalCostCard.swift：数据源从 service.localCost30d 改为 usageStats.rolling30d（LocalCostCard 视觉不变）；在 LocalCostCard 之后（或合适位置）插入 `if !usageStats.dailySpend.isEmpty && !usageStats.dailySpend.allSatisfy({ $0.usd == 0 }) { UsageHeatmapView(...) }`；不动 hero / secondary / pace / trend / chart / history / settings / AccountSwitcher 既有渲染"
     done: true
     evidence: "see ## Verification log"
   - id: SC10
-    criterion: "退役：删除 macos/Sources/ClaudeUsageBar/LocalCostScanner.swift 及 LocalCostScannerTests.swift；不再写 ~/Library/Caches/claude-usage-bar/cost-usage/（启动时 best-effort removeItem 一次旧 cache 目录，失败仅 log type）；JSONLCostParser.swift 与 ClaudePricing.swift 保留不动（复用）；history.json（API 用量 ring buffer）不动"
+    criterion: "退役：删除 macos/Sources/UsageBar/LocalCostScanner.swift 及 LocalCostScannerTests.swift；不再写 ~/Library/Caches/claude-usage-bar/cost-usage/（启动时 best-effort removeItem 一次旧 cache 目录，失败仅 log type）；JSONLCostParser.swift 与 ClaudePricing.swift 保留不动（复用）；history.json（API 用量 ring buffer）不动"
     done: true
     evidence: "see ## Verification log"
   - id: SC11
@@ -70,10 +70,10 @@ spec_criteria:
 automated_checks:
   - "SC_AUTO_BUILD: cd /Users/methol/data/code-methol/usage-bar/macos && swift build -c release 2>&1 | tail -3 | grep -q 'Build complete'"
   - "SC_AUTO_TEST: cd /Users/methol/data/code-methol/usage-bar/macos && swift test 2>&1 | tail -5 | grep -E 'Executed [0-9]+ test.*0 failures'"
-  - "SC_AUTO_NO_PRINT_TOKENS: ! grep -nrI -E '(print|NSLog|os_log|os\\.log|Logger)\\s*[\\(,].*([Aa]ccess[Tt]oken|[Rr]efresh[Tt]oken|rawJSON|claudeAiOauth|message\\.content|jsonlLine|rawLine|lastPathComponent|sessionId|sessionUUID|fileURL|absJsonlPath|\\.path\\b|account\\.credentials)' macos/Sources/ClaudeUsageBar/ 2>/dev/null"
+  - "SC_AUTO_NO_PRINT_TOKENS: ! grep -nrI -E '(print|NSLog|os_log|os\\.log|Logger)\\s*[\\(,].*([Aa]ccess[Tt]oken|[Rr]efresh[Tt]oken|rawJSON|claudeAiOauth|message\\.content|jsonlLine|rawLine|lastPathComponent|sessionId|sessionUUID|fileURL|absJsonlPath|\\.path\\b|account\\.credentials)' macos/Sources/UsageBar/ 2>/dev/null"
   - "SC_AUTO_NO_REAL_TOKEN_PREFIX: ! grep -nrI -E 'sk-ant-(oat|ort|api)[0-9a-zA-Z]|sk-proj-[0-9a-zA-Z]|AKIA[0-9A-Z]{16}' macos/ docs/ CHANGELOG.md 2>/dev/null"
-  - "SC_AUTO_NO_CONTENT_READ: ! grep -nrIE 'message\\.content|StoredUsageEvent[^/]*\\.content|Envelope\\.Message[^/]*\\bcontent\\b\\s*:' macos/Sources/ClaudeUsageBar/JSONLCostParser.swift macos/Sources/ClaudeUsageBar/UsageEventStore.swift macos/Sources/ClaudeUsageBar/ClaudeUsageCollector.swift macos/Sources/ClaudeUsageBar/UsageHeatmapView.swift 2>/dev/null"
-  - "SC_AUTO_LOCALCOSTSCANNER_GONE: ! test -e macos/Sources/ClaudeUsageBar/LocalCostScanner.swift && ! test -e macos/Tests/ClaudeUsageBarTests/LocalCostScannerTests.swift  # 判定约定同其它 SC_AUTO_*：退出码 0 = pass（两文件都不存在）；非 0 = fail。注意这条是 test-style 而非 grep-style，G6 执行者按退出码判定"
+  - "SC_AUTO_NO_CONTENT_READ: ! grep -nrIE 'message\\.content|StoredUsageEvent[^/]*\\.content|Envelope\\.Message[^/]*\\bcontent\\b\\s*:' macos/Sources/UsageBar/JSONLCostParser.swift macos/Sources/UsageBar/UsageEventStore.swift macos/Sources/UsageBar/ClaudeUsageCollector.swift macos/Sources/UsageBar/UsageHeatmapView.swift 2>/dev/null"
+  - "SC_AUTO_LOCALCOSTSCANNER_GONE: ! test -e macos/Sources/UsageBar/LocalCostScanner.swift && ! test -e macos/Tests/UsageBarTests/LocalCostScannerTests.swift  # 判定约定同其它 SC_AUTO_*：退出码 0 = pass（两文件都不存在）；非 0 = fail。注意这条是 test-style 而非 grep-style，G6 执行者按退出码判定"
 manual_checks:
   - "已用过 Claude CLI 的用户启动 .app：首次出现短暂'统计中…'后 popover 显示消费热力图（整年网格）+ '本地 30 天估算 ≈ $X.XX'卡片"
   - "未装 Claude CLI / 无 JSONL 文件用户：热力图与 cost 卡片均完全隐藏（不显示空网格 / $0.00）"
@@ -134,7 +134,7 @@ reviews:
       - RECOMMENDED R3 (heatmap 周起始随 locale firstWeekday 变) accepted — UsageHeatmapModel.init 加 cal.firstWeekday = 1。
       - RECOMMENDED R4 (queryEvents 靠 name.count==7 排 agg 文件不稳，"agg-day" 也 7 字符) accepted — 改 !name.hasPrefix("agg")。
       - NOTES N1~N8 confirmed / 微调：UsageEventStore.defaultConfigDir 笔误行 plan 已标注删除；JSONEncoder.iso8601 丢亚秒对按天聚合无影响；注入决策 A（UsageStatsService.shared singleton + usageStats: 参数默认 .shared）确认正确（保 multi-account 2 参构造编译、与旧 LocalCostScanner.shared 一致）；测试数核对 = 131 - 7（LocalCostScannerTests）+ ≈35 新增 = ≈159 ≥ 144；mtime / partial-line / parseError 等 case 逻辑确认正确。
-      - Confirmed correct 全部 ✅（JSONLUsageEvent 字段名匹配、CostSummary/ModelCost 移动后字段一致、ClaudePricing 三函数签名用对、ExtraUsage.formatUSD 存在、SC1~SC14 映射准确、TDD 顺序正确、mock fixture 无真实 token 前缀、UsageService/ClaudeUsageBarApp 改动落在真实代码位置）。
+      - Confirmed correct 全部 ✅（JSONLUsageEvent 字段名匹配、CostSummary/ModelCost 移动后字段一致、ClaudePricing 三函数签名用对、ExtraUsage.formatUSD 存在、SC1~SC14 映射准确、TDD 顺序正确、mock fixture 无真实 token 前缀、UsageService/UsageBarApp 改动落在真实代码位置）。
     artifacts: ["G3 review subagent output (agentId af11b01410ef94e29)"]
   - gate: G5
     reviewer: claude-code (general-purpose subagent, agentId a253d44d6256d7825, whole-implementation code review + security/privacy focus)
@@ -309,7 +309,7 @@ v0.1.2 [`local-cost-scan`](./2026-05-11-local-cost-scan.md) 落地了"扫本地 
 ### 3.2 数据流
 
 ```
-.app 启动 (ClaudeUsageBarApp.task):
+.app 启动 (UsageBarApp.task):
   ├─ historyService.loadHistory()                    (不动)
   ├─ service.bootstrapFromCLIIfNeeded()              (不动)
   ├─ await usageStats.refresh()                      ← 首次：游标空 → 全历史回填 (1~3s, off-main, isInitializing=true)
@@ -395,7 +395,7 @@ return CollectResult(newEventCount: collectedEvents.count, scannedFileCount:, pa
 | 🆕 `UsageStatsService.swift` | `@MainActor ObservableObject` | @Published rolling30d/dailySpend/monthlySpend/isInitializing；refresh()（Task.detached IO + MainActor.run 写回；inFlight 防叠加）|
 | 🆕 `UsageHeatmapView.swift` | SwiftUI View + `UsageHeatmapModel`（纯数据 helper）| GitHub 贡献图风格，53 周整年网格；颜色按当天 USD 9 档（含 0；分档算法实现决定，需保证轻度用户有对比度）；悬停 tooltip + 每格 accessibilityLabel；isInitializing 显骨架；全 0/空 隐藏 |
 | 🔧 `UsageService.swift` | — | 删 localCost30d / refreshLocalCostIfNeeded；持有 usageStats 单向强引用；polling tick 内 `Task.detached { await usageStats.refresh() }`；**switchAccount 不再触碰本机统计**（删 `localCost30d=nil` 那行不替换）；polling timer 内不直接引用 store/collector（grep 守护）|
-| 🔧 `ClaudeUsageBarApp.swift` | — | @StateObject usageStats；构造 UsageService 时注入 usageStats（单向）；.task 串入 await usageStats.refresh() |
+| 🔧 `UsageBarApp.swift` | — | @StateObject usageStats；构造 UsageService 时注入 usageStats（单向）；.task 串入 await usageStats.refresh() |
 | 🔧 `PopoverView.swift` | — | LocalCostCard 数据源改 usageStats.rolling30d；插入 UsageHeatmapView（全 0/空 隐藏）|
 | 🔧 `LocalCostCard.swift` | — | 数据源参数从 CostSummary（来自 service.localCost30d）改为来自 usageStats.rolling30d；视觉不变 |
 | 🗑 `LocalCostScanner.swift` | — | 删除（被 UsageEventStore + ClaudeUsageCollector + data/ 取代）|
@@ -455,7 +455,7 @@ return CollectResult(newEventCount: collectedEvents.count, scannedFileCount:, pa
 - **P1** — UsageEventStore + ScanCursorStore + UsageAggregator + 单测（Commit B，leaf modules）
 - **P2** — ClaudeUsageCollector + UsageStatsService + 单测（Commit C，依赖 P1）
 - **P3** — UsageHeatmapView + UsageHeatmapModel + 单测（Commit D）
-- **P4** — UsageService/ClaudeUsageBarApp/PopoverView/LocalCostCard 接入 + 删 LocalCostScanner(+Tests) + Caches 清理（Commit E，集成）
+- **P4** — UsageService/UsageBarApp/PopoverView/LocalCostCard 接入 + 删 LocalCostScanner(+Tests) + Caches 清理（Commit E，集成）
 - **P5** — G6 收尾：spec status→implemented、reviews append、Verification log、CHANGELOG、version→in-progress（Commit F）
 - 每个 commit 前 `swift build -c release` + `swift test` 双绿 + 三隐私守护 + SC_AUTO_LOCALCOSTSCANNER_GONE（P4 后）
 
@@ -463,18 +463,18 @@ return CollectResult(newEventCount: collectedEvents.count, scannedFileCount:, pa
 
 | 动作 | 文件 | 备注 |
 |---|---|---|
-| 🆕 | `macos/Sources/ClaudeUsageBar/UsageEventStore.swift` | actor，月明细 + agg + 磁盘 schema |
-| 🆕 | `macos/Sources/ClaudeUsageBar/ScanCursorStore.swift` | actor，per-file 游标 |
-| 🆕 | `macos/Sources/ClaudeUsageBar/ClaudeUsageCollector.swift` | actor，增量采集 |
-| 🆕 | `macos/Sources/ClaudeUsageBar/UsageAggregator.swift` | 纯函数折算 + USD |
-| 🆕 | `macos/Sources/ClaudeUsageBar/UsageStatsService.swift` | @MainActor ObservableObject |
-| 🆕 | `macos/Sources/ClaudeUsageBar/UsageHeatmapView.swift` | 热力图 View + UsageHeatmapModel |
-| 🆕 | `macos/Tests/ClaudeUsageBarTests/UsageEventStoreTests.swift` 等 6 个测试文件 | ≥20 case 总计 |
-| 🔧 | `macos/Sources/ClaudeUsageBar/UsageService.swift` | 删 localCost30d/refreshLocalCostIfNeeded；持 usageStats 单向强引用；polling tick 调 usageStats.refresh；switchAccount 删 `localCost30d=nil` 行不替换 |
-| 🔧 | `macos/Sources/ClaudeUsageBar/ClaudeUsageBarApp.swift` | @StateObject usageStats + 注入 + .task |
-| 🔧 | `macos/Sources/ClaudeUsageBar/PopoverView.swift` | 数据源换 + 插 UsageHeatmapView |
-| 🔧 | `macos/Sources/ClaudeUsageBar/LocalCostCard.swift` | 数据源参数换；视觉不变 |
-| 🗑 | `macos/Sources/ClaudeUsageBar/LocalCostScanner.swift` + `macos/Tests/ClaudeUsageBarTests/LocalCostScannerTests.swift` | 删除 |
+| 🆕 | `macos/Sources/UsageBar/UsageEventStore.swift` | actor，月明细 + agg + 磁盘 schema |
+| 🆕 | `macos/Sources/UsageBar/ScanCursorStore.swift` | actor，per-file 游标 |
+| 🆕 | `macos/Sources/UsageBar/ClaudeUsageCollector.swift` | actor，增量采集 |
+| 🆕 | `macos/Sources/UsageBar/UsageAggregator.swift` | 纯函数折算 + USD |
+| 🆕 | `macos/Sources/UsageBar/UsageStatsService.swift` | @MainActor ObservableObject |
+| 🆕 | `macos/Sources/UsageBar/UsageHeatmapView.swift` | 热力图 View + UsageHeatmapModel |
+| 🆕 | `macos/Tests/UsageBarTests/UsageEventStoreTests.swift` 等 6 个测试文件 | ≥20 case 总计 |
+| 🔧 | `macos/Sources/UsageBar/UsageService.swift` | 删 localCost30d/refreshLocalCostIfNeeded；持 usageStats 单向强引用；polling tick 调 usageStats.refresh；switchAccount 删 `localCost30d=nil` 行不替换 |
+| 🔧 | `macos/Sources/UsageBar/UsageBarApp.swift` | @StateObject usageStats + 注入 + .task |
+| 🔧 | `macos/Sources/UsageBar/PopoverView.swift` | 数据源换 + 插 UsageHeatmapView |
+| 🔧 | `macos/Sources/UsageBar/LocalCostCard.swift` | 数据源参数换；视觉不变 |
+| 🗑 | `macos/Sources/UsageBar/LocalCostScanner.swift` + `macos/Tests/UsageBarTests/LocalCostScannerTests.swift` | 删除 |
 | 🔧 | `docs/superpowers/specs/2026-05-11-local-cost-scan.md` | status implemented→superseded + superseded_by |
 | 🆕 | `docs/versions/v0.2.3-usage-store-redesign.md` | 新建 version 文件 |
 | 🔧 | `docs/versions/README.md` / `docs/superpowers/specs/README.md` / `CHANGELOG.md` | 索引 + entry 同步 |
@@ -547,8 +547,8 @@ return CollectResult(newEventCount: collectedEvents.count, scannedFileCount:, pa
 - [x] SC6 — evidence: commit `5f97f16`+`edf3a16` 新增 `UsageStatsService.swift`：`@MainActor ObservableObject`；`@Published private(set) rolling30d: CostSummary?` / `dailySpend: [DaySpend]` / `monthlySpend: [MonthSpend]` / `isInitializing: Bool = true`；`refresh() async` 内 `Task.detached(.utility)` 跑 collector.collect + 读 agg + UsageAggregator 折算，回 MainActor 写回 published（testRefreshPublishesRolling30dAndDailyAndMonthly）；`inFlight` 防叠加（testConcurrentRefreshDoesNotCrash）；首次 isInitializing=true 直到首次 collect 完（testIsInitializingTrueDuringFirstRefresh）；scannedFileCount==0 → rolling30d 保持 nil（testRefreshWithNoJSONLKeepsRolling30dNil）；`static let shared`（`edf3a16`，singleton 注入）
 - [x] SC7 — evidence: commit `841fc4a` 新增 `UsageHeatmapView.swift`：`UsageHeatmapModel` GitHub 贡献图风格 53 周 × 7 天网格（testGridSpansAtLeast53Weeks）；颜色 9 档（0 档 + 8 非零档，分位数动态分档；testZeroSpendDayIsBucketZero / testNineBucketsMax / testColorBucketsHaveContrastForLightUser 验轻度用户对比度）；`firstWeekday=1` 固定周日起始（G3 R3）；`UsageHeatmapView` `.help` tooltip "YYYY-MM-DD · ≈ $X.XX · N calls" + `.accessibilityLabel` 日期+金额 + isInitializing 显 ProgressView+"统计中…"；数据源 `usageStats.dailySpend`；全 0/空隐藏（testIsEmptyWhenAllZeroOrNoDays + PopoverView 插入条件）；新文件不塞进 PopoverView；跨年（testCrossYearBoundaryIncludesBothYears）
 - [x] SC8 — evidence: commit `edf3a16` `UsageService.swift`：删 `@Published localCost30d` + `refreshLocalCostIfNeeded()`；加 `private let usageStats: UsageStatsService` + init 末参 `usageStats: UsageStatsService = .shared`（单向强引用无环）；polling timer 回调 `Task.detached { [usageStats] in await usageStats.refresh() }`（不阻塞 fetchUsage）；switchAccount/signOut/completeSignIn 删 `localCost30d = nil` 不替换（跨账号统计无关，加注释）；grep 验证 usageStats 仅出现在属性声明/init/timer 回调，无 UsageEventStore/ClaudeUsageCollector 引用
-- [x] SC9 — evidence: commit `edf3a16` `ClaudeUsageBarApp.swift`：`@StateObject usageStats = UsageStatsService.shared` + `.environmentObject(usageStats)` + `.task` 内 bootstrapFromCLIIfNeeded 之后 startPolling 之前 `await usageStats.refresh()`；`PopoverView.swift`：`@EnvironmentObject usageStats` + 数据源 `service.localCost30d` → `usageStats.rolling30d` + LocalCostCard 之后插 `if !usageStats.dailySpend.isEmpty && !usageStats.dailySpend.allSatisfy({ $0.usd == 0 }) { Divider(); UsageHeatmapView(...) }`；`LocalCostCard.swift` 签名视觉不变；hero/secondary/pace/trend/chart/history/settings/AccountSwitcher 渲染未动（diff 仅触白名单行）
-- [x] SC10 — evidence: commit `de41e9c` 把 `CostSummary`/`ModelCost` 从 LocalCostScanner 移到 UsageStoreTypes；commit `edf3a16` `git rm` `LocalCostScanner.swift` + `LocalCostScannerTests.swift`（SC_AUTO_LOCALCOSTSCANNER_GONE 通过）；`ClaudeUsageBarApp.task` 起始 best-effort `removeItem` 旧 `~/Library/Caches/claude-usage-bar/cost-usage`；JSONLCostParser.swift / ClaudePricing.swift 保留不动（复用）；history.json 不动
+- [x] SC9 — evidence: commit `edf3a16` `UsageBarApp.swift`：`@StateObject usageStats = UsageStatsService.shared` + `.environmentObject(usageStats)` + `.task` 内 bootstrapFromCLIIfNeeded 之后 startPolling 之前 `await usageStats.refresh()`；`PopoverView.swift`：`@EnvironmentObject usageStats` + 数据源 `service.localCost30d` → `usageStats.rolling30d` + LocalCostCard 之后插 `if !usageStats.dailySpend.isEmpty && !usageStats.dailySpend.allSatisfy({ $0.usd == 0 }) { Divider(); UsageHeatmapView(...) }`；`LocalCostCard.swift` 签名视觉不变；hero/secondary/pace/trend/chart/history/settings/AccountSwitcher 渲染未动（diff 仅触白名单行）
+- [x] SC10 — evidence: commit `de41e9c` 把 `CostSummary`/`ModelCost` 从 LocalCostScanner 移到 UsageStoreTypes；commit `edf3a16` `git rm` `LocalCostScanner.swift` + `LocalCostScannerTests.swift`（SC_AUTO_LOCALCOSTSCANNER_GONE 通过）；`UsageBarApp.task` 起始 best-effort `removeItem` 旧 `~/Library/Caches/claude-usage-bar/cost-usage`；JSONLCostParser.swift / ClaudePricing.swift 保留不动（复用）；history.json 不动
 - [x] SC11 — evidence: JSONLCostParser schema 仍不含 content（testEnvelopeDoesNotDecodeContentField 保留，pre-existing）；StoredUsageEvent / MonthDetailFile / AggregateFile / ScanCursorFile schema 均无 content/text/contentBlocks；所有新增文件错误日志只 `NSLog("...: \(type(of: error))")`，无 JSONL 行/文件名/路径/sessionId 泄漏；data/ 文件 0600 目录 0700（多个单测绑定）；测试 fixture 全手写，`msg_mock_`/`req_mock_`/`00000000-mock-...` 无真实 token 前缀；SC_AUTO_NO_PRINT_TOKENS（含 sessionId/fileURL/.path/lastPathComponent/sessionUUID/absJsonlPath 关键字守护）/ SC_AUTO_NO_REAL_TOKEN_PREFIX / SC_AUTO_NO_CONTENT_READ 全 0 匹配
 - [x] SC12 — evidence: 新增 36 case（7 UsageEventStoreTests + 6 UsageAggregatorTests + 7 ScanCursorStoreTests + 7 ClaudeUsageCollectorTests + 4 UsageStatsServiceTests + 6 UsageHeatmapModelTests − 1 UsageServiceMultiAccountTests 删除断言），含 testColorBucketsHaveContrastForLightUser / testPartialLastLineNotConsumed / testNoNewEventsReturnsZeroAndNoWrite / testCorruptedMonthFileTriggersCursorResetAndRecovery 等关键守护；inline mock 不读真实文件，不含真实 token 前缀
 - [x] SC13 — evidence: `cd macos && swift build -c release` 输出 `Build complete!`（0 warnings）；`cd macos && swift test` 输出 `Executed 160 tests, with 0 failures`（实测基线 main HEAD 131，删 7 LocalCostScannerTests，净 +29 新增 = 160，> ≥144 floor）

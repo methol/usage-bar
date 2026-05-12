@@ -11,11 +11,11 @@ related_adrs: [0001, 0002]
 related_research: [competitive-analysis]
 spec_criteria:
   - id: SC1
-    criterion: "新增 macos/Sources/ClaudeUsageBar/TrendCalculator.swift，含 TrendDirection enum + TrendIndicator struct + 顶层纯函数 computeTrend(currentPct:points:metric:lookback:now:) -> TrendIndicator?（G5 review B1 修订：补 currentPct 参数标签与代码一致）"
+    criterion: "新增 macos/Sources/UsageBar/TrendCalculator.swift，含 TrendDirection enum + TrendIndicator struct + 顶层纯函数 computeTrend(currentPct:points:metric:lookback:now:) -> TrendIndicator?（G5 review B1 修订：补 currentPct 参数标签与代码一致）"
     done: true
     evidence: "commit 5e62142 + 5f06533"
   - id: SC2
-    criterion: "新增 macos/Tests/ClaudeUsageBarTests/TrendCalculatorTests.swift，≥4 case：up（current > baseline）/ down（current < baseline）/ flat（|Δ| < 1pp，return nil）/ 数据不足（history 中无 lookback 之前的点，return nil）；deltaPct 用 .rounded() 取整非截断（边界 case Δ=1.4→1 / Δ=0.9→nil）；每测构造 let now = Date() 显式传 now"
+    criterion: "新增 macos/Tests/UsageBarTests/TrendCalculatorTests.swift，≥4 case：up（current > baseline）/ down（current < baseline）/ flat（|Δ| < 1pp，return nil）/ 数据不足（history 中无 lookback 之前的点，return nil）；deltaPct 用 .rounded() 取整非截断（边界 case Δ=1.4→1 / Δ=0.9→nil）；每测构造 let now = Date() 显式传 now"
     done: true
     evidence: "see ## Verification log"
   - id: SC3
@@ -338,10 +338,10 @@ UsageHeroCard(size: .secondary, label: "7-Day", bucket: service.usage?.sevenDay,
 
 | 动作 | 文件 | 备注 |
 |---|---|---|
-| 🆕 | `macos/Sources/ClaudeUsageBar/TrendCalculator.swift` | TrendDirection enum + TrendIndicator struct + computeTrend func |
-| 🆕 | `macos/Tests/ClaudeUsageBarTests/TrendCalculatorTests.swift` | ≥4 case |
-| 🔧 | `macos/Sources/ClaudeUsageBar/UsageHeroCard.swift` | 加 `var trend: TrendIndicator? = nil` 参数；label 行加 trend Text 显示；#Preview 补 trend 示例 |
-| 🔧 | `macos/Sources/ClaudeUsageBar/PopoverView.swift` | usageView 计算 trend5h / trend7d 传入 UsageHeroCard |
+| 🆕 | `macos/Sources/UsageBar/TrendCalculator.swift` | TrendDirection enum + TrendIndicator struct + computeTrend func |
+| 🆕 | `macos/Tests/UsageBarTests/TrendCalculatorTests.swift` | ≥4 case |
+| 🔧 | `macos/Sources/UsageBar/UsageHeroCard.swift` | 加 `var trend: TrendIndicator? = nil` 参数；label 行加 trend Text 显示；#Preview 补 trend 示例 |
+| 🔧 | `macos/Sources/UsageBar/PopoverView.swift` | usageView 计算 trend5h / trend7d 传入 UsageHeroCard |
 | 🔧 | `docs/versions/v0.0.9-trend-arrows.md` | placeholder→planned→in-progress |
 | 🔧 | `docs/versions/README.md` / `docs/superpowers/specs/README.md` | 索引同步 |
 | 🔧 | `CHANGELOG.md` | append v0.0.9 entry |

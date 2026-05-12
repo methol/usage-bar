@@ -4,7 +4,7 @@
 
 **Goal:** `ProviderCoordinator` 真正统管所有 provider 的后台轮询 timer（含 Claude）—— `UsageService` 退役自持 `Timer`，429 backoff 改成只读 hint `nextEligibleRefresh: Date?`，coordinator 单 timer 每 tick 跳过 backoff 窗口内的 provider；Codex 菜单栏改用代码绘制的 `</>` glyph。Claude / 既有行为零回归。
 
-**Architecture:** `UsageProvider` 加 `var nextEligibleRefresh: Date? { nil }`（默认实现）+ `var onPollTick: (@MainActor () -> Void)? { get set }`（协议成员，conformer 各自加存储属性）。`UsageService` 删 `timer`/`scheduleTimer()`/`startPolling()`/`currentInterval`，加 `currentBackoffSeconds`+`backoffUntil`，`nextEligibleRefresh { backoffUntil }`，`onPollTick`；`fetchUsage` 429→设 backoffUntil、成功→清；`refreshNow()` 里补 profile 判断；`switchAccount`/`addAccount`/`signOut`/`expireSession` 的 timer 散点改对。`ProviderCoordinator.onBackgroundTick()` 遍历全部 enabled provider、跳过 `nextEligibleRefresh > now` 的、`Task{await refreshNow()}` + `onPollTick?()`；`refreshAllEnabledOnOpen()` 非-Claude 各拉、Claude 仅 `shouldRefreshClaudeOnOpen` 时拉；`startBackgroundPolling()` 无参。`ClaudeUsageBarApp` 改：设各 onPollTick → `startBackgroundPolling()`（不再单独 `claude.refreshNow()`）。`MenuBarIconRenderer.drawProviderGlyph(for:.codex,...)` 改 `NSBezierPath` 画 `</>`。
+**Architecture:** `UsageProvider` 加 `var nextEligibleRefresh: Date? { nil }`（默认实现）+ `var onPollTick: (@MainActor () -> Void)? { get set }`（协议成员，conformer 各自加存储属性）。`UsageService` 删 `timer`/`scheduleTimer()`/`startPolling()`/`currentInterval`，加 `currentBackoffSeconds`+`backoffUntil`，`nextEligibleRefresh { backoffUntil }`，`onPollTick`；`fetchUsage` 429→设 backoffUntil、成功→清；`refreshNow()` 里补 profile 判断；`switchAccount`/`addAccount`/`signOut`/`expireSession` 的 timer 散点改对。`ProviderCoordinator.onBackgroundTick()` 遍历全部 enabled provider、跳过 `nextEligibleRefresh > now` 的、`Task{await refreshNow()}` + `onPollTick?()`；`refreshAllEnabledOnOpen()` 非-Claude 各拉、Claude 仅 `shouldRefreshClaudeOnOpen` 时拉；`startBackgroundPolling()` 无参。`UsageBarApp` 改：设各 onPollTick → `startBackgroundPolling()`（不再单独 `claude.refreshNow()`）。`MenuBarIconRenderer.drawProviderGlyph(for:.codex,...)` 改 `NSBezierPath` 画 `</>`。
 
 **Tech Stack:** Swift 5.9 / SwiftUI / AppKit / Combine（coordinator 的 `Timer.publish` 不变）/ XCTest。命令用绝对路径（`cd /Users/methol/data/code-methol/usage-bar/macos` 或 repo 根）。
 
@@ -14,7 +14,7 @@
 
 ## File Structure
 
-改：`UsageProvider.swift`、`UsageService.swift`、`ProviderCoordinator.swift`、`ClaudeUsageBarApp.swift`、`MenuBarIconRenderer.swift`；测试 `UsageServiceTests.swift`（追加）、`ProviderCoordinatorTests.swift`（改/追加）、`ProviderAbstractionTests.swift`（`StubProvider` 加成员）。
+改：`UsageProvider.swift`、`UsageService.swift`、`ProviderCoordinator.swift`、`UsageBarApp.swift`、`MenuBarIconRenderer.swift`；测试 `UsageServiceTests.swift`（追加）、`ProviderCoordinatorTests.swift`（改/追加）、`ProviderAbstractionTests.swift`（`StubProvider` 加成员）。
 
 ---
 
@@ -102,9 +102,9 @@
   - (c) `addAccount`/`completeSignIn` 路径（约 :355-402）：`if !isFirst { ... currentFetchTask?.cancel(); ...; timer?.invalidate(); timer = nil; accountSwitchEpoch += 1; ... }` → 删 `timer?.invalidate(); timer = nil` 那行（其余 cancel/epoch 不动）；末尾 `await fetchProfile(); startPolling()`（:400-401）→ `await fetchProfile(); currentFetchTask = Task { [weak self] in await self?.fetchUsage() }`（profile 已先调，不用再 `if accountEmail == nil`）。
   - (d) `signOut()`（约 :409-420）：删 `timer?.invalidate(); timer = nil`（:417-418）（其余 `currentFetchTask?.cancel()` / `refreshTask?.cancel()` 不动）。
   - (e) `expireSession`（约 :805-830）：CLI 凭证恢复成功路径里那段 `timer?.invalidate(); timer = nil`（:820-821）→ 删（恢复后下一轮 coordinator tick 自然用新 token）；走原硬过期路径时若有 `startPolling()` —— 改成 `currentFetchTask = Task { [weak self] in await self?.fetchUsage() }`（实施时读 `expireSession` 确认有没有这一支）。
-  - **grep 验证**：`grep -n 'private var timer\|scheduleTimer\|func startPolling\|currentInterval' Sources/ClaudeUsageBar/UsageService.swift` → 无命中。`grep -n 'startPolling' Sources/` → 只剩……（`coordinator.claude.startPolling()` 那行在 `ClaudeUsageBarApp` 会在 Task 3 删；本 Task 暂时会编译失败 —— 见 Step 6 注）。
+  - **grep 验证**：`grep -n 'private var timer\|scheduleTimer\|func startPolling\|currentInterval' Sources/UsageBar/UsageService.swift` → 无命中。`grep -n 'startPolling' Sources/` → 只剩……（`coordinator.claude.startPolling()` 那行在 `UsageBarApp` 会在 Task 3 删；本 Task 暂时会编译失败 —— 见 Step 6 注）。
 
-- [x] **Step 6: `ProviderAbstractionTests.swift` 的 `StubProvider` 加 `var onPollTick: (@MainActor () -> Void)? = nil`**（满足新协议成员，让测试编译过）+ 顺手加 `var refreshNowCallCount = 0`、`var nextEligibleRefreshOverride: Date? = nil` + `nextEligibleRefresh` 计算属性返回 override、`refreshNow()` 里 `refreshNowCallCount += 1`（给 Task 2 的测试用）。`ClaudeUsageBarApp.swift` 里 `coordinator.claude.startPolling()` 还在 —— **本 Task 不动它**（Task 3 改）；为让 `swift build` 在本 Task 结束时过，临时把 `ClaudeUsageBarApp.swift` 那行 `coordinator.claude.startPolling()` 改成 `coordinator.claude.refreshNow()` 包一个 `Task { await ... }`（或直接删掉 —— Task 3 会重写这段）；`ProviderCoordinator.startBackgroundPolling(codexOnPollTick:)` 调用点（`ClaudeUsageBarApp`）也还在、本 Task 不动（Task 3 改）—— 但 `startBackgroundPolling` 的 `onBackgroundTick` 里 `(p as? CodexProvider)?.onPollTick?()` 仍能编译（`CodexProvider.onPollTick` 还在）。⚠️ 实施时若本 Task 改完编译不过、就把 `ClaudeUsageBarApp` / `ProviderCoordinator` 的相关行临时桥一下让 build 过，Task 3 正式改。
+- [x] **Step 6: `ProviderAbstractionTests.swift` 的 `StubProvider` 加 `var onPollTick: (@MainActor () -> Void)? = nil`**（满足新协议成员，让测试编译过）+ 顺手加 `var refreshNowCallCount = 0`、`var nextEligibleRefreshOverride: Date? = nil` + `nextEligibleRefresh` 计算属性返回 override、`refreshNow()` 里 `refreshNowCallCount += 1`（给 Task 2 的测试用）。`UsageBarApp.swift` 里 `coordinator.claude.startPolling()` 还在 —— **本 Task 不动它**（Task 3 改）；为让 `swift build` 在本 Task 结束时过，临时把 `UsageBarApp.swift` 那行 `coordinator.claude.startPolling()` 改成 `coordinator.claude.refreshNow()` 包一个 `Task { await ... }`（或直接删掉 —— Task 3 会重写这段）；`ProviderCoordinator.startBackgroundPolling(codexOnPollTick:)` 调用点（`UsageBarApp`）也还在、本 Task 不动（Task 3 改）—— 但 `startBackgroundPolling` 的 `onBackgroundTick` 里 `(p as? CodexProvider)?.onPollTick?()` 仍能编译（`CodexProvider.onPollTick` 还在）。⚠️ 实施时若本 Task 改完编译不过、就把 `UsageBarApp` / `ProviderCoordinator` 的相关行临时桥一下让 build 过，Task 3 正式改。
 
 - [x] **Step 7: 跑确认通过** — `swift test --filter UsageServiceTests` → all PASS。
 
@@ -114,7 +114,7 @@
 
 ```bash
 cd /Users/methol/data/code-methol/usage-bar
-git add macos/Sources/ClaudeUsageBar/{UsageProvider,UsageService}.swift macos/Tests/ClaudeUsageBarTests/{UsageServiceTests,ProviderAbstractionTests}.swift macos/Sources/ClaudeUsageBar/ClaudeUsageBarApp.swift
+git add macos/Sources/UsageBar/{UsageProvider,UsageService}.swift macos/Tests/UsageBarTests/{UsageServiceTests,ProviderAbstractionTests}.swift macos/Sources/UsageBar/UsageBarApp.swift
 git commit -m "feat: v0.2.11 — UsageProvider 加 nextEligibleRefresh hint + onPollTick（协议成员）；UsageService 退役自持 Timer（删 timer/scheduleTimer/startPolling/currentInterval），429 backoff 改成 backoffUntil 截止时刻语义、成功清；refreshNow 补 profile 判断；switchAccount/addAccount/signOut/expireSession 的 timer 散点改对 [spec:2026-05-12-unified-poll-timer]
 
 Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
@@ -163,14 +163,14 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
     ```
   - `startBackgroundPolling(codexOnPollTick:)` → `startBackgroundPolling()`（去参数）：体里删「`(registry.provider(.codex) as? CodexProvider)?.onPollTick = codexOnPollTick`」那行（各 provider 的 onPollTick 由装配处设）；其余（`rescheduleBackgroundTimer()` + 立即 `onBackgroundTick()` + 注册 `UserDefaults.didChangeNotification` observer）不变。
 
-- [x] **Step 4: 跑确认通过** — `swift test --filter ProviderCoordinatorTests` → all PASS（`onBackgroundTick` 那行 `p.onPollTick?()` —— 此时 `UsageService.onPollTick` 已在 Task 1 加、`CodexProvider.onPollTick` 已有、`StubProvider.onPollTick` Task 1 Step 6 加 → 协议成员调用 OK）。`ClaudeUsageBarApp` 里 `startBackgroundPolling(codexOnPollTick:)` 调用点现在编译失败 —— 临时改成 `startBackgroundPolling()` + 把 `codexOnPollTick` 那个闭包暂时丢一边（Task 3 正式改）；为 build 过。
+- [x] **Step 4: 跑确认通过** — `swift test --filter ProviderCoordinatorTests` → all PASS（`onBackgroundTick` 那行 `p.onPollTick?()` —— 此时 `UsageService.onPollTick` 已在 Task 1 加、`CodexProvider.onPollTick` 已有、`StubProvider.onPollTick` Task 1 Step 6 加 → 协议成员调用 OK）。`UsageBarApp` 里 `startBackgroundPolling(codexOnPollTick:)` 调用点现在编译失败 —— 临时改成 `startBackgroundPolling()` + 把 `codexOnPollTick` 那个闭包暂时丢一边（Task 3 正式改）；为 build 过。
 
 - [x] **Step 5: build + 全量 test** — `swift build -c release && swift test` → 全绿。
 
 - [x] **Step 6: Commit**
 
 ```bash
-git add macos/Sources/ClaudeUsageBar/{ProviderCoordinator,ClaudeUsageBarApp}.swift macos/Tests/ClaudeUsageBarTests/ProviderCoordinatorTests.swift
+git add macos/Sources/UsageBar/{ProviderCoordinator,UsageBarApp}.swift macos/Tests/UsageBarTests/ProviderCoordinatorTests.swift
 git commit -m "feat: v0.2.11 — ProviderCoordinator.onBackgroundTick 覆盖所有 enabled provider（含 Claude，跳过 nextEligibleRefresh > now 的）+ onPollTick 不再向下转型；refreshAllEnabledOnOpen 非-Claude 各拉、Claude 仅 snapshot==nil 时兜；startBackgroundPolling 去 codexOnPollTick 参数 [spec:2026-05-12-unified-poll-timer]
 
 Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
@@ -180,9 +180,9 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 
 ## Task 3: 装配处改线 + Codex 菜单栏 `</>` glyph
 
-**Files:** Modify `ClaudeUsageBarApp.swift`、`MenuBarIconRenderer.swift`、`CodexProvider.swift`（删 `onPollTick` 上的「装配处用它驱动」注释微调 —— 可选）。无新单测（装配 + 纯渲染，靠 build + manual smoke）。
+**Files:** Modify `UsageBarApp.swift`、`MenuBarIconRenderer.swift`、`CodexProvider.swift`（删 `onPollTick` 上的「装配处用它驱动」注释微调 —— 可选）。无新单测（装配 + 纯渲染，靠 build + manual smoke）。
 
-- [x] **Step 1: 改 `ClaudeUsageBarApp.swift`** —— `.task` 里那段（v0.2.10 是 `coordinator.startBackgroundPolling(codexOnPollTick: { Task.detached { await codexStats.refresh() } })`，加上 Task 1/2 临时桥的痕迹）改成：
+- [x] **Step 1: 改 `UsageBarApp.swift`** —— `.task` 里那段（v0.2.10 是 `coordinator.startBackgroundPolling(codexOnPollTick: { Task.detached { await codexStats.refresh() } })`，加上 Task 1/2 临时桥的痕迹）改成：
 ```swift
 // 各 provider 的本机统计刷新随后台 tick 走 onPollTick（Claude 的逻辑原在 UsageService.scheduleTimer 里）
 coordinator.claude.onPollTick = { Task.detached { await usageStats.refresh() } }
@@ -235,7 +235,7 @@ private func drawProviderGlyph(for id: ProviderID, x: CGFloat, y: CGFloat, size:
 - [x] **Step 4: Commit**
 
 ```bash
-git add macos/Sources/ClaudeUsageBar/{ClaudeUsageBarApp,MenuBarIconRenderer}.swift
+git add macos/Sources/UsageBar/{UsageBarApp,MenuBarIconRenderer}.swift
 git commit -m "feat: v0.2.11 — 装配处改线（各 provider onPollTick 单独设 + startBackgroundPolling() 无参，含 Claude）；Codex 菜单栏改用代码自绘的 </> glyph（取代 SF Symbol terminal，无商标风险）[spec:2026-05-12-unified-poll-timer]
 
 Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
@@ -249,8 +249,8 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 
 ```bash
 cd /Users/methol/data/code-methol/usage-bar/macos && swift build -c release && swift test
-cd /Users/methol/data/code-methol/usage-bar && make release-artifacts && bash macos/scripts/verify-release.sh macos/ClaudeUsageBar.zip
-grep -n 'private var timer\|scheduleTimer\|func startPolling\|currentInterval' macos/Sources/ClaudeUsageBar/UsageService.swift   # 期望无命中（SC_AUTO_NO_TIMER）
+cd /Users/methol/data/code-methol/usage-bar && make release-artifacts && bash macos/scripts/verify-release.sh macos/UsageBar.zip
+grep -n 'private var timer\|scheduleTimer\|func startPolling\|currentInterval' macos/Sources/UsageBar/UsageService.swift   # 期望无命中（SC_AUTO_NO_TIMER）
 ```
 Expected: build OK；全部 tests PASS；zip/dmg + verify「Release archive looks good」；grep 无命中。
 
@@ -270,5 +270,5 @@ Expected: build OK；全部 tests PASS；zip/dmg + verify「Release archive look
 
 - **Spec coverage**：SC1→Task1 Step3（协议）+ Step4（UsageService 加 nextEligibleRefresh/onPollTick）；SC2→Task1 Step4（退役 timer + backoff 截止时刻）；SC3→Task2 Step3（onBackgroundTick 含 Claude / refreshAllEnabledOnOpen / startBackgroundPolling 无参）；SC4→Task3 Step1（装配改线）；SC5→Task1 Step5（timer 散点）+ Task4 Step1 的 grep；SC6→Task3 Step2（</> glyph）；SC7→贯穿（各 Task 末「全量 test」守既有全绿 + `backoffInterval` 纯函数不动 + Claude 行为只动 timer/backoff 那块 + UsageProvider 注释更新）；SC8→各 Task build/test + Task4 Step1。
 - **Placeholder scan**：关键代码（`onBackgroundTick`/`refreshAllEnabledOnOpen` 新体、`fetchUsage` 429/成功分支改法、`</>` glyph 全代码、装配改线）已给出；机械的（`UsageService` timer 散点删除、`switchAccount`/`addAccount` 的 `currentFetchTask = Task{...}` 替换）以「读现有 X 照改 Y + spec §3.1」代替 —— 每处说清了改哪行成什么 + 行号大约。
-- **风险点已标注**：Task1 的 `UsageService` timer 散点遗漏（最大风险 —— Step5 逐一列 + grep 守 + `SC_AUTO_NO_TIMER`）；Task1/2 中途编译过的桥接（Step6 / Task2 Step4 callout —— 临时改 `ClaudeUsageBarApp`/`ProviderCoordinator` 调用点让 build 过，Task3 正式改）；Task3 的 `</>` glyph 在 12pt 下清晰度（manual smoke 验，糊就调笔宽/坐标 —— SC6 本就允许微调）；测试里 `Task.yield + sleep(50ms)` 等异步 tick 的脆弱性（继承自既有测试，不是本 spec 引入）。
-- **Type consistency**：`UsageProvider.nextEligibleRefresh: Date?`（默认 nil）/ `UsageProvider.onPollTick: (@MainActor () -> Void)? { get set }`；`UsageService.{currentBackoffSeconds: TimeInterval, backoffUntil: Date?, onPollTick, nextEligibleRefresh, refreshNow()}`，删 `{timer, scheduleTimer(), startPolling(), currentInterval}`；`ProviderCoordinator.{onBackgroundTick(), refreshAllEnabledOnOpen(), shouldRefreshClaudeOnOpen, startBackgroundPolling()}`（去 `codexOnPollTick:`）；`MenuBarIconRenderer.drawProviderGlyph(for:x:y:size:)` 签名不变；`StubProvider.{onPollTick, refreshNowCallCount, nextEligibleRefreshOverride, nextEligibleRefresh}`；`ClaudeUsageBarApp` 装配 `coordinator.claude.onPollTick = ...; coordinator.provider(.codex)?.onPollTick = ...; coordinator.startBackgroundPolling()` —— 各 Task 间一致。
+- **风险点已标注**：Task1 的 `UsageService` timer 散点遗漏（最大风险 —— Step5 逐一列 + grep 守 + `SC_AUTO_NO_TIMER`）；Task1/2 中途编译过的桥接（Step6 / Task2 Step4 callout —— 临时改 `UsageBarApp`/`ProviderCoordinator` 调用点让 build 过，Task3 正式改）；Task3 的 `</>` glyph 在 12pt 下清晰度（manual smoke 验，糊就调笔宽/坐标 —— SC6 本就允许微调）；测试里 `Task.yield + sleep(50ms)` 等异步 tick 的脆弱性（继承自既有测试，不是本 spec 引入）。
+- **Type consistency**：`UsageProvider.nextEligibleRefresh: Date?`（默认 nil）/ `UsageProvider.onPollTick: (@MainActor () -> Void)? { get set }`；`UsageService.{currentBackoffSeconds: TimeInterval, backoffUntil: Date?, onPollTick, nextEligibleRefresh, refreshNow()}`，删 `{timer, scheduleTimer(), startPolling(), currentInterval}`；`ProviderCoordinator.{onBackgroundTick(), refreshAllEnabledOnOpen(), shouldRefreshClaudeOnOpen, startBackgroundPolling()}`（去 `codexOnPollTick:`）；`MenuBarIconRenderer.drawProviderGlyph(for:x:y:size:)` 签名不变；`StubProvider.{onPollTick, refreshNowCallCount, nextEligibleRefreshOverride, nextEligibleRefresh}`；`UsageBarApp` 装配 `coordinator.claude.onPollTick = ...; coordinator.provider(.codex)?.onPollTick = ...; coordinator.startBackgroundPolling()` —— 各 Task 间一致。

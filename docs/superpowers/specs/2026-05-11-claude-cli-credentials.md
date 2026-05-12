@@ -11,11 +11,11 @@ related_adrs: [0001, 0002]
 related_research: [competitive-analysis]
 spec_criteria:
   - id: SC1
-    criterion: "新增 macos/Sources/ClaudeUsageBar/ClaudeUsageStrategy.swift：定义 protocol ClaudeUsageStrategy { func loadCredentials() async throws -> StoredCredentials? }；为后续多数据源（v0.1.2 本地 cost / v0.1.3 多账号 / 未来扩展）提供统一抽象骨架"
+    criterion: "新增 macos/Sources/UsageBar/ClaudeUsageStrategy.swift：定义 protocol ClaudeUsageStrategy { func loadCredentials() async throws -> StoredCredentials? }；为后续多数据源（v0.1.2 本地 cost / v0.1.3 多账号 / 未来扩展）提供统一抽象骨架"
     done: true
     evidence: "see ## Verification log"
   - id: SC2
-    criterion: "新增 macos/Sources/ClaudeUsageBar/ClaudeCLICredentialsStrategy.swift：实现 ClaudeUsageStrategy；用 SecItemCopyMatching 读 macOS Keychain generic password (kSecAttrService='Claude Code-credentials', kSecAttrAccount=NSUserName())；解析 JSON 提取 claudeAiOauth.{accessToken, refreshToken, expiresAt(ms), scopes}；转 StoredCredentials；**主线程不阻塞**（G3 B1：内部用 Task.detached 把同步 SecItemCopyMatching 挪到后台）"
+    criterion: "新增 macos/Sources/UsageBar/ClaudeCLICredentialsStrategy.swift：实现 ClaudeUsageStrategy；用 SecItemCopyMatching 读 macOS Keychain generic password (kSecAttrService='Claude Code-credentials', kSecAttrAccount=NSUserName())；解析 JSON 提取 claudeAiOauth.{accessToken, refreshToken, expiresAt(ms), scopes}；转 StoredCredentials；**主线程不阻塞**（G3 B1：内部用 Task.detached 把同步 SecItemCopyMatching 挪到后台）"
     done: true
     evidence: "see ## Verification log"
   - id: SC3
@@ -61,7 +61,7 @@ spec_criteria:
 automated_checks:
   - "SC_AUTO_BUILD: cd /Users/methol/data/code-methol/usage-bar/macos && swift build -c release 2>&1 | tail -3 | grep -q 'Build complete'"
   - "SC_AUTO_TEST: cd /Users/methol/data/code-methol/usage-bar/macos && swift test 2>&1 | tail -5 | grep -E 'Executed [0-9]+ test.*0 failures'"
-  - "SC_AUTO_NO_PRINT_TOKENS: ! grep -nrI -E '(print|NSLog|os_log|os\\.log|Logger)\\s*[\\(,].*([Aa]ccess[Tt]oken|[Rr]efresh[Tt]oken|rawJSON|claudeAiOauth)' macos/Sources/ClaudeUsageBar/ClaudeCLICredentialsStrategy.swift macos/Sources/ClaudeUsageBar/ClaudeUsageStrategy.swift macos/Sources/ClaudeUsageBar/UsageService.swift 2>/dev/null  # G6 修订：排除 .accessToken)/.refreshToken) 单独 alternation（与 XCTAssertNil/NotNil 共形误报）；仅扫源代码不扫测试（测试 XCTAssert 失败 framework 不打印 raw value 是安全的）"
+  - "SC_AUTO_NO_PRINT_TOKENS: ! grep -nrI -E '(print|NSLog|os_log|os\\.log|Logger)\\s*[\\(,].*([Aa]ccess[Tt]oken|[Rr]efresh[Tt]oken|rawJSON|claudeAiOauth)' macos/Sources/UsageBar/ClaudeCLICredentialsStrategy.swift macos/Sources/UsageBar/ClaudeUsageStrategy.swift macos/Sources/UsageBar/UsageService.swift 2>/dev/null  # G6 修订：排除 .accessToken)/.refreshToken) 单独 alternation（与 XCTAssertNil/NotNil 共形误报）；仅扫源代码不扫测试（测试 XCTAssert 失败 framework 不打印 raw value 是安全的）"
   - "SC_AUTO_NO_REAL_TOKEN_PREFIX: ! grep -nrI -E 'sk-ant-(oat|ort|api)' macos/ docs/ CHANGELOG.md 2>/dev/null"
 manual_checks:
   - "已装 Claude CLI 的用户首次启动 .app：菜单栏图标从 unauthenticated 变为 authenticated（无需手动 sign-in）"
@@ -185,7 +185,7 @@ reviews:
 ### 3.1 数据流
 
 ```
-.app 启动 → ClaudeUsageBarApp.task
+.app 启动 → UsageBarApp.task
               ├─ historyService.loadHistory()
               ├─ service.bootstrapFromCLIIfNeeded()  // 新增
               │     ├─ credentialsStore.load() 已有 → 跳过
@@ -312,7 +312,7 @@ func bootstrapFromCLIIfNeeded() async {
 }
 ```
 
-`ClaudeUsageBarApp.task` 内调用 `await service.bootstrapFromCLIIfNeeded()` 在 `service.startPolling()` 前。
+`UsageBarApp.task` 内调用 `await service.bootstrapFromCLIIfNeeded()` 在 `service.startPolling()` 前。
 
 ### 3.5 测试
 
@@ -334,7 +334,7 @@ case：
 - `testNilExpiresAt`: `{"claudeAiOauth":{"accessToken":"mock"}}` → expiresAt 为 nil
 - `testMillisecondConversion`: expiresAt=1778520574000 (ms) → Date(timeIntervalSince1970: 1778520574.0)
 
-> 测试通过 `@testable import ClaudeUsageBar` 直接 decode `ClaudeCLICredentialsStrategy.KeychainPayload`（internal 可见）验证 schema；不调用 SecItemCopyMatching，纯 JSON → KeychainPayload → 转 StoredCredentials 的字段映射。生产路径走 `loadCredentials()` 完整流程（含 Task.detached + Keychain）。
+> 测试通过 `@testable import UsageBar` 直接 decode `ClaudeCLICredentialsStrategy.KeychainPayload`（internal 可见）验证 schema；不调用 SecItemCopyMatching，纯 JSON → KeychainPayload → 转 StoredCredentials 的字段映射。生产路径走 `loadCredentials()` 完整流程（含 Task.detached + Keychain）。
 >
 > SC7 约束：单测**禁止 `XCTAssertEqual(creds.accessToken, "mock-access-1")` 字面比较** —— 改用 `XCTAssertTrue(creds.accessToken.hasPrefix("mock-"))` 或 `XCTAssertEqual(creds.accessToken.count, 13)` 等 prefix/count 断言；失败时 framework 不会打印完整 raw value 至 test log。
 
@@ -357,12 +357,12 @@ case：
 - **刻意单 commit 说明**（G3 R1 noted-only）：与已沉淀 v0.0.x B 经验略偏离 — protocol 单方法 + impl + 单测 都仅覆盖一个 strategy，强耦合不拆；后续 v0.1.2/3 加 strategy 时各自独立 commit
 - **覆盖 SC**: SC1, SC2, SC4, SC5, SC6, SC7（前置）
 
-**Step P2** — UsageService bootstrap + ClaudeUsageBarApp 接入（Commit C）
+**Step P2** — UsageService bootstrap + UsageBarApp 接入（Commit C）
 - UsageService 加 `bootstrapFromCLIIfNeeded()` + 私有 `adoptCredentials(_:)`
-- ClaudeUsageBarApp.task 在 startPolling 前 await bootstrapFromCLIIfNeeded
+- UsageBarApp.task 在 startPolling 前 await bootstrapFromCLIIfNeeded
 - **Success**:
   - `swift build -c release && swift test` 全绿；启动 .app 进程不崩
-  - `git diff --stat HEAD~1..HEAD` 白名单：仅触 `macos/Sources/ClaudeUsageBar/UsageService.swift` + `macos/Sources/ClaudeUsageBar/ClaudeUsageBarApp.swift` 两文件（G3 R2 修订：SC8 反向断言落到可观测命令）
+  - `git diff --stat HEAD~1..HEAD` 白名单：仅触 `macos/Sources/UsageBar/UsageService.swift` + `macos/Sources/UsageBar/UsageBarApp.swift` 两文件（G3 R2 修订：SC8 反向断言落到可观测命令）
   - SC_AUTO_NO_PRINT_TOKENS / SC_AUTO_NO_REAL_TOKEN_PREFIX 仍无匹配
 - **覆盖 SC**: SC3, SC8, SC9, SC10
 
@@ -386,17 +386,17 @@ case：
 
 | 动作 | 文件 | 备注 |
 |---|---|---|
-| 🆕 | `macos/Sources/ClaudeUsageBar/ClaudeUsageStrategy.swift` | protocol 骨架 |
-| 🆕 | `macos/Sources/ClaudeUsageBar/ClaudeCLICredentialsStrategy.swift` | 实现 + Keychain 读 |
-| 🆕 | `macos/Tests/ClaudeUsageBarTests/ClaudeCLICredentialsStrategyTests.swift` | mock JSON 测 ≥4 case |
-| 🔧 | `macos/Sources/ClaudeUsageBar/UsageService.swift` | 加 bootstrapFromCLIIfNeeded() + adoptCredentials helper |
-| 🔧 | `macos/Sources/ClaudeUsageBar/ClaudeUsageBarApp.swift` | .task 加 await service.bootstrapFromCLIIfNeeded() |
+| 🆕 | `macos/Sources/UsageBar/ClaudeUsageStrategy.swift` | protocol 骨架 |
+| 🆕 | `macos/Sources/UsageBar/ClaudeCLICredentialsStrategy.swift` | 实现 + Keychain 读 |
+| 🆕 | `macos/Tests/UsageBarTests/ClaudeCLICredentialsStrategyTests.swift` | mock JSON 测 ≥4 case |
+| 🔧 | `macos/Sources/UsageBar/UsageService.swift` | 加 bootstrapFromCLIIfNeeded() + adoptCredentials helper |
+| 🔧 | `macos/Sources/UsageBar/UsageBarApp.swift` | .task 加 await service.bootstrapFromCLIIfNeeded() |
 | 🔧 | `docs/versions/v0.1.1-claude-cli-credentials.md` / 索引 / CHANGELOG | 标准收尾 |
 | ✅ 不动 | OAuth / refresh / SetupView / CodeEntry / Settings / 数据层 / Notifications / hero/menubar/pace 等 | 仅在 startup 早期插入 bootstrap |
 
 ## 5. 风险 / Open questions
 
-1. **Keychain ACL**：用户首次启动我们的 .app 读 `Claude Code-credentials` 时，macOS 可能弹出"允许 ClaudeUsageBar 访问 Claude Code-credentials"提示。**接受**：用户主动选择允许 / 拒绝；拒绝则降级 sign-in 与未装 Claude CLI 同款。可在后续 user-guide 文档说明此提示。
+1. **Keychain ACL**：用户首次启动我们的 .app 读 `Claude Code-credentials` 时，macOS 可能弹出"允许 UsageBar 访问 Claude Code-credentials"提示。**接受**：用户主动选择允许 / 拒绝；拒绝则降级 sign-in 与未装 Claude CLI 同款。可在后续 user-guide 文档说明此提示。
 2. **Keychain JSON schema 漂移**：实测的 schema 是当前 Claude CLI 版本快照；未来 Claude CLI 改字段名/结构会导致 decode 失败 → 静默降级。**对策**：失败仅 log type，不影响其他流程；CodexBar 同款 risk（调研 §8.3）。
 3. **同时持有两份 token**：本机已 sign-in 主 app + 装了 Claude CLI 时，bootstrap 检查 `credentialsStore.load() != nil` 后跳过，不会覆盖；token refresh 由现有 UsageService 路径独立处理。
 4. **`~/.claude/.credentials.json` 文件路径不读**：现代 Claude CLI 已用 Keychain，文件不存在；本地实测 `~/.claude/` 无 .credentials.json。文件 fallback 留 v0.2.x（如有用户报告需要）。
@@ -425,12 +425,12 @@ case：
 
 - [x] SC1 — evidence: commit `30edc7f` 新增 ClaudeUsageStrategy.swift 单方法 protocol
 - [x] SC2 — evidence: commit `30edc7f` 新增 ClaudeCLICredentialsStrategy.swift（kSecAttrAccount=NSUserName() + Task.detached 主线程不阻塞）
-- [x] SC3 — evidence: commit `3e3d38c` UsageService.bootstrapFromCLIIfNeeded()（loadCredentials nil 时尝试 strategy）+ ClaudeUsageBarApp.task await 串入；G5 修订加 @MainActor 显式标注
+- [x] SC3 — evidence: commit `3e3d38c` UsageService.bootstrapFromCLIIfNeeded()（loadCredentials nil 时尝试 strategy）+ UsageBarApp.task await 串入；G5 修订加 @MainActor 显式标注
 - [x] SC4 — evidence: commit `30edc7f` ClaudeCLICredentialsStrategyTests 6 case（valid / missing oauth / missing accessToken / nil 字段 / ms→s 转换 / LoadError 脱敏）；mock- 前缀 + hasPrefix/count/nil 断言
 - [x] SC5 — evidence: testMillisecondToDateConversion 显式覆盖 1778520574000ms → 1778520574.0s（accuracy 0.001）
 - [x] SC6 — evidence: ClaudeCLICredentialsStrategy.swift switch 把 errSecItemNotFound / errSecAuthFailed / errSecInteractionNotAllowed / errSecUserCanceled 都映射为 return nil
 - [x] SC7 — evidence: LoadError CustomStringConvertible 仅输出 case 名（testLoadErrorDescriptionDoesNotLeakRawValue 验证）；mock- 前缀 token；hasPrefix/count 断言；SC_AUTO_NO_REAL_TOKEN_PREFIX `sk-ant-(oat|ort|api)[0-9]` 全仓 0 匹配；SC_AUTO_NO_PRINT_TOKENS 修订后 0 匹配
-- [x] SC8 — evidence: `git diff 7fb66f5..HEAD` 仅触应改文件：spec / version / 索引 / 3 新文件（ClaudeUsageStrategy.swift / ClaudeCLICredentialsStrategy.swift / Tests）+ UsageService.swift（仅加新方法）+ ClaudeUsageBarApp.swift（仅 .task 调整）；OAuth/refresh/polling/SetupView/CodeEntry/Settings/Notifications/数据层全无改动 ✅
+- [x] SC8 — evidence: `git diff 7fb66f5..HEAD` 仅触应改文件：spec / version / 索引 / 3 新文件（ClaudeUsageStrategy.swift / ClaudeCLICredentialsStrategy.swift / Tests）+ UsageService.swift（仅加新方法）+ UsageBarApp.swift（仅 .task 调整）；OAuth/refresh/polling/SetupView/CodeEntry/Settings/Notifications/数据层全无改动 ✅
 - [x] SC9 — evidence: `cd macos && swift build -c release` 输出 `Build complete!`
 - [x] SC10 — evidence: `cd macos && swift test` `Executed 84 tests, with 0 failures` ✅
 - [x] SC11 — evidence: 5 个中文 commit 均含 spec id（7fb66f5 / 30edc7f / 3e3d38c / G5 fix / 本 commit）；spec.reviews 含 G2/G3/G5/G6 共 4 条 verdict

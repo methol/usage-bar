@@ -11,7 +11,7 @@ related_adrs: [0001]
 related_research: [competitive-analysis]
 spec_criteria:
   - id: SC1
-    criterion: "新增 macos/Sources/ClaudeUsageBar/UpdateChannel.swift：enum UpdateChannel: String, CaseIterable { case stable = \"stable\", beta = \"beta\" }；storageKey = \"updateChannel\"；display label：stable → \"稳定版\"，beta → \"Beta（实验性）\""
+    criterion: "新增 macos/Sources/UsageBar/UpdateChannel.swift：enum UpdateChannel: String, CaseIterable { case stable = \"stable\", beta = \"beta\" }；storageKey = \"updateChannel\"；display label：stable → \"稳定版\"，beta → \"Beta（实验性）\""
     done: true
     evidence: "see ## Verification log"
   - id: SC2
@@ -53,7 +53,7 @@ spec_criteria:
 automated_checks:
   - "SC_AUTO_BUILD: cd /Users/methol/data/code-methol/usage-bar/macos && swift build -c release 2>&1 | tail -3 | grep -q 'Build complete'"
   - "SC_AUTO_TEST: cd /Users/methol/data/code-methol/usage-bar/macos && swift test 2>&1 | tail -5 | grep -E 'Executed [0-9]+ test.*0 failures'"
-  - "SC_AUTO_NO_PRINT_TOKENS: ! grep -nrI -E '(print|NSLog|os_log|os\\.log|Logger)\\s*[\\(,].*([Aa]ccess[Tt]oken|[Rr]efresh[Tt]oken|rawJSON|claudeAiOauth|message\\.content|jsonlLine|rawLine|lastPathComponent|account\\.credentials)' macos/Sources/ClaudeUsageBar/ 2>/dev/null"
+  - "SC_AUTO_NO_PRINT_TOKENS: ! grep -nrI -E '(print|NSLog|os_log|os\\.log|Logger)\\s*[\\(,].*([Aa]ccess[Tt]oken|[Rr]efresh[Tt]oken|rawJSON|claudeAiOauth|message\\.content|jsonlLine|rawLine|lastPathComponent|account\\.credentials)' macos/Sources/UsageBar/ 2>/dev/null"
   - "SC_AUTO_NO_REAL_TOKEN_PREFIX: ! grep -nrI -E 'sk-ant-(oat|ort|api)[0-9a-zA-Z]|sk-proj-[0-9a-zA-Z]|AKIA[0-9A-Z]{16}' macos/ docs/ CHANGELOG.md 2>/dev/null"
 manual_checks:
   - "在 .app 启动后打开 Settings，看到 \"更新通道\" 区块和 Picker；切换到 Beta 后下次 checkForUpdates 应能拉取 sparkle:channel=\"beta\" 的 item"
@@ -290,7 +290,7 @@ Section("更新通道") {
 - Picker 绑定 @AppStorage(UpdateChannel.storageKey)
 - **Success**:
   - `cd macos && swift build && swift test` 全绿
-  - `git diff --name-only <P1 sha>..HEAD -- macos/Sources/ClaudeUsageBar/` 仅含 `SettingsView.swift`（G3-R3）
+  - `git diff --name-only <P1 sha>..HEAD -- macos/Sources/UsageBar/` 仅含 `SettingsView.swift`（G3-R3）
 - **覆盖 SC**: SC4, SC8（部分）
 
 **Step P3a** — Release runbook 文档（Commit D-1，G3-R1 拆分）
@@ -310,11 +310,11 @@ Section("更新通道") {
 
 | 动作 | 文件 | 备注 |
 |---|---|---|
-| 🆕 | `macos/Sources/ClaudeUsageBar/UpdateChannel.swift` | 枚举 + helpers |
-| 🆕 | `macos/Tests/ClaudeUsageBarTests/UpdateChannelTests.swift` | ≥3 case |
-| 🆕 | `macos/Tests/ClaudeUsageBarTests/AppUpdaterChannelTests.swift` | ≥1 case |
-| 🔧 | `macos/Sources/ClaudeUsageBar/AppUpdater.swift` | 加 NSObject + SPUUpdaterDelegate + allowedChannels |
-| 🔧 | `macos/Sources/ClaudeUsageBar/SettingsView.swift` | 加 "更新通道" Picker section |
+| 🆕 | `macos/Sources/UsageBar/UpdateChannel.swift` | 枚举 + helpers |
+| 🆕 | `macos/Tests/UsageBarTests/UpdateChannelTests.swift` | ≥3 case |
+| 🆕 | `macos/Tests/UsageBarTests/AppUpdaterChannelTests.swift` | ≥1 case |
+| 🔧 | `macos/Sources/UsageBar/AppUpdater.swift` | 加 NSObject + SPUUpdaterDelegate + allowedChannels |
+| 🔧 | `macos/Sources/UsageBar/SettingsView.swift` | 加 "更新通道" Picker section |
 | 🆕/🔧 | `docs/runbooks/release.md` | beta tag 章节 |
 | 🔧 | `docs/versions/v0.2.2-sparkle-beta-channel.md` / 索引 / CHANGELOG | 标准收尾 |
 | ✅ 不动 | OAuth/refresh/polling/SetupView/CodeEntry/Notifications/Strategy/LocalCost/multi-account/hero/menubar/pace/trend | 仅 AppUpdater + SettingsView |
@@ -326,7 +326,7 @@ Section("更新通道") {
 3. **用户选 beta 但仓库无 beta tag**：appcast 无 beta items → Sparkle 退到 stable。可接受。
 4. **切回 stable 后已装的 beta build 不会被自动降级**：用户需要手动等 stable 版本超过当前 beta 版本号。已知行为，文档化即可。
 5. **SC_AUTO 守护**：channel 不涉及 token；现有 SC_AUTO_NO_PRINT_TOKENS / NO_REAL_TOKEN_PREFIX 守护范围自然覆盖新文件。
-6. **AppUpdater NSObject 转换**：原 `final class AppUpdater: ObservableObject` 改 `final class AppUpdater: NSObject, ObservableObject, SPUUpdaterDelegate`。NSKeyValueObservation 在 NSObject 上 work；consumers (`ClaudeUsageBarApp.swift:8` @StateObject + `PopoverView.swift:7` @ObservedObject) 仅用 ObservableObject 协议层 API，NSObject 转换无 ABI break。
+6. **AppUpdater NSObject 转换**：原 `final class AppUpdater: ObservableObject` 改 `final class AppUpdater: NSObject, ObservableObject, SPUUpdaterDelegate`。NSKeyValueObservation 在 NSObject 上 work；consumers (`UsageBarApp.swift:8` @StateObject + `PopoverView.swift:7` @ObservedObject) 仅用 ObservableObject 协议层 API，NSObject 转换无 ABI break。
 7. **跨 channel 版本比较**（G2-B 修订）：Sparkle 用 `SUStandardVersionComparator` 比较版本号，不分 channel。beta 用户 allowedChannels=["stable","beta"] 时若 stable v2.0 + beta v1.9 同 appcast，比较结果 v2.0 胜出 → beta 用户拿到 v2.0（不会"卡在 beta"）。
 
 ## 6. 后续工作（不在本 spec 范围）
@@ -353,6 +353,6 @@ Section("更新通道") {
 - [x] SC5 — evidence: commit `2d42f12` docs/runbooks/release.md §8.5 章节：tag pattern 表 / CI 行为 / 同一 appcast / beta-includes-stable / SUStandardVersionComparator / 公证 HARD GATE
 - [x] SC6 — evidence: SC_AUTO_NO_PRINT_TOKENS / SC_AUTO_NO_REAL_TOKEN_PREFIX 0 匹配；channel 不涉及 token；NSLog 仅在 AppUpdater 原有 lastError 路径（pre-existing）
 - [x] SC7 — evidence: UpdateChannelTests 8 case + AppUpdaterChannelTests 3 case = 11 case；含 testCurrentFallsBackForUnknownRawValue (canary 字符串) + UserDefaults(suiteName: "test.\(UUID)") 隔离 storage + SPUUpdaterStub helper
-- [x] SC8 — evidence: SC11 SC_AUTO_SC11_GUARD 等价手动验证：`git diff --name-only cb053a7..HEAD -- macos/Sources/ClaudeUsageBar/` 仅触 UpdateChannel.swift / AppUpdater.swift / SettingsView.swift 三文件；OAuth/refresh/polling/SetupView/CodeEntry/Notifications/Strategy/LocalCost/multi-account/hero/menubar/pace/trend 全无改动
+- [x] SC8 — evidence: SC11 SC_AUTO_SC11_GUARD 等价手动验证：`git diff --name-only cb053a7..HEAD -- macos/Sources/UsageBar/` 仅触 UpdateChannel.swift / AppUpdater.swift / SettingsView.swift 三文件；OAuth/refresh/polling/SetupView/CodeEntry/Notifications/Strategy/LocalCost/multi-account/hero/menubar/pace/trend 全无改动
 - [x] SC9 — evidence: `cd macos && swift build -c release` 输出 `Build complete!`；`cd macos && swift test` `Executed 131 tests, with 0 failures` ✅（基线 120 + 8 UpdateChannel + 3 AppUpdaterChannel = 131）；回归 check：`swift test --filter UsageServiceTests` 12/12 + `--filter SettingsViewTests` 3/3 单独跑全绿
 - [x] SC10 — evidence: 5 个中文 commit 均含 spec id（cb053a7 P0 / 6e2a191 P1 / 3b1322d P2 / 2d42f12 P3a / 本 commit P3b G6）；spec.reviews 含 G2/G3/G5/G6 共 4 条 verdict；version v0.2.2 frontmatter status placeholder→planned（cb053a7）→in-progress（本 commit）；CHANGELOG.md append v0.2.2 entry（本 commit）

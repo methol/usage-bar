@@ -376,7 +376,7 @@ research/  ─G1─►  spec/ADR  ─G2─►  writing-plans  ─G3─►  imple
 cd macos && swift build -c release
 cd macos && swift test
 make release-artifacts            # 仅发版必要
-bash macos/scripts/verify-release.sh macos/ClaudeUsageBar.zip
+bash macos/scripts/verify-release.sh macos/UsageBar.zip
 
 # 纯文档版本（v0.0.7 类）
 # 见本 spec frontmatter automated_checks 中的 SC_AUTO_LINKCHECK / SC_AUTO_FRONTMATTER

@@ -15,7 +15,7 @@
 ## File Structure（见 spec §3.1 / §4 的完整迁移表）
 
 新建：`ModelPricing.swift`、`OpenAIPricing.swift`、`CodexRolloutCostParser.swift`、`CodexUsageCollector.swift`；测试 `OpenAIPricingTests.swift`、`CodexRolloutCostParserTests.swift`、`CodexUsageCollectorTests.swift`。
-改：`ClaudePricing.swift`、`UsageAggregator.swift`、`UsageEventStore.swift`、`ScanCursorStore.swift`、`UsageStatsService.swift`、`LocalCostCard.swift`、`ProviderUsageSection.swift`、`UsageChartView.swift`、`PopoverView.swift`、`CodexProvider.swift`、`ClaudeUsageBarApp.swift`；测试 `UsageStatsServiceTests.swift` 追加。
+改：`ClaudePricing.swift`、`UsageAggregator.swift`、`UsageEventStore.swift`、`ScanCursorStore.swift`、`UsageStatsService.swift`、`LocalCostCard.swift`、`ProviderUsageSection.swift`、`UsageChartView.swift`、`PopoverView.swift`、`CodexProvider.swift`、`UsageBarApp.swift`；测试 `UsageStatsServiceTests.swift` 追加。
 
 ---
 
@@ -27,7 +27,7 @@
 
 ```swift
 import XCTest
-@testable import ClaudeUsageBar
+@testable import UsageBar
 
 final class OpenAIPricingTests: XCTestCase {
     func testNormalizeStripsDateSuffixAndLowercases() {
@@ -193,7 +193,7 @@ Expected: build OK；全部 tests PASS（既有 `UsageAggregatorTests` / `Claude
 
 ```bash
 cd /Users/methol/data/code-methol/usage-bar
-git add macos/Sources/ClaudeUsageBar/{ModelPricing,OpenAIPricing,ClaudePricing,UsageAggregator,UsageEventStore,LocalCostCard}.swift macos/Tests/ClaudeUsageBarTests/OpenAIPricingTests.swift
+git add macos/Sources/UsageBar/{ModelPricing,OpenAIPricing,ClaudePricing,UsageAggregator,UsageEventStore,LocalCostCard}.swift macos/Tests/UsageBarTests/OpenAIPricingTests.swift
 git commit -m "feat: v0.2.9 — 抽 ModelPriceTable 协议 + OpenAIPricing 估价表；UsageAggregator/UsageEventStore.rebuild*/LocalCostCard 加 Claude-默认参数（Claude 零回归）[spec:2026-05-12-codex-cost-heatmap]
 
 Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
@@ -209,7 +209,7 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 
 ```swift
 import XCTest
-@testable import ClaudeUsageBar
+@testable import UsageBar
 
 final class CodexRolloutCostParserTests: XCTestCase {
     private func line(_ obj: [String: Any]) -> String { String(data: try! JSONSerialization.data(withJSONObject: obj), encoding: .utf8)! }
@@ -357,7 +357,7 @@ enum CodexRolloutCostParser {
 - [x] **Step 6: Commit**
 
 ```bash
-git add macos/Sources/ClaudeUsageBar/CodexRolloutCostParser.swift macos/Tests/ClaudeUsageBarTests/CodexRolloutCostParserTests.swift
+git add macos/Sources/UsageBar/CodexRolloutCostParser.swift macos/Tests/UsageBarTests/CodexRolloutCostParserTests.swift
 git commit -m "feat: v0.2.9 — CodexRolloutCostParser：状态机解析 ~/.codex/sessions rollout JSONL（turn_context.model + token_count.last_token_usage → StoredUsageEvent，只抽 token/model/ts，不碰对话原文）[spec:2026-05-12-codex-cost-heatmap]
 
 Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
@@ -375,7 +375,7 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 
 ```swift
 import XCTest
-@testable import ClaudeUsageBar
+@testable import UsageBar
 
 final class CodexUsageCollectorTests: XCTestCase {
     private var tmp: URL!
@@ -458,7 +458,7 @@ final class CodexUsageCollectorTests: XCTestCase {
 - [x] **Step 7: Commit**
 
 ```bash
-git add macos/Sources/ClaudeUsageBar/{ScanCursorStore,CodexUsageCollector}.swift macos/Tests/ClaudeUsageBarTests/CodexUsageCollectorTests.swift
+git add macos/Sources/UsageBar/{ScanCursorStore,CodexUsageCollector}.swift macos/Tests/UsageBarTests/CodexUsageCollectorTests.swift
 git commit -m "feat: v0.2.9 — ScanCursorStore 加 per-provider（Claude 保 scan-cursor.json 旧名）；CodexUsageCollector 扫 ~/.codex/sessions/** → CodexRolloutCostParser → UsageEventStore(provider:.codex)（cursor 只判变没变 + 整文件 re-parse + 去重幂等）[spec:2026-05-12-codex-cost-heatmap]
 
 Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
@@ -531,7 +531,7 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 - [x] **Step 7: Commit**
 
 ```bash
-git add macos/Sources/ClaudeUsageBar/{UsageStatsService,ClaudeUsageCollector,CodexUsageCollector}.swift macos/Tests/ClaudeUsageBarTests/UsageStatsServiceTests.swift
+git add macos/Sources/UsageBar/{UsageStatsService,ClaudeUsageCollector,CodexUsageCollector}.swift macos/Tests/UsageBarTests/UsageStatsServiceTests.swift
 git commit -m "feat: v0.2.9 — UsageStatsService 加 pricing 参数 + UsageCollecting 协议 + convenience init(provider:)（Claude 行为不变）；ClaudeUsageCollector/CodexUsageCollector conform UsageCollecting [spec:2026-05-12-codex-cost-heatmap]
 
 Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
@@ -541,7 +541,7 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 
 ## Task 5: Codex tab UI 接线（去 Plan 卡 + 估算费用卡 + 热力图 + `CodexProvider.onPollTick` + App）
 
-**Files:** Modify `ProviderUsageSection.swift`, `UsageChartView.swift`, `PopoverView.swift`, `CodexProvider.swift`, `ClaudeUsageBarApp.swift`. 无新增单测（纯 SwiftUI 组合 + 接线）—— 由 `swift build` + Task 6 的 `manual_checks` 覆盖；`UsageAggregator.costForEvents`/`UsageHeatmapView` 本身已有测试。
+**Files:** Modify `ProviderUsageSection.swift`, `UsageChartView.swift`, `PopoverView.swift`, `CodexProvider.swift`, `UsageBarApp.swift`. 无新增单测（纯 SwiftUI 组合 + 接线）—— 由 `swift build` + Task 6 的 `manual_checks` 覆盖；`UsageAggregator.costForEvents`/`UsageHeatmapView` 本身已有测试。
 
 - [x] **Step 1: `ProviderUsageSection.swift`** —— 删掉渲染 `snap?.planLabel` 那张 `UsageCard`（连同它的 `if let plan = ...`）。
 
@@ -596,7 +596,7 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 
 - [x] **Step 4: `CodexProvider.swift`** —— 加 `var onPollTick: (@MainActor () -> Void)? = nil`；`startPolling()` 的「立即一次」`Task { [weak self] in await self?.refreshNow() }` 后面 + timer sink 里，加 `onPollTick?()`（在 sink 闭包里直接调，sink 已在 main run loop；立即那次在 `Task` 里调 `await self?.refreshNow()` 之外也调一次 `self?.onPollTick?()` —— 或更简单：`startPolling()` 末尾 `onPollTick?()` 调一次 + 每次 sink 调一次）。
 
-- [x] **Step 5: `ClaudeUsageBarApp.swift`**
+- [x] **Step 5: `UsageBarApp.swift`**
   - 加 `@StateObject private var codexStats = UsageStatsService(provider: .codex)`。
   - `PopoverView(coordinator:, claude:, historyService:, notificationService:, appUpdater:, codexStats: codexStats)`。
   - `.task` 里：`await usageStats.refresh()` 之后加 `await codexStats.refresh()`；`if let codex = coordinator.provider(.codex) as? CodexProvider { codex.onPollTick = { Task.detached { await codexStats.refresh() } } }`（放在现有 `codex.startPolling()` 之前）。
@@ -606,7 +606,7 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 - [x] **Step 7: Commit**
 
 ```bash
-git add macos/Sources/ClaudeUsageBar/{ProviderUsageSection,UsageChartView,PopoverView,CodexProvider,ClaudeUsageBarApp}.swift
+git add macos/Sources/UsageBar/{ProviderUsageSection,UsageChartView,PopoverView,CodexProvider,UsageBarApp}.swift
 git commit -m "feat: v0.2.9 — Codex tab：去掉 Plan 卡；折线图下接估算费用卡 + tab 底接消费热力图（ProviderCostContext）；CodexProvider.onPollTick 驱动 codexStats 刷新；App 加 @StateObject codexStats [spec:2026-05-12-codex-cost-heatmap]
 
 Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
@@ -620,8 +620,8 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 
 ```bash
 cd /Users/methol/data/code-methol/usage-bar/macos && swift build -c release && swift test
-cd /Users/methol/data/code-methol/usage-bar && make release-artifacts && bash macos/scripts/verify-release.sh macos/ClaudeUsageBar.zip
-grep -rn 'print(\|NSLog\|os_log' macos/Sources/ClaudeUsageBar/CodexRolloutCostParser.swift macos/Sources/ClaudeUsageBar/CodexUsageCollector.swift   # 期望无命中（SC9 / SC_AUTO_NO_RAW_LOG）
+cd /Users/methol/data/code-methol/usage-bar && make release-artifacts && bash macos/scripts/verify-release.sh macos/UsageBar.zip
+grep -rn 'print(\|NSLog\|os_log' macos/Sources/UsageBar/CodexRolloutCostParser.swift macos/Sources/UsageBar/CodexUsageCollector.swift   # 期望无命中（SC9 / SC_AUTO_NO_RAW_LOG）
 ```
 Expected: build OK；全部 tests PASS；zip/dmg 产出 + verify "Release archive looks good"；grep 无命中。
 
@@ -636,6 +636,6 @@ Expected: build OK；全部 tests PASS；zip/dmg 产出 + verify "Release archiv
 ## Self-Review
 
 - **Spec coverage**：SC1→Task1；SC2→Task1（OpenAIPricing）+ `OpenAIPricingTests`；SC3→Task2；SC4→Task3；SC5→Task4；SC6→Task5（onPollTick + App）；SC7→Task5（去 Plan 卡 + cost 卡 + heatmap + ProviderCostContext）；SC8→贯穿（每个 Task 的 Step「全量 test」守既有全绿 + 新参数 Claude-默认）；SC9→Task2/Task3 的「不打印」+ Task6 Step1 的 grep + `CodexRolloutCostParserTests.testStoredEventHasOnlyAllowedFields`；SC10→Task6 Step1。
-- **Placeholder scan**：关键/有风险的代码（`ModelPricing.swift`、`OpenAIPricing.swift`、`CodexRolloutCostParser.swift` 全文，及各 Test）已给出；机械的（`UsageAggregator`/`UsageEventStore`/`ProviderUsageSection`/`UsageChartView`/`PopoverView`/`ClaudeUsageBarApp` 的小改）以「读现有 X 照改 Y」+ spec §3.1 描述代替完整代码 —— 因为这些是「在现有文件里换个参数/删一段」、且实施者（我）有完整 spec；不是 placeholder（每条都说清了改哪行成什么）。
+- **Placeholder scan**：关键/有风险的代码（`ModelPricing.swift`、`OpenAIPricing.swift`、`CodexRolloutCostParser.swift` 全文，及各 Test）已给出；机械的（`UsageAggregator`/`UsageEventStore`/`ProviderUsageSection`/`UsageChartView`/`PopoverView`/`UsageBarApp` 的小改）以「读现有 X 照改 Y」+ spec §3.1 描述代替完整代码 —— 因为这些是「在现有文件里换个参数/删一段」、且实施者（我）有完整 spec；不是 placeholder（每条都说清了改哪行成什么）。
 - **风险点已标注**：Task3 Step4 的「`CollectResult.newEventCount` 怎么算」（依赖读 `ClaudeUsageCollector`+`UsageEventStore.mergeEvents` 的实际返回 —— 本 plan 最大风险点，已显式 callout）；Task2 的 `StoredUsageEvent` 字段名/数字桥接（实施时核对）；Task5 Step3 的 `ProviderHistorySection` 怎么挂第二个 `@ObservedObject`（给了思路：拆内层 `ProviderCostArea`）；Task1 Step4 的 `ClaudeModelPricing` 字段名（实施时核对）。
 - **Type consistency**：`ModelPriceTable`（`normalize`/`lookup`/`displayName`）、`ModelUnitPricing`（4 个 `…USDPerMTok` + `cost(input:output:cacheRead:cacheWrite:)`）、`ProviderCostContext`（`pricing: any ModelPriceTable`、`displayName: (String)->String`）、`OpenAIPricing`（`normalize`/`lookup(model:)`/`displayName`）/`OpenAIModelPriceTable.shared`、`ClaudeModelPriceTable.shared`、`CodexRolloutCostParser.parseFile(lines:sessionId:)`/`.sessionId(fromFileName:)`、`ScanCursorStore.init(dataDirOverride:provider:)`、`CodexUsageCollector.init(store:cursor:scanRootsOverride:)`/`.collect()`/`.scanRoots(env:home:fileExists:)`、`UsageStatsService.init(store:collector:pricing:)`/`.init(provider:)`、`UsageCollecting.collect()`、`UsageEventStore.rebuildAllAggregates(normalize:)`/`rebuildAggregates(forDayKeys:normalize:)`、`UsageAggregator.{foldByDay,foldByMonth,foldByYear}(normalize:)`/`{usdForBucket,dailySpend,monthlySpend,costForEvents,rolling30dSummary}(pricing:)`、`LocalCostCard.displayName`、`UsageChartSectionView.costContext`、`ProviderHistorySection.{costStats,costContext}`、`ProviderUsageArea.{costStats,costContext}`、`CodexProvider.onPollTick`、`PopoverView.codexStats` —— 各 Task 间一致。

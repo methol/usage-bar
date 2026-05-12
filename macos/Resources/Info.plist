@@ -3,11 +3,11 @@
 <plist version="1.0">
 <dict>
     <key>CFBundleIdentifier</key>
-    <string>com.local.ClaudeUsageBar</string>
+    <string>com.local.UsageBar</string>
     <key>CFBundleName</key>
-    <string>ClaudeUsageBar</string>
+    <string>UsageBar</string>
     <key>CFBundleDisplayName</key>
-    <string>Claude Usage Bar</string>
+    <string>UsageBar</string>
     <key>CFBundleVersion</key>
     <string>1</string>
     <key>CFBundleShortVersionString</key>
@@ -15,7 +15,7 @@
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleExecutable</key>
-    <string>ClaudeUsageBar</string>
+    <string>UsageBar</string>
     <key>CFBundleIconFile</key>
     <string>AppIcon</string>
     <key>CFBundleIconName</key>
