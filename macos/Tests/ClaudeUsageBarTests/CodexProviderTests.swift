@@ -323,6 +323,99 @@ final class CodexProviderTests: XCTestCase {
         XCTAssertEqual(coord.primaryProviderID, .claude, "非 eligible 的 primaryProviderID 应被拒绝/回退")
         XCTAssertNotEqual(UserDefaults.standard.string(forKey: ProviderCoordinator.primaryProviderKey), ProviderID.codex.rawValue)
     }
+
+    // MARK: - v0.2.8 history sampling
+
+    private func makeTmpDir() throws -> URL {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir
+    }
+
+    /// 两个窗口的 wham/usage JSON：primary(5h) used X%、secondary(7d) used Y%。
+    private func usageJSON(primaryPct: Int, secondaryPct: Int) -> String {
+        """
+        { "plan_type": "plus",
+          "rate_limit": {
+            "primary_window":   { "used_percent": \(primaryPct), "reset_at": 1, "limit_window_seconds": 18000 },
+            "secondary_window": { "used_percent": \(secondaryPct), "reset_at": 1, "limit_window_seconds": 604800 } } }
+        """
+    }
+
+    @MainActor
+    func testSupportsBackgroundPollingIsFalse() {
+        XCTAssertFalse(CodexProvider().supportsBackgroundPolling)
+    }
+
+    @MainActor
+    func testRefreshSuccessRecordsHistorySample() async throws {
+        let env = try makeCodexHome(authJSON: #"{ "tokens": { "access_token": "ACCESS_SENTINEL" } }"#)
+        let session = stubSession { req in
+            (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+             Data(self.usageJSON(primaryPct: 40, secondaryPct: 60).utf8))
+        }
+        defer { CodexStubURLProtocol.handler = nil }
+        let h = UsageHistoryService(filename: "t.json", directory: try makeTmpDir())
+        let p = CodexProvider(environment: env, session: session, history: h)
+        await p.refreshNow()
+        XCTAssertEqual(h.history.dataPoints.count, 1)
+        XCTAssertEqual(h.history.dataPoints.first?.pct5h ?? -1, 0.40, accuracy: 1e-9)
+        XCTAssertEqual(h.history.dataPoints.first?.pct7d ?? -1, 0.60, accuracy: 1e-9)
+    }
+
+    @MainActor
+    func testRefreshFreePlanRecordsZeroSession() async throws {
+        let env = try makeCodexHome(authJSON: #"{ "tokens": { "access_token": "ACCESS_SENTINEL" } }"#)
+        // Free 计划：只有 weekly 窗口（limit_window_seconds 604800），无 5h —— normalizedWindows() 的 session 为 nil。
+        let body = #"{ "plan_type": "free", "rate_limit": { "primary_window": { "used_percent": 55, "reset_at": 1, "limit_window_seconds": 604800 } } }"#
+        let session = stubSession { req in
+            (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!, Data(body.utf8))
+        }
+        defer { CodexStubURLProtocol.handler = nil }
+        let h = UsageHistoryService(filename: "t.json", directory: try makeTmpDir())
+        let p = CodexProvider(environment: env, session: session, history: h)
+        await p.refreshNow()
+        // 前提自检：snapshot 里 session 窗口确实缺、weekly 在
+        XCTAssertNil(p.runtime.snapshot?.primaryWindow?.utilizationPct)
+        XCTAssertEqual(p.runtime.snapshot?.secondaryWindow?.utilizationPct, 55)
+        XCTAssertEqual(h.history.dataPoints.count, 1)
+        XCTAssertEqual(h.history.dataPoints.first?.pct5h ?? -1, 0.0, accuracy: 1e-9)
+        XCTAssertEqual(h.history.dataPoints.first?.pct7d ?? -1, 0.55, accuracy: 1e-9)
+    }
+
+    @MainActor
+    func testRefreshFailureRecordsNothing() async throws {
+        let env = try makeCodexHome(authJSON: #"{ "tokens": { "access_token": "ACCESS_SENTINEL" } }"#)
+        let session = stubSession { req in
+            (HTTPURLResponse(url: req.url!, statusCode: 401, httpVersion: nil, headerFields: nil)!, Data())
+        }
+        defer { CodexStubURLProtocol.handler = nil }
+        let h = UsageHistoryService(filename: "t.json", directory: try makeTmpDir())
+        let p = CodexProvider(environment: env, session: session, history: h)
+        await p.refreshNow()
+        XCTAssertTrue(h.history.dataPoints.isEmpty)
+        XCTAssertNotNil(p.runtime.lastError)
+    }
+
+    @MainActor
+    func testRefreshNoCredentialsRecordsNothing() async throws {
+        let env = try makeCodexHome(authJSON: nil)   // 目录在、auth.json 不在
+        let h = UsageHistoryService(filename: "t.json", directory: try makeTmpDir())
+        let p = CodexProvider(environment: env, session: .shared, history: h)
+        await p.refreshNow()
+        XCTAssertTrue(h.history.dataPoints.isEmpty)
+        XCTAssertNil(p.runtime.snapshot)
+    }
+
+    @MainActor
+    func testStartPollingIsIdempotent() {
+        let p = CodexProvider(environment: ["CODEX_HOME": "/nonexistent-\(UUID().uuidString)"], session: .shared)
+        XCTAssertFalse(p.isPolling)
+        p.startPolling()
+        XCTAssertTrue(p.isPolling)
+        p.startPolling()   // 第二次：无副作用、不崩
+        XCTAssertTrue(p.isPolling)
+    }
 }
 
 private final class CodexStubURLProtocol: URLProtocol {
