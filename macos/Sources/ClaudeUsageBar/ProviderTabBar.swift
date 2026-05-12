@@ -12,13 +12,13 @@ struct ProviderTabBar: View {
 
     var body: some View {
         HStack(spacing: 2) {
-            ForEach(ProviderID.allCases) { provider in
+            ForEach(availableIDs, id: \.self) { provider in
                 Button {
                     selection = provider
                 } label: {
                     Text(provider.displayName)
                         .font(.caption.weight(provider == selection ? .semibold : .regular))
-                        .foregroundStyle(pillForeground(for: provider))
+                        .foregroundStyle(provider == selection ? .primary : .secondary)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 5)
                         .background(
@@ -36,11 +36,6 @@ struct ProviderTabBar: View {
             RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .fill(Color.secondary.opacity(0.12))
         )
-    }
-
-    private func pillForeground(for provider: ProviderID) -> Color {
-        if provider == selection { return .primary }
-        return availableIDs.contains(provider) ? .secondary : .secondary.opacity(0.5)
     }
 }
 

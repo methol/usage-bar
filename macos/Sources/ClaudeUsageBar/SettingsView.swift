@@ -21,20 +21,6 @@ struct SettingsWindowContent: View {
                     }
                 }
 
-                // 哪个 provider 驱动菜单栏 label —— 只列支持后台轮询的（primaryEligibleIDs）。
-                // v0.2.6：只有 Claude 满足（Codex 等无后台轮询，只在 popover 里看）→ 禁用并提示。
-                Picker("Primary Provider", selection: $coordinator.primaryProviderID) {
-                    ForEach(coordinator.primaryEligibleIDs) { id in
-                        Text(id.displayName).tag(id)
-                    }
-                }
-                .disabled(coordinator.primaryEligibleIDs.count <= 1)
-                if coordinator.primaryEligibleIDs.count <= 1 {
-                    Text("More providers coming soon — the menu bar shows Claude for now.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-
                 Picker("Polling Interval", selection: Binding(
                     get: { service.pollingMinutes },
                     set: { service.updatePollingInterval($0) }
@@ -44,6 +30,19 @@ struct SettingsWindowContent: View {
                             .tag(mins)
                     }
                 }
+            }
+
+            Section("Providers") {
+                List {
+                    ForEach(coordinator.orderedProviderIDs) { id in
+                        ProviderRow(coordinator: coordinator, id: id)
+                    }
+                    .onMove { coordinator.moveProvider(from: $0, to: $1) }
+                }
+                .frame(minHeight: CGFloat(coordinator.orderedProviderIDs.count) * 28)
+                Text("✓ = 在菜单栏显示；开关 = 是否启用该供应商的 tab 与后台刷新。拖动重排。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             Section("Notifications") {
@@ -82,22 +81,43 @@ struct SettingsWindowContent: View {
                     .foregroundStyle(.secondary)
             }
 
-            if service.isAuthenticated {
-                Section("Account") {
-                    if let email = service.accountEmail {
-                        Text(email)
-                    }
-                    Button("Sign Out") {
-                        service.signOut()
-                    }
-                }
-            }
         }
         .formStyle(.grouped)
         .frame(width: 400)
         .fixedSize(horizontal: false, vertical: true)
         .onAppear {
             focusSettingsWindow()
+        }
+    }
+}
+
+/// Settings「Providers」section 的一行：名称 + 启用开关（Claude/未注册者禁用）+ 菜单栏单选 ✓。
+private struct ProviderRow: View {
+    @ObservedObject var coordinator: ProviderCoordinator
+    let id: ProviderID
+
+    var body: some View {
+        let registered = coordinator.isAvailable(id)
+        HStack {
+            Text(id.displayName).foregroundStyle(registered ? .primary : .secondary)
+            if !registered {
+                Text("coming soon").font(.caption2).foregroundStyle(.tertiary)
+            }
+            Spacer()
+            Toggle("", isOn: Binding(
+                get: { coordinator.enabledProviderIDs.contains(id) },
+                set: { coordinator.setEnabled(id, $0) }
+            ))
+            .labelsHidden()
+            .disabled(id == .claude || !registered)
+            Button {
+                coordinator.menuBarProviderID = id
+            } label: {
+                Image(systemName: coordinator.menuBarProviderID == id ? "checkmark.circle.fill" : "circle")
+            }
+            .buttonStyle(.borderless)
+            .help("在菜单栏显示这个供应商")
+            .disabled(!coordinator.enabledProviderIDs.contains(id) || !registered)
         }
     }
 }

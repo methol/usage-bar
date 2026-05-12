@@ -4,7 +4,7 @@ struct PopoverView: View {
     @ObservedObject var coordinator: ProviderCoordinator
     /// Claude provider（登录 UX / polling 设置 / Sign Out 等 Claude 专属 UI 直接用它）。
     /// 单独 `@ObservedObject` —— 这样 `isAuthenticated`/`isAwaitingCode`/`accounts`/`lastError` 变化能驱动重渲染
-    /// （`coordinator` 只有 `primaryProviderID` 是 `@Published`，不覆盖 `coordinator.claude` 的变化）。
+    /// （`coordinator` 的 `menuBarProviderID`/`orderedProviderIDs`/`enabledProviderIDs` 是 `@Published`，不覆盖 `coordinator.claude` 的变化）。
     @ObservedObject var claude: UsageService
     @ObservedObject var historyService: UsageHistoryService
     @ObservedObject var notificationService: NotificationService
@@ -47,10 +47,12 @@ struct PopoverView: View {
                            startPoint: .top, endPoint: .bottom)
             .ignoresSafeArea()
         )
-        .task(id: selectedProvider) {
-            // 切到非 Claude 的可用 provider 时拉一次（Claude 有后台 polling，不在此重拉，避免改其行为）。
-            guard selectedProvider != .claude, coordinator.isAvailable(selectedProvider) else { return }
-            await coordinator.refreshNow(selectedProvider)
+        // v0.2.10 刷新纪律：popover 打开（content 视图首次 appear）触发一次「刷新所有 enabled provider」；
+        // 切 tab / 任何其它操作都不再触发刷新（删了原来的 `.task(id: selectedProvider)`）—— UI 立即用 runtime.snapshot 缓存渲染。
+        .task { await coordinator.refreshAllEnabledOnOpen() }
+        // 用户在 Settings 里禁用了当前选中 tab 的 provider → 回退到 Claude。
+        .onChange(of: coordinator.availableIDs) { _, ids in
+            if !ids.contains(selectedProvider) { selectedProvider = .claude }
         }
     }
 
@@ -64,7 +66,7 @@ struct PopoverView: View {
             } else {
                 claudeUsageArea
             }
-        } else if coordinator.isAvailable(selectedProvider),
+        } else if coordinator.availableIDs.contains(selectedProvider),
                   let runtime = coordinator.runtime(for: selectedProvider) {
             // v0.2.6 起：泛化的 provider 用量区（Codex 等）。configured/unconfigured 由 ProviderUsageArea
             // 内部读 runtime.isConfigured 决定 —— 这样 runtime 的 @Published 变化能驱动该子树重渲染
@@ -253,6 +255,11 @@ struct PopoverView: View {
             }
             .buttonStyle(.borderless)
             .font(.caption)
+            if claude.isAuthenticated {
+                Button("Sign Out") { claude.signOut() }
+                    .buttonStyle(.borderless)
+                    .font(.caption)
+            }
             if appUpdater.isConfigured {
                 Button("Check for Updates…") {
                     appUpdater.checkForUpdates()
