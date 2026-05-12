@@ -155,7 +155,7 @@ class UsageService: ObservableObject {
 
     // MARK: - Multi-account (v0.1.3)
 
-    /// 切换 active account。G2-B1/G3-B3 race fix：先 cancel 在飞 task + refreshTask + timer + epoch++。
+    /// 切换 active account。G2-B1/G3-B3 race fix：先 cancel 在飞 task + refreshTask + epoch++。
     /// v0.1.3 双写设计：把新 active account 的 credentials 写入 v1 credentials.json（mirror）
     /// G5 B2: 双写原子性 — saveAccounts 成功后 v1 save 失败时回滚 accounts.json，避免 v1/v2 持久分歧
     func switchAccount(to id: UUID) {

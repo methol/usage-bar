@@ -132,12 +132,12 @@ final class ProviderCoordinatorTests: XCTestCase {
 
         stub.nextEligibleRefreshOverride = Date().addingTimeInterval(3600)   // 还在 backoff 窗口
         c.onBackgroundTick()
-        await Task.yield(); try? await Task.sleep(nanoseconds: 40_000_000)
+        await Task.yield(); try? await Task.sleep(nanoseconds: 100_000_000)
         XCTAssertEqual(stub.refreshNowCallCount, 0)
 
         stub.nextEligibleRefreshOverride = nil                                // 窗口已过
         c.onBackgroundTick()
-        await Task.yield(); try? await Task.sleep(nanoseconds: 40_000_000)
+        await Task.yield(); try? await Task.sleep(nanoseconds: 100_000_000)
         XCTAssertEqual(stub.refreshNowCallCount, 1)
     }
 }
