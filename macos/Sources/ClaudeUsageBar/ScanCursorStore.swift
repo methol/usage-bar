@@ -47,10 +47,15 @@ actor ScanCursorStore {
     func updateCursor(for fileURL: URL, size: Int, mtime: Date, lineOffset: Int) {
         var f = loaded()
         f.files[fileURL.path] = ScanCursorFile.FileCursor(size: size, mtime: mtime, lineOffset: lineOffset)
-        persist(f)
+        cache = f
     }
 
     func clearCursor(for fileURL: URL) {
-        var f = loaded(); f.files[fileURL.path] = nil; persist(f)
+        var f = loaded(); f.files[fileURL.path] = nil; cache = f
+    }
+
+    /// 把内存中的游标 cache 一次性写盘。collect() 结束时调用一次，避免每文件都 atomic-write 的 O(n²) 写放大。
+    func flush() {
+        if let c = cache { persist(c) }
     }
 }

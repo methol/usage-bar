@@ -72,8 +72,8 @@ struct UsageHeatmapView: View {
     private var model: UsageHeatmapModel { UsageHeatmapModel(daySpends: daySpends) }
 
     private func color(for bucket: Int) -> Color {
-        if bucket == 0 { return Color.secondary.opacity(0.12) }
-        return Color.green.opacity(0.18 + Double(bucket) * 0.10)   // 0.28 ... 0.98
+        if bucket == 0 { return Color.secondary.opacity(0.15) }
+        return Color.green.opacity(0.30 + Double(bucket) * 0.085)  // 0.385 ... 0.98
     }
     private func tooltip(_ c: UsageHeatmapModel.Cell) -> String {
         guard let key = c.dayKey else { return "" }
@@ -86,21 +86,24 @@ struct UsageHeatmapView: View {
             if isInitializing {
                 HStack { ProgressView().controlSize(.small); Text("统计中…").font(.caption2).foregroundStyle(.secondary) }
             } else {
-                HStack(alignment: .top, spacing: 2) {
-                    ForEach(Array(model.weeks.enumerated()), id: \.offset) { _, col in
-                        VStack(spacing: 2) {
-                            ForEach(Array(col.enumerated()), id: \.offset) { _, cell in
-                                RoundedRectangle(cornerRadius: 2)
-                                    .fill(color(for: cell.bucket))
-                                    .frame(width: 9, height: 9)
-                                    .help(tooltip(cell))
-                                    .accessibilityLabel(cell.dayKey.map { "\($0)，约 \(ExtraUsage.formatUSD(cell.usd))" } ?? "")
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(alignment: .top, spacing: 2) {
+                        ForEach(Array(model.weeks.enumerated()), id: \.offset) { _, col in
+                            VStack(spacing: 2) {
+                                ForEach(Array(col.enumerated()), id: \.offset) { _, cell in
+                                    RoundedRectangle(cornerRadius: 2)
+                                        .fill(color(for: cell.bucket))
+                                        .frame(width: 9, height: 9)
+                                        .help(tooltip(cell))
+                                        .accessibilityLabel(cell.dayKey.map { "\($0)，约 \(ExtraUsage.formatUSD(cell.usd))" } ?? "")
+                                }
                             }
                         }
                     }
                 }
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(8)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
     }

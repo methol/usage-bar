@@ -30,47 +30,46 @@ actor ClaudeUsageCollector {
         var scanned = 0, parseErrors = 0
 
         for root in roots {
-            guard let projectDirs = try? fm.contentsOfDirectory(at: root, includingPropertiesForKeys: [.isDirectoryKey]) else { continue }
-            for projectDir in projectDirs {
-                let isDir = (try? projectDir.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) ?? false
-                let jsonls: [URL]
-                if isDir {
-                    jsonls = ((try? fm.contentsOfDirectory(at: projectDir, includingPropertiesForKeys: nil)) ?? []).filter { $0.pathExtension == "jsonl" }
-                } else {
-                    jsonls = projectDir.pathExtension == "jsonl" ? [projectDir] : []
-                }
-                for file in jsonls {
-                    scanned += 1
-                    scannedFiles.append(file)
-                    let attrs = (try? fm.attributesOfItem(atPath: file.path)) ?? [:]
-                    let size = (attrs[.size] as? Int) ?? 0
-                    let mtime = (attrs[.modificationDate] as? Date) ?? Date(timeIntervalSince1970: 0)
-                    guard let offset = await cursor.nextReadOffset(for: file, currentSize: size, currentMTime: mtime) else { continue }
-                    guard let raw = try? String(contentsOf: file, encoding: .utf8) else { continue }
-                    let endsWithNL = raw.hasSuffix("\n")
-                    let allLines = raw.split(separator: "\n", omittingEmptySubsequences: true).map(String.init)
-                    let usableCount = endsWithNL ? allLines.count : max(allLines.count - 1, offset)
-                    let sessionId = file.deletingPathExtension().lastPathComponent
-                    if offset < usableCount {
-                        for i in offset..<usableCount {
-                            do {
-                                guard let ev = try JSONLCostParser.parseLine(allLines[i]) else { continue }
-                                collected.append(StoredUsageEvent(
-                                    ts: ev.timestamp, msgId: ev.messageId, reqId: ev.requestId, sessionId: sessionId,
-                                    model: ev.model, inputTokens: ev.inputTokens, outputTokens: ev.outputTokens,
-                                    cacheReadInputTokens: ev.cacheReadInputTokens, cacheCreationInputTokens: ev.cacheCreationInputTokens))
-                            } catch {
-                                parseErrors += 1
-                                NSLog("[claude-usage-bar] usage collect: \(type(of: error))")
-                            }
+            guard let enumerator = fm.enumerator(
+                at: root,
+                includingPropertiesForKeys: [.isRegularFileKey],
+                options: [.skipsHiddenFiles],
+                errorHandler: nil
+            ) else { continue }
+            for case let file as URL in enumerator {
+                guard file.pathExtension == "jsonl" else { continue }
+                guard (try? file.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true else { continue }
+                scanned += 1
+                scannedFiles.append(file)
+                let attrs = (try? fm.attributesOfItem(atPath: file.path)) ?? [:]
+                let size = (attrs[.size] as? Int) ?? 0
+                let mtime = (attrs[.modificationDate] as? Date) ?? Date(timeIntervalSince1970: 0)
+                guard let offset = await cursor.nextReadOffset(for: file, currentSize: size, currentMTime: mtime) else { continue }
+                guard let raw = try? String(contentsOf: file, encoding: .utf8) else { continue }
+                let endsWithNL = raw.hasSuffix("\n")
+                let allLines = raw.split(separator: "\n", omittingEmptySubsequences: true).map(String.init)
+                let usableCount = endsWithNL ? allLines.count : max(allLines.count - 1, offset)
+                let sessionId = file.deletingPathExtension().lastPathComponent
+                if offset < usableCount {
+                    for i in offset..<usableCount {
+                        do {
+                            guard let ev = try JSONLCostParser.parseLine(allLines[i]) else { continue }
+                            collected.append(StoredUsageEvent(
+                                ts: ev.timestamp, msgId: ev.messageId, reqId: ev.requestId, sessionId: sessionId,
+                                model: ev.model, inputTokens: ev.inputTokens, outputTokens: ev.outputTokens,
+                                cacheReadInputTokens: ev.cacheReadInputTokens, cacheCreationInputTokens: ev.cacheCreationInputTokens))
+                        } catch {
+                            parseErrors += 1
+                            NSLog("[claude-usage-bar] usage collect: \(type(of: error))")
                         }
                     }
-                    await cursor.updateCursor(for: file, size: size, mtime: mtime, lineOffset: usableCount)
                 }
+                await cursor.updateCursor(for: file, size: size, mtime: mtime, lineOffset: usableCount)
             }
         }
 
         guard !collected.isEmpty else {
+            await cursor.flush()
             lastResult = CollectResult(newEventCount: 0, scannedFileCount: scanned, parseErrorCount: parseErrors, touchedDayKeys: [])
             return lastResult
         }
@@ -82,6 +81,7 @@ actor ClaudeUsageCollector {
             for f in scannedFiles { await cursor.clearCursor(for: f) }
             await store.rebuildAllAggregates()
         }
+        await cursor.flush()
         lastResult = CollectResult(newEventCount: collected.count, scannedFileCount: scanned, parseErrorCount: parseErrors, touchedDayKeys: touchedDays)
         return lastResult
     }

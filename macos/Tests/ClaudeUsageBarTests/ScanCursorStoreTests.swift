@@ -46,12 +46,16 @@ final class ScanCursorStoreTests: XCTestCase {
     }
     func testPersistAcrossInstances() async {
         let m = Date(timeIntervalSince1970: 1_000_000)
-        await makeStore().updateCursor(for: fakeURL, size: 100, mtime: m, lineOffset: 7)
+        let s1 = makeStore()
+        await s1.updateCursor(for: fakeURL, size: 100, mtime: m, lineOffset: 7)
+        await s1.flush()
         let result = await makeStore().nextReadOffset(for: fakeURL, currentSize: 100, currentMTime: m)
         XCTAssertNil(result)
     }
     func testCursorFilePermissionsAre0600() async throws {
-        await makeStore().updateCursor(for: fakeURL, size: 100, mtime: Date(), lineOffset: 1)
+        let s = makeStore()
+        await s.updateCursor(for: fakeURL, size: 100, mtime: Date(), lineOffset: 1)
+        await s.flush()
         let perms = try FileManager.default.attributesOfItem(atPath: tmpDir.appendingPathComponent("scan-cursor.json").path)[.posixPermissions] as! NSNumber
         XCTAssertEqual(perms.int16Value, 0o600)
     }
