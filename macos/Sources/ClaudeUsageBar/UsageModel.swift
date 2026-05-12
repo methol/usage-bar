@@ -146,15 +146,54 @@ struct ExtraUsage: Codable {
 
     static let currencyFormatter: NumberFormatter = {
         let f = NumberFormatter()
-        f.numberStyle = .currency
-        f.currencyCode = "USD"
-        f.maximumFractionDigits = 2
+        f.numberStyle = .decimal
         f.minimumFractionDigits = 2
+        f.maximumFractionDigits = 2
+        f.usesGroupingSeparator = true
         return f
     }()
 
     static func formatUSD(_ amount: Double) -> String {
-        currencyFormatter.string(from: NSNumber(value: amount))
-            ?? String(format: "$%.2f", amount)
+        let formatted = currencyFormatter.string(from: NSNumber(value: amount))
+            ?? String(format: "%.2f", amount)
+        return "$\(formatted)"
+    }
+
+    /// Compact dollar format: $14.69, $13.12K, $1.05M, $1.23B, $1.23T
+    static func formatUSDCompact(_ amount: Double) -> String {
+        if amount == 0 { return "$0.00" }
+        let abs = Swift.abs(amount)
+        let sign = amount < 0 ? "-" : ""
+        switch abs {
+        case 1e12...:
+            return "\(sign)$\(String(format: "%.2f", abs / 1e12))T"
+        case 1e9...:
+            return "\(sign)$\(String(format: "%.2f", abs / 1e9))B"
+        case 1e6...:
+            return "\(sign)$\(String(format: "%.2f", abs / 1e6))M"
+        case 1e3...:
+            return "\(sign)$\(String(format: "%.2f", abs / 1e3))K"
+        default:
+            return "\(sign)$\(String(format: "%.2f", abs))"
+        }
+    }
+
+    /// Compact token count: 847, 33.00K, 7.12M, 1.23B, 1.23T
+    static func formatTokens(_ count: Int) -> String {
+        let abs = count < 0 ? -count : count
+        let sign = count < 0 ? "-" : ""
+        let d = Double(abs)
+        switch d {
+        case 1e12...:
+            return "\(sign)\(String(format: "%.2f", d / 1e12))T"
+        case 1e9...:
+            return "\(sign)\(String(format: "%.2f", d / 1e9))B"
+        case 1e6...:
+            return "\(sign)\(String(format: "%.2f", d / 1e6))M"
+        case 1e3...:
+            return "\(sign)\(String(format: "%.2f", d / 1e3))K"
+        default:
+            return "\(sign)\(abs)"
+        }
     }
 }

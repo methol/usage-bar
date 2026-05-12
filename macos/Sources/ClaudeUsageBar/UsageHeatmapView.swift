@@ -85,11 +85,6 @@ struct UsageHeatmapView: View {
         if bucket == 0 { return Color.secondary.opacity(0.15) }
         return Color.green.opacity(0.30 + Double(bucket) * 0.085)  // 0.385 ... 0.98
     }
-    private func tooltip(_ c: UsageHeatmapModel.Cell) -> String {
-        guard let key = c.dayKey else { return "" }
-        return "\(key) · ≈ \(ExtraUsage.formatUSD(c.usd)) · \(c.calls) calls"
-    }
-
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("消费热力图").font(.caption).foregroundStyle(.secondary)
@@ -107,8 +102,7 @@ struct UsageHeatmapView: View {
                                         RoundedRectangle(cornerRadius: 2)
                                             .fill(color(for: cell.bucket))
                                             .frame(width: 9, height: 9)
-                                            .help(tooltip(cell))
-                                            .accessibilityLabel(cell.dayKey.map { "\($0)，约 \(ExtraUsage.formatUSD(cell.usd))" } ?? "")
+                                            .accessibilityLabel(cell.dayKey.map { "\($0)，约 \(ExtraUsage.formatUSDCompact(cell.usd))" } ?? "")
                                             .onHover { isHovering in
                                                 if isHovering {
                                                     hovered = cell
@@ -131,7 +125,7 @@ struct UsageHeatmapView: View {
                 // 悬停信息行：固定高度避免布局跳动
                 Group {
                     if let cell = hovered, let key = cell.dayKey {
-                        Text("\(key) · ≈ \(ExtraUsage.formatUSD(cell.usd)) · \(cell.calls) 次调用")
+                        Text("\(key) · ≈ \(ExtraUsage.formatUSDCompact(cell.usd)) · \(cell.calls) 次")
                     } else {
                         Text("鼠标悬停查看某天明细")
                             .foregroundStyle(.tertiary)
