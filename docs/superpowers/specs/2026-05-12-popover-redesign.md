@@ -1,7 +1,7 @@
 ---
 id: 2026-05-12-popover-redesign
 title: Popover 重做 — provider tab 外壳 + 卡片化视觉 + 折线图 pace 面积
-status: draft
+status: accepted
 created: 2026-05-12
 updated: 2026-05-12
 owner: claude-code
