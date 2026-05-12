@@ -158,10 +158,41 @@ final class UsageServiceTests: XCTestCase {
 
         XCTAssertTrue(service.isAuthenticated)
         XCTAssertEqual(service.lastError, "Rate limited — backing off to 3600s")
+        // v0.2.11：429 → 设 backoffUntil（暴露为 nextEligibleRefresh），coordinator 的统一 timer 在此前会跳过本 provider。
+        XCTAssertNotNil(service.nextEligibleRefresh)
+        XCTAssertGreaterThan(try XCTUnwrap(service.nextEligibleRefresh), Date())
 
         let saved = try XCTUnwrap(store.load(defaultScopes: UsageService.defaultOAuthScopes))
         XCTAssertEqual(saved.accessToken, "new-access")
         XCTAssertEqual(saved.refreshToken, "refresh-old")
+    }
+
+    // v0.2.11：429 进 backoff → 下一次成功 fetch 清掉 backoff（nextEligibleRefresh 回到 nil）。
+    func testFetchUsageSuccessClearsBackoff() async throws {
+        let store = try makeStore()
+        try store.save(StoredCredentials(accessToken: "tok", refreshToken: "rt",
+                                         expiresAt: Date().addingTimeInterval(3600),
+                                         scopes: UsageService.defaultOAuthScopes))
+        let usageURL = URL(string: "https://example.com/api/oauth/usage")!
+        var phase = 0   // 0 → 429；之后 → 200
+        MockURLProtocol.handler = { request in
+            guard request.url?.path == "/api/oauth/usage" else {
+                XCTFail("Unexpected request: \(request)")
+                return try Self.httpResponse(url: request.url!, statusCode: 500)
+            }
+            if phase == 0 { return try Self.httpResponse(url: usageURL, statusCode: 429, headers: ["Retry-After": "120"]) }
+            return try Self.httpResponse(url: usageURL, statusCode: 200, body: "{}")
+        }
+        let service = UsageService(session: makeSession(), usageEndpoint: usageURL,
+                                   userinfoEndpoint: URL(string: "https://example.com/api/oauth/userinfo")!,
+                                   tokenEndpoint: URL(string: "https://example.com/v1/oauth/token")!,
+                                   credentialsStore: store)
+        await service.fetchUsage()
+        XCTAssertNotNil(service.nextEligibleRefresh)
+        phase = 1
+        await service.fetchUsage()
+        XCTAssertNil(service.nextEligibleRefresh)
+        XCTAssertNil(service.lastError)
     }
 
     func testFetchUsageSignsOutWhenRefreshFails() async throws {

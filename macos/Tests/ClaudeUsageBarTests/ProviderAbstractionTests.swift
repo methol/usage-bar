@@ -239,8 +239,13 @@ private final class StubProvider: UsageProvider {
     var isConfigured: Bool = true
     var supportsBackgroundPolling: Bool = false
     let runtime = ProviderRuntime(isConfigured: true)
+    var onPollTick: (@MainActor () -> Void)? = nil
+    /// 测试可设：让 coordinator 的 tick 跳过本 stub（模拟 backoff 窗口）。
+    var nextEligibleRefreshOverride: Date? = nil
+    var nextEligibleRefresh: Date? { nextEligibleRefreshOverride }
+    private(set) var refreshNowCallCount = 0
     init(id: ProviderID) { self.id = id }
-    func refreshNow() async {}
+    func refreshNow() async { refreshNowCallCount += 1 }
 }
 
 @MainActor

@@ -25,7 +25,6 @@ class UsageService: ObservableObject {
     private var runtimeAuthSync: AnyCancellable?
 
     private let usageStats: UsageStatsService
-    private var timer: Timer?
     private let session: URLSession
     private let usageEndpoint: URL
     private let userinfoEndpoint: URL
@@ -36,7 +35,14 @@ class UsageService: ObservableObject {
     var cliKeychainLoader: () async -> StoredCredentials? = {
         try? await ClaudeCLICredentialsStrategy().loadCredentials(allowInteraction: false)
     }
-    private var currentInterval: TimeInterval
+    /// 429 backoff 状态：`currentBackoffSeconds` = 当前 backoff 时长（0 = 不在 backoff，用于指数递增）；`backoffUntil` = 「这之前别再拉」的截止时刻。
+    /// v0.2.11：取代原 `currentInterval`（自持 timer 退役后，「下次拉的间隔」由 `ProviderCoordinator` 的统一 timer 负责）。
+    private var currentBackoffSeconds: TimeInterval = 0
+    private var backoffUntil: Date?
+    /// 后台 tick 时额外回调（驱动 Claude 的本机用量统计刷新；装配处设成 `{ Task.detached { await usageStats.refresh() } }`）。
+    var onPollTick: (@MainActor () -> Void)?
+    /// `UsageProvider.nextEligibleRefresh` —— coordinator 的统一 timer 在 backoff 窗口内会跳过本 provider。
+    var nextEligibleRefresh: Date? { backoffUntil }
     private enum RefreshResult {
         case success
         case permanentFailure
@@ -60,11 +66,9 @@ class UsageService: ObservableObject {
     func updatePollingInterval(_ minutes: Int) {
         pollingMinutes = minutes
         UserDefaults.standard.set(minutes, forKey: "pollingMinutes")
-        currentInterval = TimeInterval(minutes * 60)
-        if isAuthenticated {
-            scheduleTimer()
-            Task { await fetchUsage() }
-        }
+        // 后台轮询的 recurring 由 ProviderCoordinator 的统一 timer 负责 —— 它监听 `pollingMinutes` 的 UserDefaults 变化自动重起；
+        // 这里只额外立即拉一次（持有 currentFetchTask 供 switchAccount cancel）。
+        if isAuthenticated { currentFetchTask = Task { [weak self] in await self?.fetchUsage() } }
     }
 
     private var baseInterval: TimeInterval { TimeInterval(pollingMinutes * 60) }
@@ -111,7 +115,6 @@ class UsageService: ObservableObject {
         let stored = UserDefaults.standard.integer(forKey: "pollingMinutes")
         let minutes = Self.pollingOptions.contains(stored) ? stored : Self.defaultPollingMinutes
         self.pollingMinutes = minutes
-        self.currentInterval = TimeInterval(minutes * 60)
         // v0.1.3: 用 loadAccounts 替代 loadCredentials；自动迁移旧 v1 文件
         if let file = credentialsStore.loadAccounts(defaultScopes: Self.defaultOAuthScopes) {
             self.accounts = file.accounts
@@ -164,8 +167,6 @@ class UsageService: ObservableObject {
         currentFetchTask = nil
         refreshTask?.cancel()
         refreshTask = nil
-        timer?.invalidate()
-        timer = nil
         accountSwitchEpoch += 1
 
         // G5 B2: 双写原子性保护
@@ -203,8 +204,12 @@ class UsageService: ObservableObject {
         // 本机 JSONL 统计是跨账号的，不随账号清/重算（spec 2026-05-12 §5 风险12）
         self.accountEmail = nil
 
-        // 重启 polling + 重新 fetch（捕获 epoch via currentFetchTask）
-        startPolling()
+        // 立即拉一次新账号的用量（持有 currentFetchTask 供下次 switchAccount cancel）；recurring 由 coordinator 的统一 timer。
+        currentFetchTask = Task { [weak self] in
+            guard let self else { return }
+            await self.fetchUsage()
+            if self.accountEmail == nil { await self.fetchProfile() }
+        }
     }
 
     /// 触发 PKCE flow 添加新账号。保持 active 不变；UI 通过 isAwaitingCode 切到 CodeEntry。
@@ -213,33 +218,10 @@ class UsageService: ObservableObject {
     }
 
     // MARK: - Polling
-
-    func startPolling() {
-        guard isAuthenticated else { return }
-        // G5 B1: 持有 currentFetchTask，让 switchAccount 能 cancel
-        currentFetchTask = Task { [weak self] in
-            guard let self else { return }
-            await self.fetchUsage()
-            if self.accountEmail == nil { await self.fetchProfile() }
-        }
-        scheduleTimer()
-    }
-
-    private func scheduleTimer() {
-        timer?.invalidate()
-        let t = Timer(timeInterval: currentInterval, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated {
-                guard let self, self.isAuthenticated else { return }
-                // G5 B1: 持有 currentFetchTask
-                self.currentFetchTask = Task { [weak self] in
-                    await self?.fetchUsage()
-                }
-                Task.detached { [usageStats = self.usageStats] in await usageStats.refresh() }
-            }
-        }
-        RunLoop.main.add(t, forMode: .common)
-        timer = t
-    }
+    //
+    // v0.2.11：自持 `Timer` 退役 —— 后台轮询的 recurring 由 `ProviderCoordinator` 的统一 timer 管（间隔 = `pollingMinutes`，
+    // 监听 UserDefaults 变化重起）；每个 tick coordinator 会调 `refreshNow()`（跳过 `nextEligibleRefresh` 还在未来的）+ `onPollTick?()`。
+    // 「立即拉一次」散到各调用点（`switchAccount` / `addAccount` / `updatePollingInterval` / 装配处的 `coordinator.startBackgroundPolling()` 立即 tick）。
 
     // MARK: - OAuth PKCE Flow
 
@@ -362,8 +344,6 @@ class UsageService: ObservableObject {
             currentFetchTask = nil
             refreshTask?.cancel()
             refreshTask = nil
-            timer?.invalidate()
-            timer = nil
             accountSwitchEpoch += 1
             // 清前账号瞬态
             self.usage = nil
@@ -398,7 +378,8 @@ class UsageService: ObservableObject {
         self.oauthState = nil
 
         await fetchProfile()
-        startPolling()
+        // 立即拉一次（profile 上面已取，不用再 if accountEmail == nil）；recurring 由 coordinator 的统一 timer。
+        currentFetchTask = Task { [weak self] in await self?.fetchUsage() }
     }
 
     func signOut() {
@@ -414,8 +395,8 @@ class UsageService: ObservableObject {
         usage = nil
         lastUpdated = nil
         accountEmail = nil
-        timer?.invalidate()
-        timer = nil
+        backoffUntil = nil
+        currentBackoffSeconds = 0
         refreshTask?.cancel()
         refreshTask = nil
         lastError = nil
@@ -462,15 +443,12 @@ class UsageService: ObservableObject {
             guard accountSwitchEpoch == epochAtStart else { return }
             let (data, http) = result
             if http.statusCode == 429 {
-                let retryAfter = http.value(forHTTPHeaderField: "Retry-After")
-                    .flatMap(Double.init) ?? currentInterval
-                currentInterval = Self.backoffInterval(
-                    retryAfter: retryAfter,
-                    currentInterval: currentInterval
-                )
-                lastError = "Rate limited — backing off to \(Int(currentInterval))s"
+                let retryAfter = http.value(forHTTPHeaderField: "Retry-After").flatMap(Double.init)
+                let prev = currentBackoffSeconds == 0 ? baseInterval : currentBackoffSeconds
+                currentBackoffSeconds = Self.backoffInterval(retryAfter: retryAfter, currentInterval: prev)
+                backoffUntil = Date().addingTimeInterval(currentBackoffSeconds)   // coordinator 的 tick 在此前会跳过本 provider
+                lastError = "Rate limited — backing off to \(Int(currentBackoffSeconds))s"
                 runtime.setError(lastError ?? "Rate limited", clearSnapshot: false)
-                scheduleTimer()
                 return
             }
             guard http.statusCode == 200 else {
@@ -487,10 +465,8 @@ class UsageService: ObservableObject {
             runtime.setSuccess(snapshot: reconciled.asProviderSnapshot(), at: now)
             historyService?.recordDataPoint(pct5h: pct5h, pct7d: pct7d)
             notificationService?.checkAndNotify(pct5h: pct5h, pct7d: pct7d, pctExtra: pctExtra)
-            if currentInterval != baseInterval {
-                currentInterval = baseInterval
-                scheduleTimer()
-            }
+            currentBackoffSeconds = 0      // 成功 → 清 backoff（下个 coordinator tick 就会正常 tick 本 provider）
+            backoffUntil = nil
         } catch {
             // race guard：账号已切换则不写 lastError
             guard accountSwitchEpoch == epochAtStart else { return }
@@ -810,15 +786,15 @@ class UsageService: ObservableObject {
 
     private func expireSession() async {
         // v0.2.7：硬过期前先试着从 Claude CLI Keychain 续上 —— 用户的 claude CLI 往往还在正常用，
-        // 此时 Keychain 里有新鲜 token，没必要逼用户重登。能恢复就直接 return（timer 不动，下一轮 polling 用新 token）。
+        // 此时 Keychain 里有新鲜 token，没必要逼用户重登。能恢复就直接 return（下一轮 coordinator tick 自然用新 token）。
         if await attemptCLIKeychainRecovery() { return }
         deleteCredentials()
         isAuthenticated = false
         usage = nil
         lastUpdated = nil
         accountEmail = nil
-        timer?.invalidate()
-        timer = nil
+        backoffUntil = nil
+        currentBackoffSeconds = 0
         refreshTask?.cancel()
         refreshTask = nil
         lastError = "Session expired — please sign in again"
@@ -849,18 +825,21 @@ class UsageService: ObservableObject {
 
 // MARK: - UsageProvider conformance (v0.2.5 multi-provider refactor)
 //
-// `UsageService` 就是 Claude 的 `UsageProvider` 实现（沿用全部 OAuth/refresh/多账号/backoff/polling
+// `UsageService` 就是 Claude 的 `UsageProvider` 实现（沿用全部 OAuth/refresh/多账号/429-backoff
 // 内部逻辑）。`runtime` 是类体里的存储属性；`fetchUsage()` 在成功/失败时已镜像写它。
+// v0.2.11：后台轮询的 recurring 由 `ProviderCoordinator` 的统一 timer 管（`UsageService` 不再自持 `Timer`）；
+// `nextEligibleRefresh`（= `backoffUntil`）让 coordinator 在 429 backoff 窗口内跳过本 provider。
 
 extension UsageService: UsageProvider {
     var id: ProviderID { .claude }
     var isConfigured: Bool { isAuthenticated }
     var supportsBackgroundPolling: Bool { true }
 
-    /// 「按需拉取」（popover Refresh 按钮 / 切 tab）。不做内部节流——节流（如「切 tab 距上次 <Ns 不重拉」）
-    /// 由调用方按需决定（见 `PopoverView`）；Refresh 按钮就是要强制重拉。
+    /// 「拉一次」（popover Refresh 按钮 / coordinator 的后台 tick）。不做内部节流——Refresh 按钮就是要强制重拉。
+    /// 顺带补一次 profile（账号 email）—— 原本在已退役的 `startPolling()` 里。
     func refreshNow() async {
         await fetchUsage()
+        if accountEmail == nil { await fetchProfile() }
     }
 }
 
