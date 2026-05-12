@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
     <key>CFBundleIdentifier</key>
-    <string>com.local.UsageBar</string>
+    <string>com.tuzhihao.app.UsageBar</string>
     <key>CFBundleName</key>
     <string>UsageBar</string>
     <key>CFBundleDisplayName</key>

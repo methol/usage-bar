@@ -276,16 +276,16 @@ actor UsageEventStore {
             self.dataDir = cfg.appendingPathComponent("data", isDirectory: true)
         } else {
             self.dataDir = URL(fileURLWithPath: NSTemporaryDirectory())
-                .appendingPathComponent("claude-usage-bar/data", isDirectory: true)
+                .appendingPathComponent("usage-bar/data", isDirectory: true)
         }
         self.provider = provider
     }
 
-    /// ~/.config/claude-usage-bar/
+    /// ~/.config/usage-bar/
     static func defaultConfigDir() -> URL? {
         fm.default.homeDirectoryForCurrentUser  // placeholder; replaced below
         return FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".config/claude-usage-bar", isDirectory: true)
+            .appendingPathComponent(".config/usage-bar", isDirectory: true)
     }
 
     private var providerDir: URL { dataDir.appendingPathComponent(provider.rawValue, isDirectory: true) }
@@ -317,14 +317,14 @@ actor UsageEventStore {
             try data.write(to: url, options: .atomic)
             try? fm.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
         } catch {
-            NSLog("[claude-usage-bar] store write: \(type(of: error))")
+            NSLog("[usage-bar] store write: \(type(of: error))")
         }
     }
 
     private func loadMonth(_ key: String) -> MonthDetailFile? {
         guard let data = try? Data(contentsOf: monthFileURL(key)) else { return nil }
         do { return try Self.decoder.decode(MonthDetailFile.self, from: data) }
-        catch { NSLog("[claude-usage-bar] store decode month: \(type(of: error))"); return nil }
+        catch { NSLog("[usage-bar] store decode month: \(type(of: error))"); return nil }
     }
     private func saveMonth(_ file: MonthDetailFile, key: String) {
         guard let data = try? Self.encoder.encode(file) else { return }
@@ -382,7 +382,7 @@ actor UsageEventStore {
 }
 ```
 
-> ⚠️ 实现注意：上面 `defaultConfigDir()` 草稿里有一行 `fm.default.homeDirectoryForCurrentUser` 是笔误占位——实现时删掉，只保留 `return FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".config/claude-usage-bar", isDirectory: true)`。`UsageEventStore` 是 actor，`fm` 用 `FileManager.default`（线程安全只读用法）。
+> ⚠️ 实现注意：上面 `defaultConfigDir()` 草稿里有一行 `fm.default.homeDirectoryForCurrentUser` 是笔误占位——实现时删掉，只保留 `return FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".config/usage-bar", isDirectory: true)`。`UsageEventStore` 是 actor，`fm` 用 `FileManager.default`（线程安全只读用法）。
 
 - [ ] **Step 5: 运行测试确认通过**
 
@@ -675,7 +675,7 @@ func testCorruptedMonthFileTreatedAsEmpty() async throws {
         do {
             let f = try Self.decoder.decode(AggregateFile.self, from: data)
             return f.schemaVersion == 1 ? f : nil
-        } catch { NSLog("[claude-usage-bar] store decode agg: \(type(of: error))"); return nil }
+        } catch { NSLog("[usage-bar] store decode agg: \(type(of: error))"); return nil }
     }
     private func saveAgg(_ kind: String, buckets: [String: [String: TokenSums]]) {
         let f = AggregateFile(provider: provider.rawValue, lastUpdated: Date(), buckets: buckets)
@@ -881,7 +881,7 @@ actor ScanCursorStore {
         let dir: URL
         if let o = dataDirOverride { dir = o }
         else if let cfg = UsageEventStore.defaultConfigDir() { dir = cfg.appendingPathComponent("data", isDirectory: true) }
-        else { dir = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("claude-usage-bar/data", isDirectory: true) }
+        else { dir = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("usage-bar/data", isDirectory: true) }
         self.cursorURL = dir.appendingPathComponent("scan-cursor.json")
     }
 
@@ -903,7 +903,7 @@ actor ScanCursorStore {
             let data = try Self.encoder.encode(f)
             try data.write(to: cursorURL, options: .atomic)
             try? fm.setAttributes([.posixPermissions: 0o600], ofItemAtPath: cursorURL.path)
-        } catch { NSLog("[claude-usage-bar] cursor write: \(type(of: error))") }
+        } catch { NSLog("[usage-bar] cursor write: \(type(of: error))") }
     }
 
     /// nil = 文件无变化整跳过；0 = 需全读；N = 从第 N 行续读。
@@ -971,7 +971,7 @@ import XCTest
 
 final class ClaudeUsageCollectorTests: XCTestCase {
     private var tmpRoot: URL!     // 模拟 ~/.claude/projects
-    private var tmpData: URL!     // 模拟 ~/.config/claude-usage-bar/data
+    private var tmpData: URL!     // 模拟 ~/.config/usage-bar/data
     override func setUpWithError() throws {
         let base = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("collector-test-\(UUID().uuidString)", isDirectory: true)
         tmpRoot = base.appendingPathComponent("projects", isDirectory: true)
@@ -1149,7 +1149,7 @@ actor ClaudeUsageCollector {
                                     cacheReadInputTokens: ev.cacheReadInputTokens, cacheCreationInputTokens: ev.cacheCreationInputTokens))
                             } catch {
                                 parseErrors += 1
-                                NSLog("[claude-usage-bar] usage collect: \(type(of: error))")   // 不 log 行/文件名/路径
+                                NSLog("[usage-bar] usage collect: \(type(of: error))")   // 不 log 行/文件名/路径
                             }
                         }
                     }
@@ -1690,9 +1690,9 @@ git rm macos/Sources/UsageBar/LocalCostScanner.swift macos/Tests/UsageBarTests/L
 
 在 `UsageBarApp.task` 的最开头（或 `UsageStatsService.refresh()` 首次调用前），加一次 best-effort：
 ```swift
-// 退役 v0.1.2 的 cost-usage cache（已被 ~/.config/claude-usage-bar/data/ 取代）
+// 退役 v0.1.2 的 cost-usage cache（已被 ~/.config/usage-bar/data/ 取代）
 if let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first {
-    try? FileManager.default.removeItem(at: caches.appendingPathComponent("claude-usage-bar/cost-usage", isDirectory: true))
+    try? FileManager.default.removeItem(at: caches.appendingPathComponent("usage-bar/cost-usage", isDirectory: true))
 }
 ```
 放在 `UsageBarApp.swift` 的 `.task` 里即可（一行 try?，失败无所谓）。

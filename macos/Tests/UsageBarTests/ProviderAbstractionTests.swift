@@ -9,7 +9,7 @@ final class ProviderAbstractionTests: XCTestCase {
         try JSONDecoder().decode(UsageResponse.self, from: Data(json.utf8))
     }
 
-    /// 构造一个不碰真实 `~/.config/claude-usage-bar/` 的 `UsageService`（空临时凭证目录）。
+    /// 构造一个不碰真实 `~/.config/usage-bar/` 的 `UsageService`（空临时凭证目录）。
     @MainActor
     private func makeBareService() throws -> UsageService {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)

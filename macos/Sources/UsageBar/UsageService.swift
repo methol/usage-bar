@@ -149,7 +149,7 @@ class UsageService: ObservableObject {
             try saveCredentials(creds)
             isAuthenticated = true
         } catch {
-            NSLog("[claude-usage-bar] credentials bootstrap from CLI failed: \(error)")
+            NSLog("[usage-bar] credentials bootstrap from CLI failed: \(error)")
         }
     }
 
@@ -187,11 +187,11 @@ class UsageService: ObservableObject {
                 if let old = oldAccountsFileSnapshot {
                     try? credentialsStore.saveAccounts(old)
                 }
-                NSLog("[claude-usage-bar] switchAccount v1 save: \(type(of: error)) — rolled back")
+                NSLog("[usage-bar] switchAccount v1 save: \(type(of: error)) — rolled back")
                 return
             }
         } catch {
-            NSLog("[claude-usage-bar] switchAccount accounts save: \(type(of: error))")
+            NSLog("[usage-bar] switchAccount accounts save: \(type(of: error))")
             return
         }
         self.accounts = file.accounts

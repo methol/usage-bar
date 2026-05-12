@@ -12,15 +12,15 @@ actor UsageEventStore {
             self.dataDir = cfg.appendingPathComponent("data", isDirectory: true)
         } else {
             self.dataDir = URL(fileURLWithPath: NSTemporaryDirectory())
-                .appendingPathComponent("claude-usage-bar/data", isDirectory: true)
+                .appendingPathComponent("usage-bar/data", isDirectory: true)
         }
         self.provider = provider
     }
 
-    /// ~/.config/claude-usage-bar/
+    /// ~/.config/usage-bar/
     static func defaultConfigDir() -> URL? {
         return FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".config/claude-usage-bar", isDirectory: true)
+            .appendingPathComponent(".config/usage-bar", isDirectory: true)
     }
 
     private var providerDir: URL { dataDir.appendingPathComponent(provider.rawValue, isDirectory: true) }
@@ -52,14 +52,14 @@ actor UsageEventStore {
             try data.write(to: url, options: .atomic)
             try? fm.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
         } catch {
-            NSLog("[claude-usage-bar] store write: \(type(of: error))")
+            NSLog("[usage-bar] store write: \(type(of: error))")
         }
     }
 
     private func loadMonth(_ key: String) -> MonthDetailFile? {
         guard let data = try? Data(contentsOf: monthFileURL(key)) else { return nil }
         do { return try Self.decoder.decode(MonthDetailFile.self, from: data) }
-        catch { NSLog("[claude-usage-bar] store decode month: \(type(of: error))"); return nil }
+        catch { NSLog("[usage-bar] store decode month: \(type(of: error))"); return nil }
     }
     private func saveMonth(_ file: MonthDetailFile, key: String) {
         guard let data = try? Self.encoder.encode(file) else { return }
@@ -125,7 +125,7 @@ actor UsageEventStore {
         do {
             let f = try Self.decoder.decode(AggregateFile.self, from: data)
             return f.schemaVersion == 1 ? f : nil
-        } catch { NSLog("[claude-usage-bar] store decode agg: \(type(of: error))"); return nil }
+        } catch { NSLog("[usage-bar] store decode agg: \(type(of: error))"); return nil }
     }
     private func saveAgg(_ kind: String, buckets: [String: [String: TokenSums]]) {
         let f = AggregateFile(provider: provider.rawValue, lastUpdated: Date(), buckets: buckets)

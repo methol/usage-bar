@@ -60,7 +60,7 @@ actor ClaudeUsageCollector: UsageCollecting {
                                 cacheReadInputTokens: ev.cacheReadInputTokens, cacheCreationInputTokens: ev.cacheCreationInputTokens))
                         } catch {
                             parseErrors += 1
-                            NSLog("[claude-usage-bar] usage collect: \(type(of: error))")
+                            NSLog("[usage-bar] usage collect: \(type(of: error))")
                         }
                     }
                 }

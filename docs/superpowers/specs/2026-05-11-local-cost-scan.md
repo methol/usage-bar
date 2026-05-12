@@ -28,7 +28,7 @@ spec_criteria:
     done: true
     evidence: "see ## Verification log"
   - id: SC5
-    criterion: "缓存：~/Library/Caches/claude-usage-bar/cost-usage/claude-v1.json（mode 0644 即可，不含 secrets）；scan() 调用时若 cache.generatedAt < 60s 直接返回 cache；写盘失败仅 log 不抛；版本号 v1（schema 升级时 bump）"
+    criterion: "缓存：~/Library/Caches/usage-bar/cost-usage/claude-v1.json（mode 0644 即可，不含 secrets）；scan() 调用时若 cache.generatedAt < 60s 直接返回 cache；写盘失败仅 log 不抛；版本号 v1（schema 升级时 bump）"
     done: true
     evidence: "see ## Verification log"
   - id: SC6
@@ -226,11 +226,11 @@ reviews:
 | 未知模型 fallback | cost=0 + unknownModelCount++ | 不阻塞扫描；UI 提示"含 N 个未知模型条目（价格表过时？）" |
 | 30 天窗口 | scan now - 30*86400 ≤ event.timestamp ≤ now | 与调研 §2.4 Path 4 对齐 |
 | 节流 | 60s in-memory + on-disk cache | 用户连续打开 popover 只触发一次 IO |
-| 缓存路径 | `~/Library/Caches/claude-usage-bar/cost-usage/claude-v1.json` | macOS 标准 cache 位；不含 secrets，0644；schema 版本 v1 |
+| 缓存路径 | `~/Library/Caches/usage-bar/cost-usage/claude-v1.json` | macOS 标准 cache 位；不含 secrets，0644；schema 版本 v1 |
 | 触发时机 | UsageService 启动 task 内调用一次；polling timer **不**触发；可选 popover open 时检查 60s cache | 避免 IO 抖动；polling 是网络任务不该混合 IO |
 | Strategy 协议复用 | **不复用** v0.1.1 ClaudeUsageStrategy（语义不同：那个返 credentials；这个返 cost summary） | YAGNI；强行抽象会损害单职责；v0.1.3 multi-account 才会真正出现"多 strategy 链"需要统一抽象 |
 | **安全约束 SC7** | parser schema 层不 decode `content` 字段；error log 只 log file basename 不 log 完整路径 | v0.1.1 事故警示延续；架构防御 |
-| Logger 选择 | NSLog 简短：`[claude-usage-bar] cost scan: <ErrorType> in <basename>` | 与 v0.1.1 对齐 |
+| Logger 选择 | NSLog 简短：`[usage-bar] cost scan: <ErrorType> in <basename>` | 与 v0.1.1 对齐 |
 
 ## 3. 设计
 
@@ -465,7 +465,7 @@ actor LocalCostScanner {
     init(cacheDirOverride: URL? = nil) {
         let base = cacheDirOverride
             ?? FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
-                .appendingPathComponent("claude-usage-bar/cost-usage", isDirectory: true)
+                .appendingPathComponent("usage-bar/cost-usage", isDirectory: true)
         self.cacheDir = base
         self.cacheFile = base.appendingPathComponent("claude-v1.json")
     }
@@ -514,7 +514,7 @@ actor LocalCostScanner {
                         } catch {
                             parseErrors += 1
                             // SC7：仅 log error type + basename，不 log line raw / 完整路径
-                            NSLog("[claude-usage-bar] cost scan: \(type(of: error)) in \(file.lastPathComponent)")
+                            NSLog("[usage-bar] cost scan: \(type(of: error)) in \(file.lastPathComponent)")
                         }
                     }
                 }
@@ -592,7 +592,7 @@ actor LocalCostScanner {
             let data = try JSONEncoder.iso.encode(summary)
             try data.write(to: cacheFile, options: .atomic)
         } catch {
-            NSLog("[claude-usage-bar] cost cache write failed: \(type(of: error))")
+            NSLog("[usage-bar] cost cache write failed: \(type(of: error))")
         }
     }
 
@@ -822,7 +822,7 @@ struct LocalCostCard: View {
 - [x] SC2 — evidence: commit `5183583` 新增 JSONLCostParser.swift（Envelope.Message schema 仅 id/model/usage 不含 content；testValidAssistantLineDecodes / testNonAssistantTypeReturnsNil / testEmptyLineReturnsNil / testInvalidJSONThrows / testMissingRequiredFieldThrows / testEnvelopeDoesNotDecodeContentField / testIso8601WithoutFractionalParses / testRequestIdFallbackToMessageId 8 case ✅）
 - [x] SC3 — evidence: commit `5183583` 新增 LocalCostScanner.swift（actor 隔离 + scan(now:) async + (msgId,requestId) 去重 + 30 天滚动窗 + per-model 累积 + ClaudePricing.cost 算 USD；CostSummary/ModelCost 完整字段）
 - [x] SC4 — evidence: commit `5183583` LocalCostScanner.scanRoots 实现优先级（CLAUDE_CONFIG_DIR/projects 冒号分隔 → ~/.config/claude/projects → ~/.claude/projects；不存在跳过）；testScanRootsRespectsEnvOverride 多场景 ✅
-- [x] SC5 — evidence: cacheDir 默认 `~/Library/Caches/claude-usage-bar/cost-usage`，cacheFile `claude-v1.json`；写盘 .atomic；cacheTTL = 60；testCacheHitWithin60s + testCacheMissAfter60sCutoff 边界 ✅
+- [x] SC5 — evidence: cacheDir 默认 `~/Library/Caches/usage-bar/cost-usage`，cacheFile `claude-v1.json`；写盘 .atomic；cacheTTL = 60；testCacheHitWithin60s + testCacheMissAfter60sCutoff 边界 ✅
 - [x] SC6 — evidence: performScan cutoff = now - windowDays(30) * 86400；event.timestamp >= cutoff；windowDays 单一 actor 字段（SSOT）；testWindowFilters30Days 31d/1d 实证 ✅
 - [x] SC7 — evidence: Envelope.Message struct 不含 content 字段（schema-level 守护）；testEnvelopeDoesNotDecodeContentField Mirror 反射验证 JSONLUsageEvent 无 content/contentBlocks/text 属性；NSLog 仅 type(of: error) 不 log lastPathComponent；测试 mock JSONL 用 'mock-' / 'msg_mock_' / 'req_mock_' 前缀；SC_AUTO_NO_REAL_TOKEN_PREFIX `sk-ant-(oat\|ort\|api)[0-9a-zA-Z]\|sk-proj-[0-9a-zA-Z]\|AKIA[0-9A-Z]{16}` 全仓 0 匹配；SC_AUTO_NO_PRINT_TOKENS（含 lastPathComponent 守护）+ SC_AUTO_NO_CONTENT_READ 双守护 0 匹配
 - [x] SC8 — evidence: commit `87e374f` UsageService 加 @Published localCost30d + refreshLocalCostIfNeeded() async（内部 Task.detached + MainActor.run 显式标注 G5 R1）；polling 守护 grep `refreshLocalCostIfNeeded\|LocalCostScanner` macos/Sources/UsageBar/UsageService.swift 仅命中函数声明 + 函数体内 await 行，startPolling/scheduleTimer/fetchUsage 无引用 ✅

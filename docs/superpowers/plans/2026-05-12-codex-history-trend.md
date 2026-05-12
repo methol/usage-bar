@@ -55,7 +55,7 @@ final class UsageHistoryServiceTests: XCTestCase {
         XCTAssertEqual(h.fileURL.lastPathComponent, "history.json")
         XCTAssertEqual(h.backupURL.lastPathComponent, "history.bak.json")
         let parent = h.fileURL.deletingLastPathComponent()
-        XCTAssertEqual(parent.lastPathComponent, "claude-usage-bar")
+        XCTAssertEqual(parent.lastPathComponent, "usage-bar")
         XCTAssertEqual(parent.deletingLastPathComponent().lastPathComponent, ".config")
     }
 
@@ -104,7 +104,7 @@ Expected: 编译失败（`fileURL`/`backupURL` 不存在、`init(filename:direct
 把 `private static var historyFileURL: URL { … }` 删除，改成：
 
 ```swift
-    /// 写到哪个文件（默认 `~/.config/claude-usage-bar/history.json` —— Claude 历史；
+    /// 写到哪个文件（默认 `~/.config/usage-bar/history.json` —— Claude 历史；
     /// Codex 用 `history-codex.json`）。`internal` 而非 `private`：单测要断言默认路径未变。
     let fileURL: URL
     /// 解析失败时把坏文件挪走的备份名（`<base>.bak.json`），由 `fileURL` 派生。
@@ -112,7 +112,7 @@ Expected: 编译失败（`fileURL`/`backupURL` 不存在、`init(filename:direct
 
     private static var defaultDirectory: URL {
         let dir = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".config/claude-usage-bar", isDirectory: true)
+            .appendingPathComponent(".config/usage-bar", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir
     }

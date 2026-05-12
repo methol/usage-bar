@@ -176,7 +176,7 @@ create_dmg() {
     local create_dmg_root
     local create_dmg_tool
     local -a create_dmg_args
-    staging_dir="$(mktemp -d "${TMPDIR:-/tmp}/claude-usage-bar-dmg.XXXXXX")"
+    staging_dir="$(mktemp -d "${TMPDIR:-/tmp}/usage-bar-dmg.XXXXXX")"
     create_dmg_root="$(mktemp -d "${TMPDIR:-/tmp}/create-dmg.XXXXXX")"
     create_dmg_tool="$create_dmg_root/create-dmg"
 

@@ -32,9 +32,9 @@ struct UsageBarApp: App {
                 providerID: coordinator.menuBarProviderID
             )
                 .task {
-                    // 退役 v0.1.2 的 cost-usage cache（已被 ~/.config/claude-usage-bar/data/ 取代）
+                    // 退役 v0.1.2 的 cost-usage cache（已被 ~/.config/usage-bar/data/ 取代）
                     if let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first {
-                        try? FileManager.default.removeItem(at: caches.appendingPathComponent("claude-usage-bar/cost-usage", isDirectory: true))
+                        try? FileManager.default.removeItem(at: caches.appendingPathComponent("usage-bar/cost-usage", isDirectory: true))
                     }
                     historyService.loadHistory()
                     coordinator.claude.historyService = historyService

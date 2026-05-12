@@ -72,7 +72,7 @@ manual_checks:
   - "**单账号用户启动**：accounts.json 不存在，credentials.json 存在 → 自动迁移成 1 个 account；popover 顶部不显示 switcher（accounts.count == 1）"
   - "**添加第二个账号**：popover 顶部下拉 → 添加账号 → 走 PKCE → CodeEntry 标题显示 \"添加账号\" → 完成后 accounts.count == 2，active 切到新账号；popover 顶部出现 switcher"
   - "**切换账号**：下拉选另一账号 → 立即清 usage 占位、重新 fetchUsage / fetchProfile / refreshLocalCostIfNeeded；菜单栏图标 percent 即时更新"
-  - "**安全 manual check**：grep 'sk-ant-' 全仓 0 匹配；`stat -f '%OLp' ~/.config/claude-usage-bar/accounts.json` 显示 `600`（G3-R4：实际持续守护降级为 manual，单测 testAccountsJSONFilePermissionsAre0600 是绑定证据）"
+  - "**安全 manual check**：grep 'sk-ant-' 全仓 0 匹配；`stat -f '%OLp' ~/.config/usage-bar/accounts.json` 显示 `600`（G3-R4：实际持续守护降级为 manual，单测 testAccountsJSONFilePermissionsAre0600 是绑定证据）"
 reviews:
   - gate: G2
     reviewer: codex:codex-rescue (general-purpose fallback, agentId a2b9f484c1d44b1a7, with security/privacy review focus)
@@ -238,7 +238,7 @@ reviews:
 | 单账号用户体验 | accounts.count <= 1 时 switcher 完全隐藏 | 不打扰未用 multi-account 的用户 |
 | 文件权限 | accounts.json 0600（同 credentials.json）；目录 0700 | SC7 安全约束 |
 | **安全 SC7** | 与 v0.1.1/v0.1.2 同款：禁 print/log token；test mock 'mock-' 前缀；error log 仅 type | 永久警示延续 |
-| Logger | NSLog "[claude-usage-bar] accounts <op>: <ErrorType>" | 与已有路径对齐 |
+| Logger | NSLog "[usage-bar] accounts <op>: <ErrorType>" | 与已有路径对齐 |
 
 ## 3. 设计
 
@@ -343,7 +343,7 @@ extension StoredCredentialsStore {
             try? fileManager.removeItem(at: credentialsFileURL)
             try? fileManager.removeItem(at: legacyTokenFileURL)
         } catch {
-            NSLog("[claude-usage-bar] accounts migration save failed: \(type(of: error))")
+            NSLog("[usage-bar] accounts migration save failed: \(type(of: error))")
         }
         return migrated
     }
@@ -380,7 +380,7 @@ func switchAccount(to id: UUID) {
     var file = StoredAccountsFile(version: 2, activeIndex: idx, accounts: accounts)
     file.accounts[idx].lastUsed = Date()
     do { try credentialsStore.saveAccounts(file) } catch {
-        NSLog("[claude-usage-bar] switchAccount save failed: \(type(of: error))")
+        NSLog("[usage-bar] switchAccount save failed: \(type(of: error))")
         return
     }
     self.accounts = file.accounts
@@ -576,7 +576,7 @@ AccountSwitcherView(service: service)
 9. **token 不在 label 暴露**：StoredAccount.label 仅 "账号 N" 或 email；UI 渲染只读 label。
 10. **完成 sign in 后 active 切换时机**：用户 add 第二个账号完成 PKCE 时立即切到新；与系统 menu add option 一致。
 11. **Schema v3 rollback**（G2-D 修订）：accounts.json `version > currentVersion` 时 JSONDecoder 默认忽略未知字段，通常仍能 decode 为 v2 结构 — 这是好的意外行为；breaking rename（去掉 `accounts` 字段）时 decode 失败 → loadAccounts fallback 找 credentials.json 不存在 → 返回 nil → 用户被登出（重 sign-in 即可）。**accepted risk** 不阻塞 v0.1.3。
-12. **双写 v1 credentials.json 永久保留 — 迁机安全**（G5-R3 修订）：双写镜像设计让 `~/.config/claude-usage-bar/credentials.json` 永久保留即使 accounts.json 已存在（保留 v0.1.0~v0.1.2 backward compat）。若用户迁机时未做 secure erase，攻击者可读取 v1 token（虽 0600 权限，root / Time Machine 备份可绕过）。**accepted risk** — 与 v0.1.0~v0.1.2 同款风险（之前就只有 v1 文件），multi-account 引入 accounts.json 仅增加额外副本不引入新攻击面。后续 v0.2.x 若引入 macOS Sandbox + Keychain item 替代 plaintext file 一并解决。
+12. **双写 v1 credentials.json 永久保留 — 迁机安全**（G5-R3 修订）：双写镜像设计让 `~/.config/usage-bar/credentials.json` 永久保留即使 accounts.json 已存在（保留 v0.1.0~v0.1.2 backward compat）。若用户迁机时未做 secure erase，攻击者可读取 v1 token（虽 0600 权限，root / Time Machine 备份可绕过）。**accepted risk** — 与 v0.1.0~v0.1.2 同款风险（之前就只有 v1 文件），multi-account 引入 accounts.json 仅增加额外副本不引入新攻击面。后续 v0.2.x 若引入 macOS Sandbox + Keychain item 替代 plaintext file 一并解决。
 
 ## 6. 后续工作（不在本 spec 范围）
 

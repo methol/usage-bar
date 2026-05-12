@@ -9,7 +9,7 @@ actor ScanCursorStore {
         let dir: URL
         if let o = dataDirOverride { dir = o }
         else if let cfg = UsageEventStore.defaultConfigDir() { dir = cfg.appendingPathComponent("data", isDirectory: true) }
-        else { dir = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("claude-usage-bar/data", isDirectory: true) }
+        else { dir = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("usage-bar/data", isDirectory: true) }
         // Claude 保旧文件名 scan-cursor.json（兼容已有部署）；其他 provider 用 scan-cursor-<provider>.json，同目录。
         let name = provider == .claude ? "scan-cursor.json" : "scan-cursor-\(provider.rawValue).json"
         self.cursorURL = dir.appendingPathComponent(name)
@@ -34,7 +34,7 @@ actor ScanCursorStore {
             let data = try Self.encoder.encode(f)
             try data.write(to: cursorURL, options: .atomic)
             try? fm.setAttributes([.posixPermissions: 0o600], ofItemAtPath: cursorURL.path)
-        } catch { NSLog("[claude-usage-bar] cursor write: \(type(of: error))") }
+        } catch { NSLog("[usage-bar] cursor write: \(type(of: error))") }
     }
 
     /// nil = 文件无变化可跳过；0 = 需全读；N = 从第 N 行续读。

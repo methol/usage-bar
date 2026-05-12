@@ -13,7 +13,7 @@ class UsageHistoryService: ObservableObject {
     private static let retentionInterval: TimeInterval = 30 * 86400 // 30 days
     private static let flushInterval: TimeInterval = 300 // 5 minutes
 
-    /// 写到哪个文件（默认 `~/.config/claude-usage-bar/history.json` —— Claude 历史；
+    /// 写到哪个文件（默认 `~/.config/usage-bar/history.json` —— Claude 历史；
     /// Codex 用 `history-codex.json`）。`internal` 而非 `private`：单测要断言默认路径未变。
     let fileURL: URL
     /// 解析失败时把坏文件挪走的备份名（`<base>.bak.json`），由 `fileURL` 派生。
@@ -21,7 +21,7 @@ class UsageHistoryService: ObservableObject {
 
     private static var defaultDirectory: URL {
         let dir = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".config/claude-usage-bar", isDirectory: true)
+            .appendingPathComponent(".config/usage-bar", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir
     }

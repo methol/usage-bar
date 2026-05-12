@@ -59,7 +59,7 @@ automated_checks:
   - "SC_AUTO_NO_RAW_LOG: grep -rn 'print(\\|NSLog\\|os_log' macos/Sources/UsageBar/CodexRolloutCostParser.swift macos/Sources/UsageBar/CodexUsageCollector.swift  →  无命中（不打印解析中内容/路径）"
 manual_checks:
   - "本机有 `~/.codex/sessions/**/rollout-*.jsonl` 时：开 popover 切到 Codex tab → 折线图下方出现估算费用卡（`Usage # … $…`，模型名是 `GPT-5.x` 之类）；tab 底部出现消费热力图（按天着色 + 当天 $/calls/tokens）；**不再有「Plan: Free」卡**。"
-  - "本版本起：Codex 本机扫描随后台 5 分钟 timer + popover 打开各跑一次；写到 `~/.config/claude-usage-bar/data/codex/`（独立于 Claude 的 `data/claude/`），cursor 在 `~/.config/claude-usage-bar/data/scan-cursor-codex.json`；ls -l 看权限是 `-rw-------`（0600）/ 目录 0700。"
+  - "本版本起：Codex 本机扫描随后台 5 分钟 timer + popover 打开各跑一次；写到 `~/.config/usage-bar/data/codex/`（独立于 Claude 的 `data/claude/`），cursor 在 `~/.config/usage-bar/data/scan-cursor-codex.json`；ls -l 看权限是 `-rw-------`（0600）/ 目录 0700。"
   - "Claude tab：估算费用卡 / 热力图 / 模型名显示与本版本前完全一致（定价表/显示名/agg 文件未变）。"
 reviews:
   - gate: G2

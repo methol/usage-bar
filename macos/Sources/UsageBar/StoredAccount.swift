@@ -59,7 +59,7 @@ extension StoredCredentialsStore {
         } catch {
             // G2-B2: 写半成品时清理；setAttributes 失败也走此路径
             try? fileManager.removeItem(at: accountsFileURL)
-            NSLog("[claude-usage-bar] accounts migration save: \(type(of: error))")
+            NSLog("[usage-bar] accounts migration save: \(type(of: error))")
         }
         return migrated
     }

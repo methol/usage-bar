@@ -10,7 +10,7 @@ deciders: claude-code, methol
 
 ## Context
 
-`claude-usage-bar` 是 macOS 菜单栏常驻 app，对启动速度、内存占用、能源效率、菜单栏渲染保真度极敏感：
+`usage-bar` 是 macOS 菜单栏常驻 app，对启动速度、内存占用、能源效率、菜单栏渲染保真度极敏感：
 
 - 菜单栏图标必须 18×18 pt 高保真自绘（含双窗口 bar、趋势箭头、动态颜色）
 - 用户期望"打开即用、永远在那"——cold start < 1s，idle 内存 < 80MB
@@ -72,4 +72,4 @@ deciders: claude-code, methol
 
 - 母法：[`../superpowers/specs/2026-05-11-docs-governance.md`](../superpowers/specs/2026-05-11-docs-governance.md)
 - 调研：[`../research/competitive-analysis.md`](../research/competitive-analysis.md) §5 Swift 化执行策略
-- 现有代码栈：`macos/Package.swift`、`macos/Sources/ClaudeUsageBar/`
+- 现有代码栈：`macos/Package.swift`、`macos/Sources/UsageBar/`

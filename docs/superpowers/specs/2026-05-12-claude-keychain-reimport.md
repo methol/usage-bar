@@ -72,7 +72,7 @@ reviews:
 
 ## 1. 背景与目标
 
-菜单栏 app 用的是它**自己**的 OAuth 凭证（`~/.config/claude-usage-bar/credentials.json`），跟 Claude Code 用的 Keychain 凭证（`Claude Code-credentials`）是两套。v0.1.1（[spec](./2026-05-11-claude-cli-credentials.md)）加了一个**首启**时从 Keychain 自动导入的 `bootstrapFromCLIIfNeeded`，但它只在「还没有任何账号」时跑一次。用户一旦手动登录过、有了账号，app 的 token 过期、且其 refresh token 也失效后，就直接 `expireSession()` 弹「Session expired — please sign in again」逼用户重登 —— 而此时 Claude Code 自己往往还在正常用（Keychain 里有新鲜 token）。用户实测就遇到了这个（2026-05-12）。
+菜单栏 app 用的是它**自己**的 OAuth 凭证（`~/.config/usage-bar/credentials.json`），跟 Claude Code 用的 Keychain 凭证（`Claude Code-credentials`）是两套。v0.1.1（[spec](./2026-05-11-claude-cli-credentials.md)）加了一个**首启**时从 Keychain 自动导入的 `bootstrapFromCLIIfNeeded`，但它只在「还没有任何账号」时跑一次。用户一旦手动登录过、有了账号，app 的 token 过期、且其 refresh token 也失效后，就直接 `expireSession()` 弹「Session expired — please sign in again」逼用户重登 —— 而此时 Claude Code 自己往往还在正常用（Keychain 里有新鲜 token）。用户实测就遇到了这个（2026-05-12）。
 
 **目标**：在 `expireSession()` 真正生效前，先复用 v0.1.1 那套 Keychain 读取逻辑试着续上凭证；能续上就静默续、不打扰；续不上才走原硬过期路径。改动小、不引入新依赖、不改凭证存储格式。
 

@@ -142,7 +142,7 @@ reviews:
 
 竞品调研 §1.3 指出 SessionWatcher 在菜单栏紧凑串里加了 `▼2%` / `▲5%` 趋势箭头（红绿配色），让用户"瞥一眼"就知道用量在涨还是在落。我们当前 PopoverView 5h/7d hero 卡片只显示静态百分比，看不出趋势。本 spec 引入趋势箭头：
 
-- 基于现有 `~/.config/claude-usage-bar/history.json` 的 30 天 `UsageDataPoint(timestamp, pct5h, pct7d)`（30 天 retention 已 ship 至 v0.0.6 之前）
+- 基于现有 `~/.config/usage-bar/history.json` 的 30 天 `UsageDataPoint(timestamp, pct5h, pct7d)`（30 天 retention 已 ship 至 v0.0.6 之前）
 - 计算 *current vs 6h 前* 的百分点差值
 - 在 hero / secondary 卡片 label 行右侧显示 `▲ N%` / `▼ N%`
 - |Δ| < 1pp 视为持平不显示（防止抖动）

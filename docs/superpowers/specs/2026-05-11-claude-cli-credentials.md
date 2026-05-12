@@ -307,7 +307,7 @@ func bootstrapFromCLIIfNeeded() async {
         adoptCredentials(creds)  // 新增 helper：写入 self.credentials + isAuthenticated 切为 true
     } catch {
         // SC7 安全约束：仅记录 error 类型，不带 raw value
-        NSLog("[claude-usage-bar] credentials bootstrap from CLI failed: \(type(of: error))")
+        NSLog("[usage-bar] credentials bootstrap from CLI failed: \(type(of: error))")
     }
 }
 ```

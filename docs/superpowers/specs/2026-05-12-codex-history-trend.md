@@ -12,7 +12,7 @@ related_research: [codex-data-sources]
 related_specs: [2026-05-12-multi-provider-refactor, 2026-05-12-codex-provider, 2026-05-11-trend-arrows, 2026-05-11-pace-tracking, 2026-05-12-popover-redesign]
 spec_criteria:
   - id: SC1
-    criterion: "`UsageHistoryService` 改成可指定「写到哪个文件」与「写到哪个目录」—— `init(filename:directory:)`，默认 `filename: \"history.json\"` + `directory: ~/.config/claude-usage-bar`，即 Claude 的现有路径与行为零变化（`history.json` 文件名、`.bak.json` 备份名、30 天保留、5 分钟 flush、willTerminate flush 全不变）；`.bak` 路径由 filename 派生（`history.bak.json`）。新签名让单测能用临时目录隔离验证。"
+    criterion: "`UsageHistoryService` 改成可指定「写到哪个文件」与「写到哪个目录」—— `init(filename:directory:)`，默认 `filename: \"history.json\"` + `directory: ~/.config/usage-bar`，即 Claude 的现有路径与行为零变化（`history.json` 文件名、`.bak.json` 备份名、30 天保留、5 分钟 flush、willTerminate flush 全不变）；`.bak` 路径由 filename 派生（`history.bak.json`）。新签名让单测能用临时目录隔离验证。"
     done: true
     evidence: "UsageHistoryService 加 `init(filename: String = \"history.json\", directory: URL? = nil)`，把原 `static historyFileURL` 换成实例 `let fileURL`/`backupURL`（`internal` 供测试）；`loadHistory`/`flushToDisk` 用 `fileURL`、坏文件挪到 `backupURL`；`flushToDisk` 写后 `setAttributes([.posixPermissions: 0o600])`（G5 should-fix；Claude 的 `history.json` 一并受益）；逻辑其余不变。UsageHistoryServiceTests 新建 5 用例：testInitDefaultPathUnchanged / testRecordFlushReloadCustomFile / testTwoFilenamesNoCollision / testFlushedFileIsOwnerOnly（断言 0o600）/ testLoadCorruptFileMovesToBak。"
   - id: SC2
@@ -45,7 +45,7 @@ automated_checks:
   - "SC_AUTO_ARTIFACTS: make release-artifacts"
 manual_checks:
   - "本机有 `~/.codex/auth.json` 时：开 popover 切到 Codex tab → 看到 Session/Weekly 卡 + 折线图（首开「No history data yet.」）；等 ≥2 个 polling 周期（或多次按 Refresh）后折线图出现数据点；隔 6h+ 再看 → Session/Weekly 卡出现 ▲/▼ 趋势箭头"
-  - "本版本起：只要 `~/.codex/auth.json` 存在，app 每 5 分钟会向 `https://chatgpt.com/backend-api/wham/usage` 发一次 GET（用本机 Codex 凭证）；`~/.config/claude-usage-bar/history-codex.json` 里只存 session%/weekly% 两个百分比，不含 token。release notes 中需对用户明示该后台行为"
+  - "本版本起：只要 `~/.codex/auth.json` 存在，app 每 5 分钟会向 `https://chatgpt.com/backend-api/wham/usage` 发一次 GET（用本机 Codex 凭证）；`~/.config/usage-bar/history-codex.json` 里只存 session%/weekly% 两个百分比，不含 token。release notes 中需对用户明示该后台行为"
   - "Settings → Primary Provider 下拉**不**含 Codex（仍只有 Claude）—— 本版本意图如此"
 reviews:
   - gate: G2
@@ -84,7 +84,7 @@ reviews:
 
 v0.2.6 给 Codex tab 做了「额度窗口卡（Session/Weekly）+ pace + 套餐徽章 + credits 余额」，但跟 Claude tab 比还缺：**趋势箭头**（▲▼ + 增量百分点）、**额度折线图**、消费热力图。用户的目标是「Codex tab 和 Claude 现在的界面/功能一致」。本 spec 是这条路的第二步（第一步 v0.2.6 已完成；热力图 + 本机成本扫描 → v0.2.9）。
 
-趋势箭头与折线图都依赖**历史样本**。Claude 的历史由 `UsageHistoryService`（`~/.config/claude-usage-bar/history.json` ring buffer，30 天保留）承载，目前是 Claude 专属、`UsageService` 在 polling 成功后 `recordDataPoint`。Codex 第一版（v0.2.6）`supportsBackgroundPolling = false`、只在切 tab / 按 Refresh 时惰性拉一次 —— 那样历史只在用户开 popover 时零星积累，6h lookback 的趋势基本算不出来。所以本 spec 顺带给 Codex 一个轻量后台采样节奏。
+趋势箭头与折线图都依赖**历史样本**。Claude 的历史由 `UsageHistoryService`（`~/.config/usage-bar/history.json` ring buffer，30 天保留）承载，目前是 Claude 专属、`UsageService` 在 polling 成功后 `recordDataPoint`。Codex 第一版（v0.2.6）`supportsBackgroundPolling = false`、只在切 tab / 按 Refresh 时惰性拉一次 —— 那样历史只在用户开 popover 时零星积累，6h lookback 的趋势基本算不出来。所以本 spec 顺带给 Codex 一个轻量后台采样节奏。
 
 **目标**：（a）把 `UsageHistoryService` 泛化成 per-provider（一个文件名/目录参数，Claude 路径行为零变化）；（b）`CodexProvider` 每次成功拉取落一个采样点到自己的历史文件，并有一个固定间隔的轻量 refresh timer 保证样本积累；（c）Codex tab 显示趋势箭头 + 额度折线图，文案 `Session`/`Weekly`。改动小、不引入新依赖、不动 Claude 既有行为、不动凭证/存储格式、不动菜单栏。
 
@@ -94,7 +94,7 @@ v0.2.6 给 Codex tab 做了「额度窗口卡（Session/Weekly）+ pace + 套餐
 |---|---|---|
 | 历史复用方式 | **复用 `UsageHistoryService`，按 provider 不同文件**（`init(filename:directory:)`，默认 = Claude 现路径）。**不**新建 Codex 专用历史类 | `UsageDataPoint` 的 `pct5h`/`pct7d` 本质就是「主/次窗口已用比例」，Codex 的 session/weekly 直接对得上；ring buffer / 降采样 / 插值 / 保留 / flush 全可原样复用。新建一个并行类是 DRY 反模式 |
 | `recordDataPoint` 函数名 | **保持 `recordDataPoint(pct5h:pct7d:)` 不改名**（虽对 Codex 语义上是 session/weekly） | 改名会波及 `HistoryRecording` 协议、`UsageService`、spy 测试；`UsageDataPoint.pct5h/pct7d` 是已持久化的 JSON key（改了破坏现有 `history.json`）必须保留。函数名跟字段名一致即可，在 `CodexProvider` 调用处注释清楚映射。YAGNI，不改名 |
-| `UsageHistoryService` 注入目录 | `init` 同时收 `directory:`（默认 `~/.config/claude-usage-bar`）—— 不止 `filename:` | 现有 `historyFileURL` 用 `homeDirectoryForCurrentUser`，单测没法重定向（这也是它至今没单测的原因）。加 `directory:` 让新测试用临时目录跑完整 load/record/flush/prune 循环。顺带补回测试覆盖 |
+| `UsageHistoryService` 注入目录 | `init` 同时收 `directory:`（默认 `~/.config/usage-bar`）—— 不止 `filename:` | 现有 `historyFileURL` 用 `homeDirectoryForCurrentUser`，单测没法重定向（这也是它至今没单测的原因）。加 `directory:` 让新测试用临时目录跑完整 load/record/flush/prune 循环。顺带补回测试覆盖 |
 | Codex 后台采样 | **有**：`CodexProvider` 自持一个固定 5 分钟（无 UI 设置）的 refresh timer（`Timer.publish().autoconnect().sink`，仿 `UsageHistoryService`），`UsageBarApp` 启动时显式 `startPolling()` | 没有后台采样，6h-lookback 趋势 + 折线图基本是空的，跟「和 Claude 一致」相悖。`wham/usage` 是个轻 GET，5 分钟不构成滥用。可配置化 → 后续 |
 | `supportsBackgroundPolling` 翻不翻 true | **保持 `false`**；把这个 flag 的语义明确为「**菜单栏 primary 候选资格**」= 需要「稳定后台数据源」**且**「菜单栏能渲染该 provider」。Codex 满足前者、不满足后者（`MenuBarLabel` 的 `5h` 前缀 / `MenuBarIconRenderer` 的 Claude 字标硬编码），所以本版本 Codex **不**进 Settings「Primary Provider」下拉 | G2 must-fix #1：翻 true 会把一个「菜单栏还渲染不了」的 provider 放进 primary 选择器。最小、不冒险的做法是不动 flag、只给 Codex 一个独立的 refresh timer 入口；菜单栏 provider-aware 化是另一块工作 → §6。更新 `UsageProvider` / `ProviderCoordinator` 文档注释说明「provider 可为 popover 内历史采样自持轻量 timer 而不必置此 flag」 |
 | 菜单栏 trend 是否对 Codex 显示 | **本版本不**（Codex 也还不能上菜单栏，无从谈起）；`MenuBarLabel.showTrend` 仍 `primaryProviderID == .claude` | Codex tab **内**的趋势箭头本版本已做（popover 里直接拿 `CodexProvider.history`）。菜单栏侧整体留作后续 |
@@ -106,7 +106,7 @@ v0.2.6 给 Codex tab 做了「额度窗口卡（Session/Weekly）+ pace + 套餐
 
 | 文件 | 改动 |
 |---|---|
-| `macos/Sources/UsageBar/UsageHistoryService.swift` | `init(filename: String = "history.json", directory: URL? = nil)`：存 `private let fileURL: URL`（= `(directory ?? Self.defaultDirectory).appendingPathComponent(filename)`，`defaultDirectory` 即原 `~/.config/claude-usage-bar` 并 `createDirectory`）；存 `private let backupURL: URL` = `fileURL.deletingPathExtension().appendingPathExtension("bak.json")`。把原 `static var historyFileURL` 的所有用法换成实例 `fileURL`/`backupURL`。`willTerminate` observer / `loadHistory` / `recordDataPoint` / `flushToDisk` / `downsampledPoints` / `pruned` 逻辑不变（只是路径来源变实例属性）。`HistoryRecording` conformance 不变。为 `testInitDefaultPathUnchanged` 把 `fileURL`/`backupURL` 留 `internal`（非 `private`）或加一个 `internal var debugFileURL`/`debugBackupURL` 转发——实施期挑更克制的；倾向直接 `internal let`。 |
+| `macos/Sources/UsageBar/UsageHistoryService.swift` | `init(filename: String = "history.json", directory: URL? = nil)`：存 `private let fileURL: URL`（= `(directory ?? Self.defaultDirectory).appendingPathComponent(filename)`，`defaultDirectory` 即原 `~/.config/usage-bar` 并 `createDirectory`）；存 `private let backupURL: URL` = `fileURL.deletingPathExtension().appendingPathExtension("bak.json")`。把原 `static var historyFileURL` 的所有用法换成实例 `fileURL`/`backupURL`。`willTerminate` observer / `loadHistory` / `recordDataPoint` / `flushToDisk` / `downsampledPoints` / `pruned` 逻辑不变（只是路径来源变实例属性）。`HistoryRecording` conformance 不变。为 `testInitDefaultPathUnchanged` 把 `fileURL`/`backupURL` 留 `internal`（非 `private`）或加一个 `internal var debugFileURL`/`debugBackupURL` 转发——实施期挑更克制的；倾向直接 `internal let`。 |
 | `macos/Sources/UsageBar/UsageProvider.swift` | `supportsBackgroundPolling` 的文档注释改写：「该 flag = 该 provider 是否作为**菜单栏 primary 候选**（`ProviderCoordinator.primaryEligibleIDs`）—— 要求既有稳定后台数据源、又有 provider-aware 的菜单栏渲染。注意：provider 可以为「popover 内历史采样」自持一个轻量 refresh timer（装配处显式 `startPolling()`）而**不**必置此 flag —— Codex v0.2.8 即如此。」（仅注释；协议成员不变。） |
 | `macos/Sources/UsageBar/ProviderCoordinator.swift` | `primaryEligibleIDs` 的文档注释同步上面的措辞（仅注释，逻辑不变）。 |
 | `macos/Sources/UsageBar/CodexProvider.swift` | (a) `supportsBackgroundPolling` 保持 `false`（不改）；(b) 新增 `let history: UsageHistoryService`，`init(environment:session:history:)` 默认 `history: UsageHistoryService(filename: "history-codex.json")`；`init` 末尾 `history.loadHistory()`；(c) `refreshNow()` 成功分支（`runtime.setSuccess(snapshot:)` 之后）调 `private func recordHistorySample(from snap: ProviderUsageSnapshot)`：`let p = snap.primaryWindow?.utilizationPct; let s = snap.secondaryWindow?.utilizationPct; guard p != nil || s != nil else { return }; history.recordDataPoint(pct5h: (p ?? 0)/100, pct7d: (s ?? 0)/100)`（注释：pct5h↔session、pct7d↔weekly，沿用既有字段名）；(d) 新增 `private var pollCancellable: AnyCancellable?` + `static let pollIntervalSeconds: TimeInterval = 300` + `func startPolling()`：`guard pollCancellable == nil else { return }`（幂等）；`Task { [weak self] in await self?.refreshNow() }`（立即拉一次）；`pollCancellable = Timer.publish(every: Self.pollIntervalSeconds, on: .main, in: .common).autoconnect().sink { [weak self] _ in Task { await self?.refreshNow() } }`（仿 `UsageHistoryService.startFlushTimerIfNeeded`；`CodexProvider` = app 生命周期，与 `UsageHistoryService` 一样不在 deinit 显式 cancel）。`import Combine`。 |
@@ -136,7 +136,7 @@ UsageBarApp.task ──► CodexProvider.startPolling()  ── 立即一次 + e
 
 **新建 `UsageHistoryServiceTests.swift`**（用临时目录隔离）：
 
-- **testInitDefaultPathUnchanged**：`UsageHistoryService()` 的 `fileURL` 末段 == `"history.json"`、`backupURL` 末段 == `"history.bak.json"`、`fileURL.deletingLastPathComponent()` 末两段 == `.config/claude-usage-bar`。（守 SC1「Claude 路径零变化」。）
+- **testInitDefaultPathUnchanged**：`UsageHistoryService()` 的 `fileURL` 末段 == `"history.json"`、`backupURL` 末段 == `"history.bak.json"`、`fileURL.deletingLastPathComponent()` 末两段 == `.config/usage-bar`。（守 SC1「Claude 路径零变化」。）
 - **testRecordAndFlushToCustomFile**：`let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)`（测试 tearDown 删之）；`let h = UsageHistoryService(filename: "history-codex.json", directory: dir)`；`h.recordDataPoint(pct5h: 0.5, pct7d: 0.2)`；`h.flushToDisk()`；断言 `dir/history-codex.json` 存在；`UsageHistoryService(filename:"history-codex.json", directory: dir)` 新实例 `loadHistory()` 后有 1 个点、`pct5h == 0.5`、`pct7d == 0.2`。
 - **testTwoFilenamesNoCollision**：同一 `dir`、两个实例（`history.json` / `history-codex.json`）各 `recordDataPoint`（不同值）+ `flushToDisk`；各自新实例 `loadHistory()` 回来只有自己的那条。
 - **testLoadCorruptFileMovesToBak**：往 `dir/history-codex.json` 写 `"{ not json"`，`h.loadHistory()` → `h.history.dataPoints.isEmpty`、`dir/history-codex.bak.json` 存在。

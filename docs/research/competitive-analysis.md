@@ -18,13 +18,13 @@ referenced_by:
 
 > 调研日期：2026-05-11  
 > 调研对象：[sessionwatcher.com](https://www.sessionwatcher.com/)、[codexbar.app](https://codexbar.app/) (开源仓库 [steipete/CodexBar](https://github.com/steipete/CodexBar))  
-> 调研目的：本项目（`claude-usage-bar`）下一阶段产品化方向 —— UI/交互参考 SessionWatcher，功能/实现参考 CodexBar，全栈坚持 Swift 原生。
+> 调研目的：本项目（`usage-bar`）下一阶段产品化方向 —— UI/交互参考 SessionWatcher，功能/实现参考 CodexBar，全栈坚持 Swift 原生。
 
 ---
 
 ## TL;DR
 
-| 维度 | SessionWatcher（学 UI） | CodexBar（学功能） | 我们当前 `claude-usage-bar` |
+| 维度 | SessionWatcher（学 UI） | CodexBar（学功能） | 我们当前 `usage-bar` |
 |---|---|---|---|
 | 形态 | macOS 14+ 菜单栏 App，Swift 原生 | macOS 14+ 菜单栏 App，Swift 原生（Swift 6.2 严格并发） | macOS 14+ 菜单栏 App，Swift 5.9 |
 | 商业模式 | 一次性付费 $2.99 / $7.99 | 完全免费，MIT 开源 | 免费、BSD-2 |
@@ -208,7 +208,7 @@ Background timer  →  UsageFetcher
 
 ### 2.4 Claude provider 的多路 fetch（与我们最相关）
 
-这是我们要照搬的核心 —— 当前 `claude-usage-bar` 只有 **OAuth API 一条路**，CodexBar 是 **OAuth → 浏览器 cookie → CLI PTY → 本地 JSONL** 四条路：
+这是我们要照搬的核心 —— 当前 `usage-bar` 只有 **OAuth API 一条路**，CodexBar 是 **OAuth → 浏览器 cookie → CLI PTY → 本地 JSONL** 四条路：
 
 #### Path 1：OAuth API（默认）
 - 凭证来源（按优先级）：
@@ -403,7 +403,7 @@ CodexBar 有一个非常聪明的 **配速指示器**：
 | 全局状态 | 单个 `UsageService` `@MainActor` `ObservableObject` | `UsageStore` + descriptor + strategy chain | 中（需要抽象层重构） |
 | 数据源 | 单 OAuth | 多 strategy 回退，带 attempts + errors | 中（先复用 Claude CLI Keychain → 加 cookie 回退） |
 | 并发模型 | Swift 5.9，部分 `@MainActor` | Swift 6.2 严格并发，全 `Sendable` | 中 |
-| 配置 | `UserDefaults` + `~/.config/claude-usage-bar/credentials.json` | `~/.codexbar/config.json` 统一 + Keychain 缓存 | 低 |
+| 配置 | `UserDefaults` + `~/.config/usage-bar/credentials.json` | `~/.codexbar/config.json` 统一 + Keychain 缓存 | 低 |
 | Provider 抽象 | 无（只有 Claude） | descriptor + macro 自动注册 | 高（仅当我们计划扩展多 provider 才值得） |
 | Widget | 无 | App Group + WidgetSnapshot | 中 |
 | CLI | 无 | 同二进制 + Commander | 中 |
@@ -442,7 +442,7 @@ CodexBar 有一个非常聪明的 **配速指示器**：
 11. **Web cookie 回退**：抓 `claude.ai` 的 sessionKey，调 4 个 web 端点 —— 风险点是 Safari Full Disk Access 提示
 12. **CLI PTY 回退**：跑 `claude /usage` 解析输出
 13. **WidgetKit 扩展**：4 类 widget（Switcher 对我们没意义，可砍）
-14. **CLI 工具**：`claude-usage-bar usage --json`，对 CI 用户友好
+14. **CLI 工具**：`usage-bar usage --json`，对 CI 用户友好
 15. **多 provider 化**（决策点）：是继续做 *Claude-only*，还是变成 *Claude-first multi-provider*？
    - **建议保持 Claude-only**（差异化定位、UI 更简洁、维护负担低）
    - 如果未来要扩，先抄 ProviderDescriptor 抽象再加 Codex
@@ -466,7 +466,7 @@ CodexBar 有一个非常聪明的 **配速指示器**：
 - ✅ Sparkle 2.8.1 SwiftPM 集成
 - ✅ MenuBarExtra + LSUIElement
 - ✅ `UsageService` 作为单一状态源（虽未抽 descriptor）
-- ✅ `~/.config/claude-usage-bar/credentials.json`（0600，与 CodexBar 的 `~/.codexbar/config.json` 同模式）
+- ✅ `~/.config/usage-bar/credentials.json`（0600，与 CodexBar 的 `~/.codexbar/config.json` 同模式）
 - ✅ 30 天 history.json 持久化 + downsampling
 - ✅ `MenuBarIconRenderer` 自渲染 NSImage
 - ✅ tag-driven Release CI + appcast.xml + GitHub Pages
@@ -492,7 +492,7 @@ CodexBar 有一个非常聪明的 **配速指示器**：
 **Step C — 本地 cost 扫描（产品深度）**
 
 - 新加 `LocalCostScanner.swift`，扫 `~/.claude/projects/**/*.jsonl`
-- 缓存到 `~/Library/Caches/claude-usage-bar/cost-usage/claude-v1.json`，60s 节流
+- 缓存到 `~/Library/Caches/usage-bar/cost-usage/claude-v1.json`，60s 节流
 - 计算结果加入 `UsageResponse`（新字段 `localCost30d`）
 - UI 在 popover 加 cost 区块
 
@@ -524,7 +524,7 @@ CodexBar 有一个非常聪明的 **配速指示器**：
 3. **隐私边界**：本地 JSONL 扫描需要在隐私文案中明确"读取项目对话日志（仅用量行）"，避免误解。
 4. **公证身份**：需要 Apple Developer 账号（$99/年）；如果保留 ad-hoc，则提升不到 SessionWatcher 等级。
 5. **License 取舍**：CodexBar MIT，我们目前 BSD-2 一致，未来引用任何 CodexBar 代码片段也要标注 attribution。
-6. **品牌**：项目名是 `claude-usage-bar`，要不要趁机改成更产品化的名字（如 `ClaudeBar` / `ClaudePulse`）？这是产品决策。
+6. **品牌**：项目名是 `usage-bar`，要不要趁机改成更产品化的名字（如 `ClaudeBar` / `ClaudePulse`）？这是产品决策。
 
 ---
 

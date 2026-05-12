@@ -67,7 +67,7 @@ Click the icon anytime to see:
 
 ## Data storage
 
-All data is stored locally in `~/.config/claude-usage-bar/`:
+All data is stored locally in `~/.config/usage-bar/`:
 
 | File | Purpose |
 |------|---------|
@@ -120,8 +120,8 @@ Manual installs should prefer the DMG. The ZIP remains the source of truth for S
 You can export the current Sparkle private key from your local Keychain with:
 
 ```sh
-macos/.build/artifacts/sparkle/Sparkle/bin/generate_keys --account claude-usage-bar -x /tmp/claude-usage-bar.sparkle.key
-gh secret set SPARKLE_PRIVATE_KEY < /tmp/claude-usage-bar.sparkle.key
+macos/.build/artifacts/sparkle/Sparkle/bin/generate_keys --account usage-bar -x /tmp/usage-bar.sparkle.key
+gh secret set SPARKLE_PRIVATE_KEY < /tmp/usage-bar.sparkle.key
 ```
 
 The appcast feed URL used by release builds is:

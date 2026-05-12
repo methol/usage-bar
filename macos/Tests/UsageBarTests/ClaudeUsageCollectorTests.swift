@@ -3,7 +3,7 @@ import XCTest
 
 final class ClaudeUsageCollectorTests: XCTestCase {
     private var tmpRoot: URL!     // 模拟 ~/.claude/projects
-    private var tmpData: URL!     // 模拟 ~/.config/claude-usage-bar/data
+    private var tmpData: URL!     // 模拟 ~/.config/usage-bar/data
     override func setUpWithError() throws {
         let base = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("collector-test-\(UUID().uuidString)", isDirectory: true)
         tmpRoot = base.appendingPathComponent("projects", isDirectory: true)

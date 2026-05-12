@@ -18,7 +18,7 @@ final class UsageHistoryServiceTests: XCTestCase {
         XCTAssertEqual(h.fileURL.lastPathComponent, "history.json")
         XCTAssertEqual(h.backupURL.lastPathComponent, "history.bak.json")
         let parent = h.fileURL.deletingLastPathComponent()
-        XCTAssertEqual(parent.lastPathComponent, "claude-usage-bar")
+        XCTAssertEqual(parent.lastPathComponent, "usage-bar")
         XCTAssertEqual(parent.deletingLastPathComponent().lastPathComponent, ".config")
     }
 
