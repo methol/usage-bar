@@ -15,7 +15,7 @@ spec_criteria:
     done: false
     evidence: null
   - id: SC2
-    criterion: "5h / 7d 用量为圆角卡片：左上 SF Symbol 图标（5h=clock，7d=calendar）+ 标题，右上 百分比 + 趋势箭头；下方 capsule 进度条；底行「Resets in: …」（<24h 显示「Xh Ym at H:MM AM/PM」，≥24h 显示「X days Yh Zm」）+「Pace: safe/fast」标签；popover 背景为柔和渐变（dark mode 自适应、近乎不可见）"
+    criterion: "5h / 7d 用量为圆角卡片：左上 SF Symbol 图标（5h=clock，7d=calendar）+ 标题，右上 百分比 + 趋势箭头；下方 capsule 进度条；底行「Resets in: …」+「Pace: safe/fast」标签 —— 5h（<24h）显示「Xh Ym at H:MM AM/PM」，7d（一般 ≥24h）显示「X days Yh Zm」（此时整行没有「at 时钟」）；popover 背景为柔和渐变（dark mode 自适应、近乎不可见）"
     done: false
     evidence: null
   - id: SC3
@@ -27,7 +27,7 @@ spec_criteria:
     done: false
     evidence: null
   - id: SC5
-    criterion: "死代码 struct UsageChartView 删除（grep 确认无引用后）；新增的 formatResetWithClock 与 pace-series helper 各有单测覆盖（含 nil reset、窗口边界、跨窗口锯齿、clamp 边界）；cd macos && swift build -c release 与 cd macos && swift test 全绿"
+    criterion: "死代码 struct UsageChartView 删除（grep 确认无引用后）；新增 formatResetWithClock / UsagePaceArea.series / UsageProvider 各有单测覆盖（含 nil reset、窗口边界、跨窗口锯齿、clamp 边界、provider 可用性）；cd macos && swift build -c release 与 cd macos && swift test 全绿"
     done: false
     evidence: null
 automated_checks:
@@ -37,7 +37,12 @@ manual_checks:
   - "打开 popover 目测：渐变背景 / 圆角卡片 / 图标 / Resets-at-clock 文案 / Pace 标签 / tab bar 选中态与 dimmed 态；切到 Codex 看占位面板再切回"
   - "折线图目测：pace 面积足够浅、明显在两条折线之下、5h 呈锯齿、7d 单条斜坡；悬停 tooltip 与 RuleMark 不变；图例只有 5h / 7d"
   - "dark mode 下目测渐变背景不刺眼、卡片对比度可读"
-reviews: []
+reviews:
+  - gate: G2+G3
+    date: 2026-05-12
+    reviewer: independent general-purpose subagent (codex fallback per AGENTS §5)
+    verdict: approved-after-revisions
+    notes: "G2 spec approved-after-revisions（敏感面无；ADR supersede 路径正确）；G3 plan approved-after-revisions。必改已落地：plan Task1 去掉 formatResetWithClock 的悬空 calendar 参数、Task3 把不稳断言改稳；spec 建议（SC2 点明 7d 文案、SC5 补 UsageProvider 测试）已采纳。7d pace 复用 PaceCalculator 的 elapsedFraction>=0.03 噪声阈值 → 开窗前 ~5h 无 Pace 标签（已知行为）。"
 ---
 
 # Popover 重做 — provider tab 外壳 + 卡片化视觉 + 折线图 pace 面积
@@ -120,10 +125,10 @@ enum UsageProvider: String, CaseIterable, Identifiable {
 - `date - now <= 0` → `nil`（或复用 `formatResetCountdown` 的行为）。
 - `date - now < 24h` → `"\(formatResetCountdown(date:now:)) at \(date 格式化为 .hour().minute())"`，例：`"2h 46m at 11:44 PM"`。
 - 否则 → `formatResetCountdown(date:now:)`，例：`"4 days 5h 59m"`（依赖现有实现的多 days 格式）。
-- 实施时先看 `ResetCountdownFormatter.swift` 现有 `formatResetCountdown` 的输出粒度，确认 ">24h" 时它已经会输出 "X days Yh Zm" 形态；若不是则在此 helper 内补齐。
+- 注：现有 `formatResetCountdown` 只输出 "Xh Ym" / "Ym" / "<1m"，**不含 days** —— 所以 `formatResetWithClock` 的 "≥24h" 分支必须自己用整除算 days，不能直接复用 `formatResetCountdown`。
 
 **7d pace 计算**（`PopoverView.usageView`）：现有只算 `pace5h`，新增
-`let pace7d = computePaceState(currentPct: service.usage?.sevenDay?.utilization, resetDate: service.usage?.sevenDay?.resetsAtDate, windowDuration: 7*24*3600)`，传给 7d 的 `UsageHeroCard`。`PaceCalculator.swift` 不改（`windowDuration` 已是参数）。
+`let pace7d = computePaceState(currentPct: service.usage?.sevenDay?.utilization, resetDate: service.usage?.sevenDay?.resetsAtDate, windowDuration: 7*24*3600)`，传给 7d 的 `UsageHeroCard`。`PaceCalculator.swift` 不改（`windowDuration` 已是参数）。注意 `computePaceState` 内有 `elapsedFraction >= 0.03` 早退（开窗初期噪声大，隐藏），对 7d 窗口意味着**新窗口开始后约 5 小时内 7d 卡不显示 Pace 标签**——已知行为，可接受。
 
 **`paceWord(_:) -> (text: String, color: Color)?`**（放 `UsageHeroCard.swift`）：`nil` → `nil`；`.onPace` / `.inReserve` → `("safe", .green)`；`.inDeficit` → `("fast", .red)`。
 

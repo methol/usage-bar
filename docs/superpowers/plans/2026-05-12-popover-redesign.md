@@ -61,13 +61,11 @@ func testResetWithClock_expired() {
 }
 
 func testResetWithClock_underOneDay_appendsClockTime() {
-    var cal = Calendar(identifier: .gregorian)
-    cal.timeZone = TimeZone(identifier: "America/Los_Angeles")!
-    let now = cal.date(from: DateComponents(year: 2026, month: 5, day: 12, hour: 21, minute: 0))!
-    let reset = cal.date(from: DateComponents(year: 2026, month: 5, day: 12, hour: 23, minute: 44))!
-    let s = formatResetWithClock(date: reset, now: now, calendar: cal)
+    let now = Date()
+    let reset = now.addingTimeInterval(2 * 3600 + 44 * 60)  // 2h 44m
+    let s = formatResetWithClock(date: reset, now: now)
     XCTAssertNotNil(s)
-    // 距离 2h 44m，且文案含 " at " 与时钟时间（11:44 PM in en, or 23:44; 用子串放宽）
+    // 距离 2h 44m，且文案含 " at " + 本地化时钟时间（en: "11:44 PM" / 24h locale: "23:44"，用子串放宽）
     XCTAssertTrue(s!.hasPrefix("2h 44m at "), "got: \(s!)")
     XCTAssertTrue(s!.contains("44"), "got: \(s!)")
 }
@@ -101,7 +99,7 @@ Expected: FAIL（`formatResetWithClock` 未定义 / 参数 `calendar:` 不存在
 /// - `nil` 或已过期 → `nil`（调用方据此隐藏左半）。
 /// - < 24h → `"2h 44m at 11:44 PM"`（复用 `formatResetCountdown` + " at " + 本地化时钟时间）。
 /// - ≥ 24h → `"4 days 5h 59m"` / `"1 day 1h 0m"`（自带 days，因为 `formatResetCountdown` 不含 days）。
-func formatResetWithClock(date: Date?, now: Date = Date(), calendar: Calendar = .autoupdatingCurrent) -> String? {
+func formatResetWithClock(date: Date?, now: Date = Date()) -> String? {
     guard let date else { return nil }
     let secs = Int(date.timeIntervalSince(now))
     guard secs > 0 else { return nil }
@@ -118,7 +116,7 @@ func formatResetWithClock(date: Date?, now: Date = Date(), calendar: Calendar = 
 }
 ```
 
-> 注：`date.formatted(.dateTime.hour().minute())` 用系统 locale，测试里用子串断言已规避。`calendar` 参数当前实现没真正用到（保留以备将来本地化日界判断），测试签名带它即可——若你想更简洁可在测试里不传 `calendar:`，但要相应去掉 Step 1 里 `calendar: cal` 实参并改用 UTC 计算。**选其一即可，保持测试与实现一致。**
+> 注：`date.formatted(.dateTime.hour().minute())` 用系统 locale（en → "11:44 PM"，24h locale → "23:44"），测试里已用子串断言规避 locale 差异。
 
 - [ ] **Step 4: 跑测试确认通过**
 
@@ -371,10 +369,10 @@ final class UsagePaceAreaTests: XCTestCase {
                                      domainStart: now.addingTimeInterval(-30*86400), domainEnd: now,
                                      sampleCount: 100)
         let pcts = s.map(\.pct)
+        XCTAssertEqual(pcts.count, 101)
         XCTAssertEqual(pcts.last!, 5.0/7.0 * 100, accuracy: 0.5)  // now: elapsed 5d/7d
         // domainStart = now-30d 远早于 windowStart(now-5d) → 落在更早的窗口，pct 仍 ∈ [0,100]
         XCTAssertTrue(pcts.allSatisfy { $0 >= 0 && $0 <= 100 })
-        XCTAssertGreaterThanOrEqual(pcts.last!, pcts.first! - 1e-6) // 末尾不小于开头（注：开头可能落在更早窗口，不强求单调全程）
     }
 }
 ```
@@ -415,7 +413,7 @@ enum UsagePaceArea {
             let t = domainStart.addingTimeInterval(span * Double(i) / Double(sampleCount))
             // k = 距离 reset 还有几个完整窗口；clamp ≥ 0（t 理论上 < reset）
             let kRaw = floor(reset.timeIntervalSince(t) / windowDuration)
-            let k = max(0, kRaw)
+            let k = max(0.0, kRaw)
             let windowStart = reset.addingTimeInterval(-windowDuration * (k + 1))
             let frac = (t.timeIntervalSince(windowStart) / windowDuration)
             let clamped = min(max(frac, 0), 1)
@@ -430,8 +428,6 @@ enum UsagePaceArea {
 
 Run: `cd macos && swift test --filter UsagePaceAreaTests`
 Expected: PASS
-
-> 若 `testSevenDaySingleRamp` 末尾 `>= first` 断言因"开头落在更早窗口、值偏高"而失败，把那条断言删掉（注释已说明不强求全程单调）；其余断言必须过。
 
 - [ ] **Step 5: 跑全量构建 + 测试**
 
