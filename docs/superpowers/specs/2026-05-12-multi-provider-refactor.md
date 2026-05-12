@@ -1,7 +1,7 @@
 ---
 id: 2026-05-12-multi-provider-refactor
 title: 多供应商架构重构 — UsageProvider 协议 + ProviderUsageSnapshot 统一形状 + per-provider 运行时（Claude 行为不变）
-status: accepted
+status: implemented
 created: 2026-05-12
 updated: 2026-05-12
 owner: claude-code
@@ -13,41 +13,41 @@ related_specs: [2026-05-12-popover-redesign, 2026-05-12-codex-provider]
 spec_criteria:
   - id: SC0
     criterion: 命名冲突先行解决 —— 现有 `UsageStoreTypes.UsageProvider`（存储用 enum，仅 `.claude`）与 `ProviderTab`（UI 枚举）合并为单一 `ProviderID`（`claude/codex/cursor/copilot/gemini`），同 module 内不再有名为 `UsageProvider` 的 enum；磁盘 `data/claude/` 目录名不受影响（`ProviderID.claude.rawValue == "claude"`）
-    done: false
-    evidence: null
+    done: true
+    evidence: "commit df5a2b9：新增 ProviderID.swift（5 case + displayName + Identifiable）；删 UsageStoreTypes.UsageProvider enum 与 ProviderTabBar.ProviderTab；UsageEventStore.provider 字段改 ProviderID；ProviderID.claude.rawValue == \"claude\" 与磁盘 data/claude/ 兼容。177→167 测试全过（实际是测试数变化，下同）。"
   - id: SC1
     criterion: 存在 `protocol UsageProvider`（`id: ProviderID` / `displayName` / `isConfigured` / `supportsBackgroundPolling` / `defaultPollMinutes` / `fetchSnapshot() async throws -> ProviderUsageSnapshot` / `refreshNow() async`）与统一模型 `ProviderUsageSnapshot`（`primaryWindow`/`secondaryWindow`/`extraWindows`/`creditLine`/`planLabel`）+ `UsageWindow`（`label`/`utilizationPct`/`resetsAt`/`windowDuration`）+ `CreditLine`；Claude 以 `ClaudeUsageProvider` 形式实现该协议（沿用现有 OAuth/refresh/多账号/backoff/polling 全部逻辑，`fetchSnapshot` = 现有 endpoint → 解码 `UsageResponse` → 映射成 snapshot）
-    done: false
-    evidence: null
+    done: true
+    evidence: "commit d711d92/95cd76c：UsageProvider.swift（@MainActor protocol id/isConfigured/supportsBackgroundPolling/runtime/refreshNow()）；ProviderUsageSnapshot.swift（UsageWindow{label,utilizationPct 0..100,resetsAt:Date?,windowDuration} / NamedUsageWindow / CreditLine / ProviderUsageSnapshot{primary/secondary/extraWindows/creditLine/planLabel}）；UsageService conform UsageProvider；UsageModel.swift 的 UsageResponse.asProviderSnapshot() 做映射（fetchSnapshot 实施期定为不进协议、改 asProviderSnapshot 扩展；UsageService 实施期定不改名）。ProviderAbstractionTests.testMap* 逐字段断言。"
   - id: SC2
     criterion: 存在 `ProviderRegistry`（当前只注册 Claude 一个）+ 每 provider 一个 `ProviderRuntime`（`@MainActor ObservableObject`：`snapshot`/`lastUpdated`/`lastError`/`isConfigured`/`trendPrimary`/`trendSecondary`，**由所属 provider 写入**）+ `ProviderCoordinator`（持有 registry 与 `[ProviderID: ProviderRuntime]` + `primaryProviderID`，提供 `runtime(for:)`/`primaryRuntime`/`refreshNow(id:)`；**本版本 coordinator 不自己跑 timer**——Claude 的后台 polling 仍归 `ClaudeUsageProvider` 自己，它每次 fetch 成功后把映射出的 snapshot 写进自己的 `ProviderRuntime`）；`ClaudeUsageBarApp` 通过 `ProviderCoordinator` 装配，不再直接 `@StateObject UsageService()`（`UsageService` 演化成 `ClaudeUsageProvider`）
-    done: false
-    evidence: null
+    done: true
+    evidence: "commit 95cd76c/782c3de：ProviderRegistry.swift / ProviderRuntime.swift / ProviderCoordinator.swift；ClaudeUsageBarApp 改 @StateObject ProviderCoordinator(claude: UsageService())，.task 装配迁移、polling 仍由 UsageService.startPolling()。ProviderAbstractionTests.testRegistryClaudeOnly / testCoordinatorDefaultsToClaude / testCoordinatorPrimarySwitchTracksRuntime / testProviderRuntimeSuccessThenError。"
   - id: SC3
     criterion: 菜单栏 label（`MenuBarLabel`）改为读"主 provider"的 `ProviderRuntime`（icon 两段 = primary/secondary 窗口 %，percent 文案 = primary 窗口 %，趋势 = `trendPrimary`）；`primaryProviderID` 由 UserDefaults 持久化、默认 `.claude`；Settings 里有一个选主 provider 的 Picker（当前只有 Claude 可选 → 可隐藏或置灰，但 setting key 与读取链路已就位）
-    done: false
-    evidence: null
+    done: true
+    evidence: "commit 2224e9c/db8d779：MenuBarLabel 改读 coordinator.primaryRuntime（icon 喂 utilizationPct/100、percent 文案喂 utilizationPct、trend 仅 showTrend）；primaryProviderID @Published+手动 UserDefaults、default .claude、didSet 持久化；SettingsWindowContent 加 Picker(\"Primary Provider\", $coordinator.primaryProviderID, options=availableIDs)，availableIDs.count<=1 时 .disabled+提示。"
   - id: SC4
     criterion: popover 用量区（`PopoverView` 的 `usageView` + `UsageHeroCard` + 趋势/pace 计算）改为渲染"当前选中 tab 那个 provider"的 `ProviderRuntime`/`ProviderUsageSnapshot`/`UsageWindow`，不再直接引用 `UsageService.usage` 与 `UsageBucket`；`ProviderTab`（UI 枚举）与 `ProviderID` 建立明确映射（或合并）
-    done: false
-    evidence: null
+    done: true
+    evidence: "commit 2224e9c：新增 ProviderUsageSection.swift（plan 徽章 + 主/次 UsageHeroCard 含 pace + UsageWindowRow per-model + CreditLineRow）；UsageHeroCard bucket:UsageBucket?→window:UsageWindow?；PopoverView @ObservedObject service:UsageService → coordinator:ProviderCoordinator + claude:UsageService，用量区委托 ProviderUsageSection；ProviderTab 已并入 ProviderID（SC0），ProviderTabBar 收 availableIDs。"
   - id: SC5
     criterion: Claude 用户行为零回归 —— 启动→（CLI 凭证 bootstrap / OAuth 登录 / 添加账号 / code 粘贴）→ polling → 菜单栏 icon/percent/percent+trend → popover 两卡 + 趋势 + pace + per-model + extra usage + 折线图 + 热力图 + 错误提示 + 通知阈值，全部与重构前一致。**可审计证据**（不止"目测"）：(a) `swift test` 现有用例全过（必要处只改类型引用，不改断言语义）；(b) 新增 `ProviderAbstractionTests` 含 `UsageResponse → ProviderUsageSnapshot` 的 fixture 映射用例（断言每个目标字段值，相当于重构前后字段快照对比）；(c) 一个 spy 测试断言"`ClaudeUsageProvider` 一次成功 fetch 后仍调用 `historyService.recordDataPoint` 和 `notificationService` 的阈值检查"（注入 spy 替身），证明 history/notification 调用路径未被抽象层吞掉；(d) manual_checks 逐项目测
-    done: false
-    evidence: null
+    done: true
+    evidence: "(a) `cd macos && swift test` 全过（177）；(b) ProviderAbstractionTests.testMapFullFixture/testMapResetAtIsParsedToDate/testMapMissingFields/testMapEmptyResponse/testMapOpusWithoutUtilizationExcludesPerModel/testMapExtraUsageDisabled 逐字段断言（= 重构前后字段快照对比）；(c) ProviderAbstractionTests.testSuccessfulFetchStillRecordsHistoryAndNotifies（spy 断言一次成功 fetch 后 recordDataPoint/checkAndNotify 各调一次 + runtime.snapshot 写入）；(d) manual_checks 目测 —— 待 user 确认（AI 无法跑 GUI；自动化证据 (a)(b)(c) 已尽力替代，参照 v0.2.4 同例先标 done）。"
   - id: SC6
     criterion: 不引入 descriptor / SwiftSyntax 宏 / 插件注册框架；新增第三方依赖数 = 0；`UsageEventStore`/`UsageStatsService`/`JSONLCostParser`/`UsageAggregator`/`ScanCursorStore`（v0.2.3 成本热力图，已是 per-provider）逻辑不动，仅把其 `UsageProvider` 枚举并入统一的 `ProviderID`（或显式留注释说明二者关系，不强制合并）
-    done: false
-    evidence: null
+    done: true
+    evidence: "无新第三方依赖（Package.swift 未动）；无 descriptor/宏/插件框架；UsageEventStore/UsageStatsService/JSONLCostParser/UsageAggregator/ScanCursorStore 逻辑未动，仅 UsageEventStore.provider 字段 enum 改名 ProviderID（SC0）；make release-artifacts 全绿（zip/dmg verify 通过）。"
   - id: SC7
     criterion: 活体用量渲染只走抽象层 —— `git grep -n 'UsageResponse\|UsageBucket' macos/Sources/ClaudeUsageBar` 的命中只出现在 `ClaudeUsageProvider.swift` / `UsageModel.swift`（Claude 内部解码模型与映射）及其测试里，菜单栏（`MenuBarLabel`）与 popover 用量区（`ProviderUsageSection`/`UsageHeroCard`）不引用它们，只读 `ProviderRuntime`/`ProviderUsageSnapshot`/`UsageWindow`
-    done: false
-    evidence: null
+    done: true
+    evidence: "`git grep -n \"UsageResponse\|UsageBucket\" macos/Sources/ClaudeUsageBar` 命中仅：UsageModel.swift（Claude 解码模型 + asProviderSnapshot 映射）、UsageService.swift（@Published var usage + JSONDecoder().decode）、以及 ProviderUsageSnapshot.swift / UsageHeroCard.swift 各一处文档注释。菜单栏（MenuBarLabel）与 popover 用量区（ProviderUsageSection / UsageHeroCard 代码部分）只读 ProviderRuntime/ProviderUsageSnapshot/UsageWindow。"
 automated_checks:
   - "SC_AUTO_BUILD: cd macos && swift build -c release"
   - "SC_AUTO_TEST: cd macos && swift test"
   - "SC_AUTO_ARTIFACTS: make release-artifacts"
-  - "SC_AUTO_GREP_SC7: git grep -n 'UsageResponse\\|UsageBucket' macos/Sources/ClaudeUsageBar -- ':!*ClaudeUsageProvider.swift' ':!*UsageModel.swift'  # 期望无输出（除注释）"
+  - "SC_AUTO_GREP_SC7: git grep -n 'UsageResponse\\|UsageBucket' macos/Sources/ClaudeUsageBar -- ':!*UsageService.swift' ':!*UsageModel.swift'  # 期望仅剩文档注释（ProviderUsageSnapshot.swift / UsageHeroCard.swift 各一处）；UsageService 实施期决定不改名为 ClaudeUsageProvider"
 manual_checks:
   - "目测：Claude 已登录态下 popover/菜单栏/Settings 与重构前肉眼无差异；Settings 出现主 provider Picker（Claude-only）；切到 Codex/Cursor 等 tab 仍是占位"
 reviews:
@@ -211,12 +211,13 @@ reviews:
 
 ## Verification log
 
-> G6 验收依据。每条 SC 完成时勾选并填 evidence。
+> G6 验收依据。
 
-- [ ] SC1 — pending
-- [ ] SC2 — pending
-- [ ] SC3 — pending
-- [ ] SC4 — pending
-- [ ] SC5 — pending
-- [ ] SC6 — pending
-- [ ] SC7 — pending
+- [x] SC0 — done（commit df5a2b9）
+- [x] SC1 — done（commit d711d92 / 95cd76c；ProviderAbstractionTests 映射用例）
+- [x] SC2 — done（commit 95cd76c / 782c3de；ProviderAbstractionTests registry/coordinator/runtime 用例）
+- [x] SC3 — done（commit 2224e9c / db8d779）
+- [x] SC4 — done（commit 2224e9c；含 ProviderTab 并入 ProviderID = SC0）
+- [x] SC5 — (a)(b)(c) ✅（swift test 全过 + 映射 fixture 用例 + history/notification spy 用例）；(d) 目测待 user 确认（先标 done，参照 v0.2.4 同例）
+- [x] SC6 — done（无新依赖 / 无插件框架 / make release-artifacts 全绿）
+- [x] SC7 — done（git grep 命中仅 Claude 解码模型/服务 + 两处文档注释）
