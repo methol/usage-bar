@@ -63,4 +63,41 @@ final class UsageEventStoreTests: XCTestCase {
         let got = await store.queryEvents(from: iso("2026-05-01T00:00:00.000Z"), to: iso("2026-06-01T00:00:00.000Z"))
         XCTAssertEqual(Set(got.map(\.msgId)), ["msg_mock_a", "msg_mock_b", "msg_mock_c"])
     }
+
+    func testRebuildAggregatesFromDetailMatchesReadback() async throws {
+        let store = UsageEventStore(dataDirOverride: tmpDir)
+        _ = await store.mergeEvents([
+            event(ts: "2026-05-11T10:00:00.000Z", msg: "msg_mock_a", req: "req_mock_a"),
+            event(ts: "2026-05-12T10:00:00.000Z", msg: "msg_mock_b", req: "req_mock_b", model: "claude-haiku-4-5"),
+        ])
+        await store.rebuildAllAggregates()
+        let day = await store.readDayAggregates()
+        XCTAssertGreaterThanOrEqual(day.keys.count, 1)
+        let month = await store.readMonthAggregates()
+        XCTAssertEqual(month["2026-05"]?.values.reduce(0) { $0 + $1.calls }, 2)
+        let year = await store.readYearAggregates()
+        XCTAssertEqual(year["2026"]?.values.reduce(0) { $0 + $1.calls }, 2)
+        let aggPath = tmpDir.appendingPathComponent("claude/agg-day.json").path
+        let perms = try FileManager.default.attributesOfItem(atPath: aggPath)[.posixPermissions] as! NSNumber
+        XCTAssertEqual(perms.int16Value, 0o600)
+    }
+    func testRebuildAggregatesForDayKeysOnlyTouchesThoseBuckets() async throws {
+        let store = UsageEventStore(dataDirOverride: tmpDir)
+        _ = await store.mergeEvents([event(ts: "2026-05-11T10:00:00.000Z", msg: "msg_mock_a", req: "req_mock_a")])
+        await store.rebuildAllAggregates()
+        _ = await store.mergeEvents([event(ts: "2026-05-12T10:00:00.000Z", msg: "msg_mock_b", req: "req_mock_b")])
+        await store.rebuildAggregates(forDayKeys: [UsageAggregator.localDayKey(iso("2026-05-12T10:00:00.000Z"))])
+        let day = await store.readDayAggregates()
+        let totalCalls = day.values.flatMap { $0.values }.reduce(0) { $0 + $1.calls }
+        XCTAssertEqual(totalCalls, 2)
+    }
+    func testCorruptedMonthFileTreatedAsEmpty() async throws {
+        let store = UsageEventStore(dataDirOverride: tmpDir)
+        let dir = tmpDir.appendingPathComponent("claude", isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        try "{ not valid json".data(using: .utf8)!.write(to: dir.appendingPathComponent("2026-05.json"))
+        _ = await store.mergeEvents([event(ts: "2026-05-11T10:00:00.000Z", msg: "msg_mock_a", req: "req_mock_a")])
+        let got = await store.queryEvents(from: iso("2026-05-01T00:00:00.000Z"), to: iso("2026-06-01T00:00:00.000Z"))
+        XCTAssertEqual(got.count, 1)
+    }
 }

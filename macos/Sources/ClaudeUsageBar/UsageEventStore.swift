@@ -67,14 +67,16 @@ actor UsageEventStore {
     }
 
     // MARK: public — merge
-    /// 返回 dirtyMonths（decode 失败被当空覆盖的月 key），collector 据此清相关游标。
-    /// 注意：本任务实现先返回 []；Task 2 收尾时会改为返回真实 dirtyMonths（Task 2 已含 rebuild）。
     @discardableResult
     func mergeEvents(_ events: [StoredUsageEvent]) -> Set<String> {
         guard !events.isEmpty else { return [] }
+        var dirty: Set<String> = []
         let grouped = Dictionary(grouping: events) { Self.utcMonthKey($0.ts) }
         for (monthKey, newEvents) in grouped {
-            var existing = loadMonth(monthKey)?.events ?? []
+            let url = monthFileURL(monthKey)
+            let parsed = loadMonth(monthKey)
+            if parsed == nil && fm.fileExists(atPath: url.path) { dirty.insert(monthKey) }
+            var existing = parsed?.events ?? []
             var seen = Set(existing.map { "\($0.msgId)|\($0.reqId)" })
             for e in newEvents {
                 let k = "\(e.msgId)|\(e.reqId)"
@@ -85,7 +87,7 @@ actor UsageEventStore {
             saveMonth(MonthDetailFile(provider: provider.rawValue, month: monthKey,
                                       lastUpdated: Date(), events: existing), key: monthKey)
         }
-        return []
+        return dirty
     }
 
     // MARK: public — query
@@ -105,7 +107,7 @@ actor UsageEventStore {
         return result.sorted { $0.ts < $1.ts }
     }
 
-    // MARK: 给 Task 2 用的内部访问器（先建好）
+    // MARK: 内部访问器
     func allMonthKeys() -> [String] {
         guard let files = try? fm.contentsOfDirectory(at: providerDir, includingPropertiesForKeys: nil) else { return [] }
         return files.filter { $0.pathExtension == "json" }
@@ -114,4 +116,71 @@ actor UsageEventStore {
             .sorted()
     }
     func eventsForMonth(_ key: String) -> [StoredUsageEvent] { loadMonth(key)?.events ?? [] }
+
+    // MARK: aggregates
+    private func aggFileURL(_ kind: String) -> URL { providerDir.appendingPathComponent("agg-\(kind).json") }
+
+    private func loadAgg(_ kind: String) -> AggregateFile? {
+        guard let data = try? Data(contentsOf: aggFileURL(kind)) else { return nil }
+        do {
+            let f = try Self.decoder.decode(AggregateFile.self, from: data)
+            return f.schemaVersion == 1 ? f : nil
+        } catch { NSLog("[claude-usage-bar] store decode agg: \(type(of: error))"); return nil }
+    }
+    private func saveAgg(_ kind: String, buckets: [String: [String: TokenSums]]) {
+        let f = AggregateFile(provider: provider.rawValue, lastUpdated: Date(), buckets: buckets)
+        guard let data = try? Self.encoder.encode(f) else { return }
+        writeAtomic0600(data, to: aggFileURL(kind))
+    }
+
+    func readDayAggregates() -> [String: [String: TokenSums]] { resolvedAgg("day") }
+    func readMonthAggregates() -> [String: [String: TokenSums]] { resolvedAgg("month") }
+    func readYearAggregates() -> [String: [String: TokenSums]] { resolvedAgg("year") }
+    private func resolvedAgg(_ kind: String) -> [String: [String: TokenSums]] {
+        if let f = loadAgg(kind) { return f.buckets }
+        rebuildAllAggregates()
+        return loadAgg(kind)?.buckets ?? [:]
+    }
+
+    func rebuildAllAggregates() {
+        let allEvents = allMonthKeys().flatMap { eventsForMonth($0) }
+        saveAgg("day", buckets: UsageAggregator.foldByDay(events: allEvents))
+        saveAgg("month", buckets: UsageAggregator.foldByMonth(events: allEvents))
+        saveAgg("year", buckets: UsageAggregator.foldByYear(events: allEvents))
+    }
+
+    /// 增量重建：只读受影响的月明细文件，重算受影响的 day/month/year 桶覆盖回去。
+    func rebuildAggregates(forDayKeys dayKeys: Set<String>) {
+        guard !dayKeys.isEmpty else { return }
+        let dayFmt = DateFormatter(); dayFmt.calendar = Calendar(identifier: .gregorian)
+        dayFmt.timeZone = TimeZone.current; dayFmt.locale = Locale(identifier: "en_US_POSIX"); dayFmt.dateFormat = "yyyy-MM-dd"
+        var candidateMonths = Set<String>()
+        for dk in dayKeys {
+            guard let start = dayFmt.date(from: dk) else { continue }
+            let end = start.addingTimeInterval(24 * 3600 - 1)
+            candidateMonths.insert(Self.utcMonthKey(start))
+            candidateMonths.insert(Self.utcMonthKey(end))
+        }
+        let candidateYears = Set(candidateMonths.map { String($0.prefix(4)) })
+        let monthsToLoad = Set(allMonthKeys().filter { mk in
+            candidateMonths.contains(mk) || candidateYears.contains(String(mk.prefix(4)))
+        })
+        let loadedEvents = monthsToLoad.flatMap { eventsForMonth($0) }
+        let touchedEvents = loadedEvents.filter { dayKeys.contains(UsageAggregator.localDayKey($0.ts)) }
+        let touchedMonthKeys = Set(touchedEvents.map { UsageAggregator.utcMonthKey($0.ts) })
+        let touchedYearKeys = Set(touchedEvents.map { UsageAggregator.utcYearKey($0.ts) })
+
+        var day = loadAgg("day")?.buckets ?? [:]
+        var month = loadAgg("month")?.buckets ?? [:]
+        var year = loadAgg("year")?.buckets ?? [:]
+        for k in dayKeys { day[k] = nil }
+        for k in touchedMonthKeys { month[k] = nil }
+        for k in touchedYearKeys { year[k] = nil }
+        let monthEvents = loadedEvents.filter { touchedMonthKeys.contains(UsageAggregator.utcMonthKey($0.ts)) }
+        let yearEvents = loadedEvents.filter { touchedYearKeys.contains(UsageAggregator.utcYearKey($0.ts)) }
+        for (k, v) in UsageAggregator.foldByDay(events: touchedEvents) { day[k] = v }
+        for (k, v) in UsageAggregator.foldByMonth(events: monthEvents) { month[k] = v }
+        for (k, v) in UsageAggregator.foldByYear(events: yearEvents) { year[k] = v }
+        saveAgg("day", buckets: day); saveAgg("month", buckets: month); saveAgg("year", buckets: year)
+    }
 }

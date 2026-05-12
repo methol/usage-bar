@@ -1,27 +1,5 @@
 import Foundation
 
-struct ModelCost: Codable, Equatable {
-    let model: String
-    let normalizedModel: String
-    let calls: Int
-    let inputTokens: Int
-    let outputTokens: Int
-    let cacheReadTokens: Int
-    let cacheCreationTokens: Int
-    let usd: Double
-    let isUnknownPricing: Bool
-}
-
-struct CostSummary: Codable, Equatable {
-    let generatedAt: Date
-    let windowDays: Int
-    let totalUSD: Double
-    let perModel: [ModelCost]
-    let unknownModelCount: Int
-    let parseErrorCount: Int
-    let scannedFileCount: Int
-}
-
 actor LocalCostScanner {
     static let shared = LocalCostScanner()
 

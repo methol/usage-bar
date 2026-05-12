@@ -1,0 +1,53 @@
+import XCTest
+@testable import ClaudeUsageBar
+
+final class UsageAggregatorTests: XCTestCase {
+    private func iso(_ s: String) -> Date {
+        let f = ISO8601DateFormatter(); f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return f.date(from: s) ?? ISO8601DateFormatter().date(from: s)!
+    }
+    private func ev(_ ts: String, model: String = "claude-opus-4-7", input: Int = 1, output: Int = 1,
+                    cr: Int = 0, cc: Int = 0, msg: String = UUID().uuidString) -> StoredUsageEvent {
+        StoredUsageEvent(ts: iso(ts), msgId: "msg_mock_\(msg)", reqId: "req_mock_\(msg)",
+                         sessionId: "00000000-mock-0000-0000-000000000000", model: model,
+                         inputTokens: input, outputTokens: output, cacheReadInputTokens: cr, cacheCreationInputTokens: cc)
+    }
+
+    func testFoldByDayKeysUseLocalTimeZone() {
+        let events = [ev("2026-05-11T10:00:00.000Z", msg: "a"), ev("2026-05-11T13:00:00.000Z", msg: "b")]
+        let byDay = UsageAggregator.foldByDay(events: events)
+        XCTAssertEqual(byDay.keys.count, 1)
+        XCTAssertEqual(byDay.values.first?["claude-opus-4-7"]?.calls, 2)
+    }
+    func testFoldByMonthAndYearUseUTC() {
+        let events = [ev("2026-04-30T23:30:00.000Z", msg: "x"), ev("2026-05-01T00:30:00.000Z", msg: "y")]
+        XCTAssertEqual(Set(UsageAggregator.foldByMonth(events: events).keys), ["2026-04", "2026-05"])
+        XCTAssertEqual(Set(UsageAggregator.foldByYear(events: events).keys), ["2026"])
+    }
+    func testUsdForBucketMatchesClaudePricingCost() {
+        var sums = TokenSums()
+        sums.calls = 1; sums.inputTokens = 1_000_000; sums.outputTokens = 1_000_000
+        sums.cacheReadInputTokens = 1_000_000; sums.cacheCreationInputTokens = 1_000_000
+        let bucket: [String: TokenSums] = ["claude-opus-4-7": sums]
+        XCTAssertEqual(UsageAggregator.usdForBucket(bucket).usd, 110.25, accuracy: 1e-6)
+        XCTAssertEqual(UsageAggregator.usdForBucket(bucket).unknownModelCalls, 0)
+    }
+    func testUnknownModelContributesZeroUSDAndCountsCalls() {
+        var sums = TokenSums(); sums.calls = 3; sums.inputTokens = 1_000_000
+        let bucket: [String: TokenSums] = ["fake-model-99": sums]
+        let r = UsageAggregator.usdForBucket(bucket)
+        XCTAssertEqual(r.usd, 0, accuracy: 1e-9)
+        XCTAssertEqual(r.unknownModelCalls, 3)
+    }
+    func testRolling30dSummaryWindowBoundary() {
+        let now = iso("2026-05-12T12:00:00.000Z")
+        let dayAgg: [String: [String: TokenSums]] = [
+            "2026-04-20": ["claude-opus-4-7": { var s = TokenSums(); s.calls = 1; s.inputTokens = 1_000_000; return s }()],
+            "2026-04-01": ["claude-opus-4-7": { var s = TokenSums(); s.calls = 1; s.inputTokens = 1_000_000; return s }()],
+        ]
+        let summary = UsageAggregator.rolling30dSummary(dayAggregates: dayAgg, now: now)
+        XCTAssertEqual(summary.windowDays, 30)
+        XCTAssertGreaterThan(summary.totalUSD, 0)
+        XCTAssertEqual(summary.perModel.reduce(0) { $0 + $1.calls }, 1)
+    }
+}

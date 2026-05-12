@@ -1,0 +1,94 @@
+import Foundation
+
+enum UsageAggregator {
+    private static let localDayFormatter: DateFormatter = {
+        let f = DateFormatter(); f.calendar = Calendar(identifier: .gregorian)
+        f.timeZone = TimeZone.current; f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "yyyy-MM-dd"; return f
+    }()
+    static func localDayKey(_ d: Date) -> String { localDayFormatter.string(from: d) }
+
+    private static func utcKey(_ d: Date, format: String) -> String {
+        let f = DateFormatter(); f.calendar = Calendar(identifier: .gregorian)
+        f.timeZone = TimeZone(identifier: "UTC"); f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = format; return f.string(from: d)
+    }
+    static func utcMonthKey(_ d: Date) -> String { utcKey(d, format: "yyyy-MM") }
+    static func utcYearKey(_ d: Date) -> String { utcKey(d, format: "yyyy") }
+
+    private static func fold(_ events: [StoredUsageEvent], key: (Date) -> String) -> [String: [String: TokenSums]] {
+        var out: [String: [String: TokenSums]] = [:]
+        for e in events {
+            let bk = key(e.ts)
+            let mk = ClaudePricing.normalize(e.model)
+            var bucket = out[bk] ?? [:]
+            var sums = bucket[mk] ?? TokenSums()
+            sums.add(e)
+            bucket[mk] = sums
+            out[bk] = bucket
+        }
+        return out
+    }
+    static func foldByDay(events: [StoredUsageEvent]) -> [String: [String: TokenSums]] { fold(events, key: localDayKey) }
+    static func foldByMonth(events: [StoredUsageEvent]) -> [String: [String: TokenSums]] { fold(events, key: utcMonthKey) }
+    static func foldByYear(events: [StoredUsageEvent]) -> [String: [String: TokenSums]] { fold(events, key: utcYearKey) }
+
+    struct BucketCost { let usd: Double; let unknownModelCalls: Int; let perModel: [ModelCost] }
+    static func usdForBucket(_ bucket: [String: TokenSums]) -> BucketCost {
+        var total = 0.0, unknown = 0
+        var per: [ModelCost] = []
+        for (normalizedModel, s) in bucket {
+            let pricing = ClaudePricing.lookup(model: normalizedModel)
+            if pricing == nil { unknown += s.calls }
+            let usd = ClaudePricing.cost(for: pricing, input: s.inputTokens, output: s.outputTokens,
+                                         cacheRead: s.cacheReadInputTokens, cacheWrite: s.cacheCreationInputTokens)
+            total += usd
+            per.append(ModelCost(model: normalizedModel, normalizedModel: normalizedModel, calls: s.calls,
+                                 inputTokens: s.inputTokens, outputTokens: s.outputTokens,
+                                 cacheReadTokens: s.cacheReadInputTokens, cacheCreationTokens: s.cacheCreationInputTokens,
+                                 usd: usd, isUnknownPricing: pricing == nil))
+        }
+        per.sort { $0.usd > $1.usd }
+        return BucketCost(usd: total, unknownModelCalls: unknown, perModel: per)
+    }
+
+    static func dailySpend(from dayAggregates: [String: [String: TokenSums]]) -> [DaySpend] {
+        let f = DateFormatter(); f.calendar = Calendar(identifier: .gregorian); f.timeZone = TimeZone.current
+        f.locale = Locale(identifier: "en_US_POSIX"); f.dateFormat = "yyyy-MM-dd"
+        return dayAggregates.compactMap { (dayKey, bucket) -> DaySpend? in
+            guard let date = f.date(from: dayKey) else { return nil }
+            let c = usdForBucket(bucket)
+            return DaySpend(dayKey: dayKey, date: date, usd: c.usd, calls: bucket.values.reduce(0) { $0 + $1.calls })
+        }.sorted { $0.dayKey < $1.dayKey }
+    }
+    static func monthlySpend(from monthAggregates: [String: [String: TokenSums]]) -> [MonthSpend] {
+        monthAggregates.map { (monthKey, bucket) in
+            let c = usdForBucket(bucket)
+            return MonthSpend(monthKey: monthKey, usd: c.usd, calls: bucket.values.reduce(0) { $0 + $1.calls })
+        }.sorted { $0.monthKey < $1.monthKey }
+    }
+
+    static func rolling30dSummary(dayAggregates: [String: [String: TokenSums]], now: Date,
+                                  scannedFileCount: Int = 1, parseErrorCount: Int = 0) -> CostSummary {
+        let cutoff = now.addingTimeInterval(-30 * 86400)
+        let f = DateFormatter(); f.calendar = Calendar(identifier: .gregorian); f.timeZone = TimeZone.current
+        f.locale = Locale(identifier: "en_US_POSIX"); f.dateFormat = "yyyy-MM-dd"
+        var merged: [String: TokenSums] = [:]
+        for (dayKey, bucket) in dayAggregates {
+            guard let date = f.date(from: dayKey), date >= cutoff else { continue }
+            for (mk, s) in bucket {
+                var acc = merged[mk] ?? TokenSums()
+                acc.calls += s.calls; acc.inputTokens += s.inputTokens; acc.outputTokens += s.outputTokens
+                acc.cacheReadInputTokens += s.cacheReadInputTokens; acc.cacheCreationInputTokens += s.cacheCreationInputTokens
+                merged[mk] = acc
+            }
+        }
+        let c = usdForBucket(merged)
+        return CostSummary(generatedAt: now, windowDays: 30, totalUSD: c.usd, perModel: c.perModel,
+                           unknownModelCount: c.unknownModelCalls, parseErrorCount: parseErrorCount,
+                           scannedFileCount: scannedFileCount)
+    }
+}
+
+struct DaySpend: Equatable { let dayKey: String; let date: Date; let usd: Double; let calls: Int }
+struct MonthSpend: Equatable { let monthKey: String; let usd: Double; let calls: Int }
