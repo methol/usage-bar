@@ -42,7 +42,7 @@ placeholder ─首个 spec 落地─► planned ─开发开始─► in-progres
 | [v0.2.4](./v0.2.4-popover-redesign.md) | popover-redesign | in-progress | 2026-05-12 | 🎨 Popover 重做（provider tab 外壳 + 卡片化 + 折线图 pace 面积） |
 | [v0.2.5](./v0.2.5-multi-provider-refactor.md) | multi-provider-refactor | in-progress | 2026-05-12 | 🏗️ 多供应商架构重构（`UsageProvider` 协议 + per-provider 运行时；Claude 行为不变） |
 | [v0.2.6](./v0.2.6-codex-provider.md) | codex-provider | in-progress | 2026-05-12 | 🔌 Codex provider（第一条数据源：`~/.codex/auth.json` → `wham/usage`；代码已 merge 到 main） |
-| [v0.2.7](./v0.2.7-claude-keychain-reimport.md) | claude-keychain-reimport | planned | 2026-05-12 | 🔧 Claude refresh 失败 → 回退读 Claude CLI Keychain（修「Session expired」误报） |
+| [v0.2.7](./v0.2.7-claude-keychain-reimport.md) | claude-keychain-reimport | in-progress | 2026-05-12 | 🔧 Claude refresh 失败 → 回退读 Claude CLI Keychain（修「Session expired」误报） |
 | [v0.2.8](./v0.2.8-codex-history-trend.md) | codex-history-trend | planned | 2026-05-13 | 🔌 Codex 历史采样 + 趋势箭头 + 折线图（泛化 UsageHistoryService / UsageChartSectionView） |
 | [v0.2.9](./v0.2.9-codex-cost-heatmap.md) | codex-cost-heatmap | planned | 2026-05-14 | 🔌 Codex 本地 session JSONL 扫描 → 成本/token → 消费热力图（Codex tab 全面对齐 Claude） |
 
