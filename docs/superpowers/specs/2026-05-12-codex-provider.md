@@ -68,6 +68,18 @@ reviews:
       ③ CodexPlan 有 .other 又有 .unknown 且 .other 吞掉所有未知串 → 与 testDecodeUnknownPlan 矛盾，砍 .other）
       + 3 should-fix（CodexProvider.init 删掉坏的 setConfigured 行只留正确形式；ProviderCoordinator didSet 用 isReverting 旗标而非靠 == oldValue；coordinator 测试 bracket UserDefaults 清理）+ 几个 nit（CreditLineRow 用 credit. 不是 line.；credit isEnabled corner case；ProviderUnconfiguredView Codex 文案）。
       全部已在 plan v2 应用。line-number / 既有代码声明经核对准确；SC1-7 覆盖完整。
+  - gate: G5
+    date: 2026-05-12
+    reviewer: codex (codex-rescue subagent, independent)
+    scope: code-review + security-review (敏感面：读 ~/.codex/auth.json OAuth tokens)
+    verdict: request-changes → resolved
+    notes: >
+      1 must-fix（codex runner /tmp 写权限拦了 `swift test`，无法在该沙箱出绿——实为 runner 配置问题非真实失败；
+      已在本机重跑：swift build -c release 通过、swift test = 201 tests 全绿、make release-artifacts + verify-release zip/dmg 均 OK）
+      + 3 should-fix（① ProviderUsageArea unconfigured 分支也渲染 runtime.lastError，否则 auth.json 损坏被「未检测到凭证」遮掉；
+      ② normalizedWindows() 兜底改按 windowSeconds 升序而非出现顺序；③ ProviderAbstractionTests UserDefaults 清理改 defer）。
+      3 个 should-fix 已在 commit「fix: v0.2.6 G5 review」应用 + 补 testNormalizeNonStandardSwappedWindowsFallback。
+      SC7/SC4 只读边界、HTTP client 不泄漏凭证、ProviderUsageArea/@ObservedObject runtime 反应性修复、ProviderCoordinator isRevertingPrimary 防递归 均获认可（praise）。
 ---
 
 # Codex provider 对接（第一条数据源）
