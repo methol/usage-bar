@@ -106,6 +106,13 @@ git commit -m "feat: v0.2.7 ClaudeCLICredentialsStrategy.loadCredentials(allowIn
 
 ---
 
+> **G3 corrections (ready-with-revisions, 2026-05-12) — read before doing Task 2:**
+> - **The test snippets below use a fictional `makeService`/`tokenStub`/`.permanentFailureBody` API. There is NO such reusable harness.** `UsageServiceTests.swift` inlines per-test: a `private func makeStore()` + `private func makeSession()` + `private static func httpResponse(url:statusCode:body:)` + `MockURLProtocol.handler = { request in switch (method, path) { … } }`, and `MockURLProtocol` is `private` to that file. ⇒ **Put the new v0.2.7 tests INSIDE `UsageServiceTests.swift`** (append to the class) so they can use those helpers — don't create `ClaudeKeychainReimportTests.swift`. Model each new test on `testExpiredTokenWithPermanentRefreshFailureSignsOut` (line ~406): seed `store.save(StoredCredentials(accessToken: "expired-access", refreshToken: "refresh-old", expiresAt: Date().addingTimeInterval(-60), scopes: UsageService.defaultOAuthScopes))`, set `MockURLProtocol.handler` to return `400 {"error":"invalid_grant"}` for `POST /v1/oauth/token` (→ `.permanentFailure`), construct the `UsageService`, set `service.cliKeychainLoader = { … }`, `await service.fetchUsage()`, assert.
+> - **`testNoRecoveryWhenMultipleAccounts`**: there is no `addAccount` API. Seed 2 accounts *before* `UsageService.init` via `store.saveAccounts(StoredAccountsFile(version: 2, activeIndex: 0, accounts: [a, b]))` + `store.save(a.credentials)` (v1 mirror), where `a.credentials` has `refreshToken: "refresh-old"` + a past `expiresAt`. See `UsageServiceMultiAccountTests.swift` lines ~37–48 for the exact pattern (`StoredAccount`/`StoredAccountsFile` shapes).
+> - **`attemptCLIKeychainRecovery` on success must also `runtime.clear()` before `runtime.setConfigured(true)`** — otherwise a real multi-poll scenario leaves `runtime.lastError = "Session expired …"` stale (the previous round's `expireSession` set it with `clearSnapshot: true`, so `clear()` is safe — snapshot already nil). Plan §3.1(b) code below is updated accordingly. Add an assertion in `testRecoversFromKeychainOnPermanentRefreshFailure` that survives a prior hard-expire if practical (e.g. call `await service.fetchUsage()` twice with the loader returning nil first then a fresh cred — optional, but at minimum keep the `runtime.lastError == nil` assertion).
+> - **SC2 "saveCredentials 失败 → 硬过期"**: no test exercises this; in Task 4 set its evidence honestly to "covered by the `do/catch { return false }` line + code-reading" (or add a test pointing `credentialsStore` at an unwritable dir — optional).
+> - `cliKeychainLoader` default closure: drop the trailing `?? nil` (`try?` on a `T?` already flattens). Commit to a **stored property with a default closure**; don't thread through `init`.
+
 ## Task 2: `UsageService` — `cliKeychainLoader` seam + `attemptCLIKeychainRecovery()` + async `expireSession`
 
 **Files:**
@@ -220,12 +227,13 @@ Expected: FAIL — `cliKeychainLoader` not defined.
 
 ```swift
 /// v0.2.7 测试接缝：refresh 永久失败时回退读 Claude CLI Keychain。默认接真实 strategy（fail-silent 读取）。
+/// `try?` 作用于 `StoredCredentials?` 表达式本身就已拍平为 `StoredCredentials?`，无需额外 `?? nil`。
 var cliKeychainLoader: () async -> StoredCredentials? = {
-    (try? await ClaudeCLICredentialsStrategy().loadCredentials(allowInteraction: false)) ?? nil
+    try? await ClaudeCLICredentialsStrategy().loadCredentials(allowInteraction: false)
 }
 ```
 
-(Stored property with a default closure is enough — no need to thread it through `init` unless that matches the existing style better; `localProfileLoader` goes through `init`, so threading it through `init` as `cliKeychainLoader: @escaping () async -> StoredCredentials? = { ... }` is the more consistent choice — pick that. Either way it stays `internal`.)
+(Stored property with a default closure, `internal`. Don't thread through `init`.)
 
 (b) Add the recovery method:
 
@@ -241,8 +249,9 @@ private func attemptCLIKeychainRecovery() async -> Bool {
     do {
         try saveCredentials(recovered)
         isAuthenticated = true
-        runtime.setConfigured(true)
         lastError = nil
+        runtime.clear()                 // 抹掉上一轮 expireSession 留下的「Session expired」错误（snapshot 那时已被 clearSnapshot 清空，clear() 安全）
+        runtime.setConfigured(true)     // 注：isAuthenticated = true 已经经 runtimeAuthSync sink 触发过一次 setConfigured(true)，这里幂等，写出来更显式
         return true
     } catch {
         return false

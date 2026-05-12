@@ -47,6 +47,16 @@ reviews:
       2 must-fix（① attemptCLIKeychainRecovery 接受门槛除「token≠失败的」外还要 `!recovered.isExpired()`，否则不同但已过期的 token 会推迟硬过期变相循环；② 补对应测试用例「不同但已过期 token → 硬过期」）
       + 3 should-fix（③ 恢复路径 gate 在 `accounts.count<=1`，不冒险用别人 token 覆盖非 active 账号；④ 恢复路径那次 Keychain 读取用 `kSecUseAuthenticationUIFail`，后台 polling 触发时不弹 ACL；⑤ 既有走硬过期路径的 UsageServiceTests 预先注入 no-op `cliKeychainLoader` 再断言不变）。
       全部已在本 spec §2~§5 应用。expireSession 单点改造方向、不加 `Task{fetchUsage}` 重入、internal 闭包注入、范围大小均获认可（praise）。
+  - gate: G3
+    date: 2026-05-12
+    reviewer: general-purpose subagent (independent, cross-session)
+    scope: plan-review of docs/superpowers/plans/2026-05-12-claude-keychain-reimport.md
+    verdict: ready-with-revisions
+    notes: >
+      2 must-fix（① plan 的测试片段用了不存在的 makeService/tokenStub API —— UsageServiceTests 是 per-test inline MockURLProtocol.handler 模式、MockURLProtocol 是 file-private，新测试要并入 UsageServiceTests.swift 用现成 helper；
+      ② testNoRecoveryWhenMultipleAccounts：没有 addAccount API，多账号要在 init 前用 store.saveAccounts(StoredAccountsFile v2) 种）
+      + 3 should-fix（③ attemptCLIKeychainRecovery 成功时还要 runtime.clear() 抹掉上一轮 expireSession 留的 lastError；④ stored creds 要带 refreshToken 才走得到 .permanentFailure→expireSession；⑤ SC2「saveCredentials 失败」无测试覆盖，evidence 要诚实写「靠 do/catch 行 + code-reading」）+ 几个 nit（drop `?? nil`、setConfigured 幂等注释）。
+      全部已在 plan 顶部「G3 corrections」块 + §3.1(b) 代码更新。production 代码片段编译性、4 处 expireSession 调用点、既有硬过期/transient 测试归类、post-recovery fetchUsage 无重入 均经核对确认（praise）。
 ---
 
 # Claude refresh 失败时回退读 Claude CLI Keychain
