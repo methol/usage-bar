@@ -14,7 +14,8 @@ final class UsageAggregatorTests: XCTestCase {
     }
 
     func testFoldByDayKeysUseLocalTimeZone() {
-        let events = [ev("2026-05-11T10:00:00.000Z", msg: "a"), ev("2026-05-11T13:00:00.000Z", msg: "b")]
+        // 12:00Z 和 12:30Z 在所有现实时区（UTC-12…UTC+14）均落在同一本地日历日
+        let events = [ev("2026-05-11T12:00:00.000Z", msg: "a"), ev("2026-05-11T12:30:00.000Z", msg: "b")]
         let byDay = UsageAggregator.foldByDay(events: events)
         XCTAssertEqual(byDay.keys.count, 1)
         XCTAssertEqual(byDay.values.first?["claude-opus-4-7"]?.calls, 2)

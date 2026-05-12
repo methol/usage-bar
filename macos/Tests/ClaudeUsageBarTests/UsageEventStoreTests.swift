@@ -96,7 +96,8 @@ final class UsageEventStoreTests: XCTestCase {
         let dir = tmpDir.appendingPathComponent("claude", isDirectory: true)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         try "{ not valid json".data(using: .utf8)!.write(to: dir.appendingPathComponent("2026-05.json"))
-        _ = await store.mergeEvents([event(ts: "2026-05-11T10:00:00.000Z", msg: "msg_mock_a", req: "req_mock_a")])
+        let dirty = await store.mergeEvents([event(ts: "2026-05-11T10:00:00.000Z", msg: "msg_mock_a", req: "req_mock_a")])
+        XCTAssertTrue(dirty.contains("2026-05"))
         let got = await store.queryEvents(from: iso("2026-05-01T00:00:00.000Z"), to: iso("2026-06-01T00:00:00.000Z"))
         XCTAssertEqual(got.count, 1)
     }

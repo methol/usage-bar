@@ -8,13 +8,18 @@ enum UsageAggregator {
     }()
     static func localDayKey(_ d: Date) -> String { localDayFormatter.string(from: d) }
 
-    private static func utcKey(_ d: Date, format: String) -> String {
+    private static let utcMonthFormatter: DateFormatter = {
         let f = DateFormatter(); f.calendar = Calendar(identifier: .gregorian)
         f.timeZone = TimeZone(identifier: "UTC"); f.locale = Locale(identifier: "en_US_POSIX")
-        f.dateFormat = format; return f.string(from: d)
-    }
-    static func utcMonthKey(_ d: Date) -> String { utcKey(d, format: "yyyy-MM") }
-    static func utcYearKey(_ d: Date) -> String { utcKey(d, format: "yyyy") }
+        f.dateFormat = "yyyy-MM"; return f
+    }()
+    private static let utcYearFormatter: DateFormatter = {
+        let f = DateFormatter(); f.calendar = Calendar(identifier: .gregorian)
+        f.timeZone = TimeZone(identifier: "UTC"); f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "yyyy"; return f
+    }()
+    static func utcMonthKey(_ d: Date) -> String { utcMonthFormatter.string(from: d) }
+    static func utcYearKey(_ d: Date) -> String { utcYearFormatter.string(from: d) }
 
     private static func fold(_ events: [StoredUsageEvent], key: (Date) -> String) -> [String: [String: TokenSums]] {
         var out: [String: [String: TokenSums]] = [:]
