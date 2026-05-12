@@ -118,6 +118,28 @@ private let claudeLogoImage: NSImage? = {
     return nil
 }()
 
+/// Codex 的菜单栏 glyph：自绘的 `</>` 标记（描边、圆角接头）—— **非任何品牌 logo**，只是「代码生成」的通用符号。
+/// 在 `NSImage(size:flipped: true)` 的绘图上下文里：小 y = 视觉上方，所以 `top`(小 y) 在上、`bot`(大 y) 在下、`/` 从右上到左下。
+private func drawCodeBracketsGlyph(x: CGFloat, y: CGFloat, size: CGFloat) {
+    let lw = max(size * 0.16, 1.4)
+    let path = NSBezierPath()
+    path.lineWidth = lw
+    path.lineCapStyle = .round
+    path.lineJoinStyle = .round
+    let cx = x + size / 2
+    let top = y + size * 0.20, bot = y + size * 0.80, mid = y + size / 2
+    let lOuter = x + size * 0.10, lInner = x + size * 0.36
+    let rOuter = x + size * 0.90, rInner = x + size * 0.64
+    // `<`
+    path.move(to: NSPoint(x: lInner, y: top)); path.line(to: NSPoint(x: lOuter, y: mid)); path.line(to: NSPoint(x: lInner, y: bot))
+    // `>`
+    path.move(to: NSPoint(x: rInner, y: top)); path.line(to: NSPoint(x: rOuter, y: mid)); path.line(to: NSPoint(x: rInner, y: bot))
+    // `/`（中间斜杠：右上 → 左下）
+    path.move(to: NSPoint(x: cx + size * 0.10, y: top)); path.line(to: NSPoint(x: cx - size * 0.10, y: bot))
+    NSColor.black.setStroke()
+    path.stroke()
+}
+
 private func sfSymbolName(for id: ProviderID) -> String {
     switch id {
     case .claude:  return "sparkles"            // 不会用到（claude 走 PNG），留个兜底
@@ -131,6 +153,10 @@ private func sfSymbolName(for id: ProviderID) -> String {
 private func drawProviderGlyph(for id: ProviderID, x: CGFloat, y: CGFloat, size: CGFloat) {
     if id == .claude, let logo = claudeLogoImage {
         logo.draw(in: NSRect(x: x, y: y, width: size, height: size))
+        return
+    }
+    if id == .codex {
+        drawCodeBracketsGlyph(x: x, y: y, size: size)
         return
     }
     let config = NSImage.SymbolConfiguration(pointSize: size, weight: .medium)
