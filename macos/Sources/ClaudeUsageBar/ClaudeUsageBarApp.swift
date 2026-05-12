@@ -2,7 +2,10 @@ import SwiftUI
 
 @main
 struct ClaudeUsageBarApp: App {
-    @StateObject private var service = UsageService()
+    // v0.2.5 多供应商重构：用 ProviderCoordinator 装配（内部注册 Claude provider = UsageService）。
+    // Claude 的 OAuth/refresh/多账号/polling/backoff 等仍在 coordinator.claude（= UsageService）里，
+    // coordinator 本版本不跑 timer——polling 仍由 coordinator.claude.startPolling() 起。
+    @StateObject private var coordinator = ProviderCoordinator(claude: UsageService())
     @StateObject private var historyService = UsageHistoryService()
     @StateObject private var notificationService = NotificationService()
     @StateObject private var appUpdater = AppUpdater()
@@ -10,40 +13,41 @@ struct ClaudeUsageBarApp: App {
 
     var body: some Scene {
         MenuBarExtra {
+            // 阶段 B：视图暂仍收 service: coordinator.claude 走老 API（阶段 C 改成收 coordinator + 读 runtime）。
             PopoverView(
-                service: service,
+                service: coordinator.claude,
                 historyService: historyService,
                 notificationService: notificationService,
                 appUpdater: appUpdater
             )
             .environmentObject(usageStats)
         } label: {
-            MenuBarLabel(service: service, historyService: historyService)
+            MenuBarLabel(service: coordinator.claude, historyService: historyService)
                 .task {
                     // 退役 v0.1.2 的 cost-usage cache（已被 ~/.config/claude-usage-bar/data/ 取代）
                     if let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first {
                         try? FileManager.default.removeItem(at: caches.appendingPathComponent("claude-usage-bar/cost-usage", isDirectory: true))
                     }
                     historyService.loadHistory()
-                    service.historyService = historyService
-                    service.notificationService = notificationService
+                    coordinator.claude.historyService = historyService
+                    coordinator.claude.notificationService = notificationService
                     // v0.1.1: 启动期尝试复用 Claude CLI 凭证（Keychain 'Claude Code-credentials'）
                     // 内部已用 Task.detached 避免主线程阻塞
-                    await service.bootstrapFromCLIIfNeeded()
+                    await coordinator.claude.bootstrapFromCLIIfNeeded()
                     // bootstrap 成功或本来已 sign in 的用户：标记 setup 完成不显示 SetupView
-                    if service.isAuthenticated && !UserDefaults.standard.bool(forKey: "setupComplete") {
+                    if coordinator.claude.isAuthenticated && !UserDefaults.standard.bool(forKey: "setupComplete") {
                         UserDefaults.standard.set(true, forKey: "setupComplete")
                     }
                     // 首次 refresh 本机 JSONL 统计（polling timer 内会继续更新）
                     await usageStats.refresh()
-                    service.startPolling()
+                    coordinator.claude.startPolling()
                 }
         }
         .menuBarExtraStyle(.window)
 
         Settings {
             SettingsWindowContent(
-                service: service,
+                service: coordinator.claude,
                 notificationService: notificationService
             )
         }
