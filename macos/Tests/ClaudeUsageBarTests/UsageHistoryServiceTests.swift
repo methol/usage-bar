@@ -47,6 +47,14 @@ final class UsageHistoryServiceTests: XCTestCase {
         XCTAssertEqual(b2.history.dataPoints.first?.pct5h, 0.9)
     }
 
+    func testFlushedFileIsOwnerOnly() throws {
+        let h = UsageHistoryService(filename: "history-codex.json", directory: tmpDir)
+        h.recordDataPoint(pct5h: 0.3, pct7d: 0.3)
+        h.flushToDisk()
+        let attrs = try FileManager.default.attributesOfItem(atPath: tmpDir.appendingPathComponent("history-codex.json").path)
+        XCTAssertEqual((attrs[.posixPermissions] as? NSNumber)?.intValue, 0o600)
+    }
+
     func testLoadCorruptFileMovesToBak() throws {
         try Data("{ not json".utf8).write(to: tmpDir.appendingPathComponent("history-codex.json"))
         let h = UsageHistoryService(filename: "history-codex.json", directory: tmpDir)

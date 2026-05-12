@@ -408,6 +408,23 @@ final class CodexProviderTests: XCTestCase {
     }
 
     @MainActor
+    func testRefreshNowIsNotReentrant() async throws {
+        let env = try makeCodexHome(authJSON: #"{ "tokens": { "access_token": "ACCESS_SENTINEL" } }"#)
+        let session = stubSession { req in
+            (HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+             Data(self.usageJSON(primaryPct: 30, secondaryPct: 30).utf8))
+        }
+        defer { CodexStubURLProtocol.handler = nil }
+        let h = UsageHistoryService(filename: "t.json", directory: try makeTmpDir())
+        let p = CodexProvider(environment: env, session: session, history: h)
+        // 两个并发调用：第一个在网络 await 期间，第二个命中重入 guard 直接 return → 只记一个点。
+        async let first: Void = p.refreshNow()
+        async let second: Void = p.refreshNow()
+        _ = await (first, second)
+        XCTAssertEqual(h.history.dataPoints.count, 1, "refreshNow 应不可重入")
+    }
+
+    @MainActor
     func testStartPollingIsIdempotent() {
         let p = CodexProvider(environment: ["CODEX_HOME": "/nonexistent-\(UUID().uuidString)"], session: .shared)
         XCTAssertFalse(p.isPolling)

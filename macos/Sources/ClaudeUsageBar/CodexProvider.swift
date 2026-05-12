@@ -30,6 +30,10 @@ final class CodexProvider: UsageProvider {
     /// 单测可见：`startPolling()` 是否已起 timer。
     var isPolling: Bool { pollCancellable != nil }
 
+    /// 重入闸门：`refreshNow()` 同一时刻只跑一份（timer / Refresh 按钮 / 切 tab 可能撞上）。
+    /// `@MainActor` 序列化读写 —— 第二个调用在第一个的网络 `await` 期间进来会命中此 guard 直接 return。
+    private var isRefreshing = false
+
     init(environment: [String: String] = ProcessInfo.processInfo.environment,
          session: URLSession = .shared,
          history: UsageHistoryService? = nil) {
@@ -56,6 +60,10 @@ final class CodexProvider: UsageProvider {
     }
 
     func refreshNow() async {
+        guard !isRefreshing else { return }
+        isRefreshing = true
+        defer { isRefreshing = false }
+
         let creds: CodexCredentials?
         do {
             creds = try CodexCredentialStore.load(environment: environment)
@@ -89,6 +97,7 @@ final class CodexProvider: UsageProvider {
         let p = snap.primaryWindow?.utilizationPct
         let s = snap.secondaryWindow?.utilizationPct
         guard p != nil || s != nil else { return }
-        history.recordDataPoint(pct5h: (p ?? 0) / 100.0, pct7d: (s ?? 0) / 100.0)
+        func unit(_ pct: Double?) -> Double { min(max((pct ?? 0) / 100.0, 0), 1) }   // 防服务端给出范围外值污染折线
+        history.recordDataPoint(pct5h: unit(p), pct7d: unit(s))
     }
 }

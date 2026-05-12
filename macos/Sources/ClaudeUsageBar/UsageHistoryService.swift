@@ -89,6 +89,8 @@ class UsageHistoryService: ObservableObject {
 
         guard let data = try? JSONEncoder.historyEncoder.encode(history) else { return }
         try? data.write(to: fileURL, options: .atomic)
+        // 历史是本机用量时序数据（弱敏感）—— 与凭证文件一样收成 0600，不让同机其它用户读。
+        try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: fileURL.path)
 
         isDirty = false
         flushTimer?.cancel()
