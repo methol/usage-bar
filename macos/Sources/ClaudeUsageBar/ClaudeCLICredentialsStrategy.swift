@@ -1,5 +1,6 @@
 import Foundation
 import Security
+import LocalAuthentication
 
 struct ClaudeCLICredentialsStrategy: ClaudeUsageStrategy {
     static let serviceName = "Claude Code-credentials"
@@ -34,17 +35,33 @@ struct ClaudeCLICredentialsStrategy: ClaudeUsageStrategy {
         }
     }
 
+    /// 协议要求的入口 —— 等价于 `loadCredentials(allowInteraction: true)`（前台可弹 ACL）。
     func loadCredentials() async throws -> StoredCredentials? {
+        try await loadCredentials(allowInteraction: true)
+    }
+
+    /// - Parameter allowInteraction: `false` 时给 query 挂一个 `interactionNotAllowed` 的 `LAContext` ——
+    ///   `SecItemCopyMatching` 不弹 ACL 授权框、直接返回 `errSecInteractionNotAllowed`（下面 switch 已把它降级为
+    ///   返回 nil）。v0.2.7：`expireSession` 走的 Keychain 恢复读取可能发生在后台 polling 里，绝不能弹框 → 传 false；
+    ///   `bootstrapFromCLIIfNeeded`（前台首启）沿用 `loadCredentials()` = true，允许弹一次 ACL。
+    func loadCredentials(allowInteraction: Bool) async throws -> StoredCredentials? {
         // G3 B1 修订：SecItemCopyMatching 是同步 blocking C API；用 Task.detached
         // 把它挪到后台线程，避免主线程阻塞（首次 ACL 弹窗时尤其重要）
         let queryResult: (status: OSStatus, item: AnyObject?) = await Task.detached {
-            let query: [CFString: Any] = [
+            var query: [CFString: Any] = [
                 kSecClass: kSecClassGenericPassword,
                 kSecAttrService: Self.serviceName,
                 kSecAttrAccount: NSUserName(),  // G2 E 修订：补 account 防 multi-account 顺序歧义
                 kSecReturnData: true,
                 kSecMatchLimit: kSecMatchLimitOne
             ]
+            if !allowInteraction {
+                // 非交互式：不允许弹 ACL 授权框（后台 polling 安全）。用 LAContext.interactionNotAllowed
+                // 而非已弃用的 kSecUseAuthenticationUIFail。
+                let context = LAContext()
+                context.interactionNotAllowed = true
+                query[kSecUseAuthenticationContext] = context
+            }
             var item: AnyObject?
             let status = SecItemCopyMatching(query as CFDictionary, &item)
             return (status, item)
