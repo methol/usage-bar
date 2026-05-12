@@ -10,6 +10,8 @@ struct PopoverView: View {
     @ObservedObject var notificationService: NotificationService
     @ObservedObject var appUpdater: AppUpdater
     @EnvironmentObject var usageStats: UsageStatsService
+    /// Codex 本机用量/费用统计（与 Claude 的 `usageStats` 同型；`@EnvironmentObject` 一次只能注一个同型，故这里走构造参数）。
+    @ObservedObject var codexStats: UsageStatsService
     @AppStorage("setupComplete") private var setupComplete = false
     @State private var selectedProvider: ProviderID = .claude
 
@@ -71,10 +73,16 @@ struct PopoverView: View {
                 (selectedProvider == .codex
                     ? (coordinator.provider(.codex) as? CodexProvider).map { ($0.history, "Session", "Weekly") }
                     : nil)
+            let costStats: UsageStatsService? = (selectedProvider == .codex ? codexStats : nil)
+            let costContext: ProviderCostContext? = (selectedProvider == .codex
+                ? ProviderCostContext(pricing: OpenAIModelPriceTable.shared, displayName: { OpenAIPricing.displayName($0) })
+                : nil)
             ProviderUsageArea(runtime: runtime,
                               providerID: selectedProvider,
                               onBackToClaude: { selectedProvider = .claude },
                               history: history,
+                              costStats: costStats,
+                              costContext: costContext,
                               bottomBar: { bottomBar })
         } else {
             ProviderComingSoonView(provider: selectedProvider,
@@ -89,13 +97,17 @@ struct PopoverView: View {
         let onBackToClaude: () -> Void
         /// 该 provider 的历史（有则显示趋势箭头 + 折线图）。nil → 退化成只有 `ProviderUsageSection`（v0.2.6 现状）。
         var history: (service: UsageHistoryService, primaryLabel: String, secondaryLabel: String)? = nil
+        /// 该 provider 的本机费用统计（有则在折线图下接估算费用卡 + tab 底接消费热力图）。
+        var costStats: UsageStatsService? = nil
+        var costContext: ProviderCostContext? = nil
         @ViewBuilder let bottomBar: () -> BottomBar
 
         var body: some View {
             if runtime.isConfigured {
                 if let h = history {
                     ProviderHistorySection(historyService: h.service, runtime: runtime,
-                                           primaryLabel: h.primaryLabel, secondaryLabel: h.secondaryLabel)
+                                           primaryLabel: h.primaryLabel, secondaryLabel: h.secondaryLabel,
+                                           costStats: costStats, costContext: costContext)
                 } else {
                     ProviderUsageSection(runtime: runtime)
                 }
@@ -134,6 +146,9 @@ struct PopoverView: View {
         @ObservedObject var runtime: ProviderRuntime
         let primaryLabel: String
         let secondaryLabel: String
+        /// 普通 `let`（不是 `@ObservedObject` —— Optional 不能）；非 nil 时折线图区改用持 `@ObservedObject` 的 `ProviderCostArea`。
+        var costStats: UsageStatsService? = nil
+        var costContext: ProviderCostContext? = nil
 
         var body: some View {
             let pts = historyService.history.dataPoints
@@ -141,9 +156,34 @@ struct PopoverView: View {
             let t5 = computeTrend(currentPct: snap?.primaryWindow?.utilizationPct, points: pts, metric: \.pct5h)
             let t7 = computeTrend(currentPct: snap?.secondaryWindow?.utilizationPct, points: pts, metric: \.pct7d)
             ProviderUsageSection(runtime: runtime, trendPrimary: t5, trendSecondary: t7)
+            if let cs = costStats, let cc = costContext {
+                ProviderCostArea(historyService: historyService, stats: cs, costContext: cc,
+                                 primaryLabel: primaryLabel, secondaryLabel: secondaryLabel)
+            } else {
+                UsageCard {
+                    UsageChartSectionView(historyService: historyService, recentEvents: [],
+                                          primaryLabel: primaryLabel, secondaryLabel: secondaryLabel)
+                }
+            }
+        }
+    }
+
+    /// 带本机成本数据的折线图区（含估算费用卡）+ 消费热力图（mirror `claudeUsageArea` 的对应段）。
+    /// `stats` 是非-Optional `@ObservedObject` —— 这样 `codexStats` 的 `@Published` 变化能驱动这子树重渲染（v0.2.5 G5 nit 同款套路）。
+    private struct ProviderCostArea: View {
+        @ObservedObject var historyService: UsageHistoryService
+        @ObservedObject var stats: UsageStatsService
+        let costContext: ProviderCostContext
+        let primaryLabel: String
+        let secondaryLabel: String
+
+        var body: some View {
             UsageCard {
-                UsageChartSectionView(historyService: historyService, recentEvents: [],
-                                      primaryLabel: primaryLabel, secondaryLabel: secondaryLabel)
+                UsageChartSectionView(historyService: historyService, recentEvents: stats.recentEvents,
+                                      primaryLabel: primaryLabel, secondaryLabel: secondaryLabel, costContext: costContext)
+            }
+            if !stats.dailySpend.isEmpty && !stats.dailySpend.allSatisfy({ $0.usd == 0 }) {
+                UsageCard { UsageHeatmapView(daySpends: stats.dailySpend, isInitializing: stats.isInitializing) }
             }
         }
     }

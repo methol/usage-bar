@@ -15,16 +15,7 @@ struct ProviderUsageSection: View {
     var body: some View {
         let snap = runtime.snapshot
 
-        if let plan = snap?.planLabel, !plan.isEmpty {
-            UsageCard {
-                HStack {
-                    Text("Plan").font(.subheadline).foregroundStyle(.secondary)
-                    Spacer()
-                    Text(plan).font(.subheadline.weight(.medium))
-                }
-            }
-        }
-
+        // 注：故意不渲染 `snap?.planLabel`（Codex 的 "Plan: Free" 卡）—— 对齐 Claude tab（Claude 无套餐字段）。
         // 卡片在「还没拉到数据」（snap == nil → 骨架）或「这个窗口确实存在」时才渲染；
         // 已有 snapshot 但某个窗口为 nil（如 Codex Free 计划只返回 weekly、没有 session 窗口）→ 不渲染那张空卡。
         if snap == nil || snap?.primaryWindow != nil {

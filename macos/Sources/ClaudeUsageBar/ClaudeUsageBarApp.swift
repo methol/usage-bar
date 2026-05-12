@@ -11,6 +11,7 @@ struct ClaudeUsageBarApp: App {
     @StateObject private var notificationService = NotificationService()
     @StateObject private var appUpdater = AppUpdater()
     @StateObject private var usageStats = UsageStatsService.shared
+    @StateObject private var codexStats = UsageStatsService(provider: .codex)
 
     var body: some Scene {
         MenuBarExtra {
@@ -19,7 +20,8 @@ struct ClaudeUsageBarApp: App {
                 claude: coordinator.claude,
                 historyService: historyService,
                 notificationService: notificationService,
-                appUpdater: appUpdater
+                appUpdater: appUpdater,
+                codexStats: codexStats
             )
             .environmentObject(usageStats)
         } label: {
@@ -45,10 +47,13 @@ struct ClaudeUsageBarApp: App {
                     }
                     // 首次 refresh 本机 JSONL 统计（polling timer 内会继续更新）
                     await usageStats.refresh()
+                    await codexStats.refresh()
                     coordinator.claude.startPolling()
                     // Codex provider 的 5 分钟轻量采样（给 popover 的趋势箭头 / 折线图供数）；
                     // 它 supportsBackgroundPolling 仍 false（不上菜单栏），但有自己的 refresh timer。
+                    // onPollTick 让 Codex 本机 session 扫描（codexStats）走同一节奏。
                     if let codex = coordinator.provider(.codex) as? CodexProvider {
+                        codex.onPollTick = { Task.detached { await codexStats.refresh() } }
                         codex.startPolling()
                     }
                 }

@@ -34,6 +34,9 @@ final class CodexProvider: UsageProvider {
     /// `@MainActor` 序列化读写 —— 第二个调用在第一个的网络 `await` 期间进来会命中此 guard 直接 return。
     private var isRefreshing = false
 
+    /// 后台采样 tick 时额外回调（装配处用它驱动 `codexStats.refresh()` —— 即 Codex 本机 session 扫描走同一节奏）。
+    var onPollTick: (@MainActor () -> Void)? = nil
+
     init(environment: [String: String] = ProcessInfo.processInfo.environment,
          session: URLSession = .shared,
          history: UsageHistoryService? = nil) {
@@ -54,9 +57,13 @@ final class CodexProvider: UsageProvider {
     func startPolling() {
         guard pollCancellable == nil else { return }
         Task { [weak self] in await self?.refreshNow() }
+        onPollTick?()
         pollCancellable = Timer.publish(every: Self.pollIntervalSeconds, on: .main, in: .common)
             .autoconnect()
-            .sink { [weak self] _ in Task { await self?.refreshNow() } }
+            .sink { [weak self] _ in
+                Task { await self?.refreshNow() }
+                self?.onPollTick?()
+            }
     }
 
     func refreshNow() async {

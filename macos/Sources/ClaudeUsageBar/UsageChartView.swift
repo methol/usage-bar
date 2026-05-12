@@ -70,13 +70,16 @@ struct UsageChartSectionView: View {
     /// 两条线 / 图例的文字（默认 Claude 的 `5h`/`7d`；Codex 传 `Session`/`Weekly`）。
     var primaryLabel: String = "5h"
     var secondaryLabel: String = "7d"
+    /// 该 provider 的费用估价上下文（默认 Claude；Codex 传 OpenAI 估价表 + displayName）。
+    var costContext: ProviderCostContext? = nil
 
     @State private var selectedRange: TimeRange = .day1
 
     /// 根据当前选定时间范围，从 recentEvents 中计算 CostSummary。
     private var costSummary: CostSummary? {
         let cutoff = Date().addingTimeInterval(-selectedRange.interval)
-        let summary = UsageAggregator.costForEvents(recentEvents, since: cutoff, now: Date())
+        let summary = UsageAggregator.costForEvents(recentEvents, since: cutoff, now: Date(),
+                                                    pricing: costContext?.pricing ?? ClaudeModelPriceTable.shared)
         return summary.scannedFileCount > 0 ? summary : nil
     }
 
@@ -88,7 +91,7 @@ struct UsageChartSectionView: View {
                                   primaryLabel: primaryLabel, secondaryLabel: secondaryLabel)
 
             if let cost = costSummary {
-                LocalCostCard(summary: cost)
+                LocalCostCard(summary: cost, displayName: costContext?.displayName ?? { ClaudePricing.displayName($0) })
             }
         }
     }
