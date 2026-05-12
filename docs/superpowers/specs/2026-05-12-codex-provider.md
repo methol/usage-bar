@@ -57,6 +57,17 @@ reviews:
       + 3 should-fix（① PopoverView configured/unconfigured 判定改读 runtime.isConfigured 而非 provider.isConfigured；
       ② ProviderCoordinator setter 层拒绝非 primaryEligibleIDs 值，不止构造时校验；③ CreditLineRow 同步加 isUnlimited/remaining 渲染分支 + 标题不再硬编码 "Extra Usage"）。
       全部已在本 spec §3 应用。安全只读边界、不做 token refresh-with-writeback、范围大小均获认可（praise）。
+  - gate: G3
+    date: 2026-05-12
+    reviewer: general-purpose subagent (independent, cross-session)
+    scope: plan-review of docs/superpowers/plans/2026-05-12-codex-provider.md
+    verdict: ready-with-revisions
+    notes: >
+      3 must-fix（① CodexPlan(rawValue: try? decodeIfPresent…) → String?? 不编译，补 ?? nil；
+      ② credits balance string 分支 .flatMap{ Double($0) } 类型错，先拍平 String?? ；
+      ③ CodexPlan 有 .other 又有 .unknown 且 .other 吞掉所有未知串 → 与 testDecodeUnknownPlan 矛盾，砍 .other）
+      + 3 should-fix（CodexProvider.init 删掉坏的 setConfigured 行只留正确形式；ProviderCoordinator didSet 用 isReverting 旗标而非靠 == oldValue；coordinator 测试 bracket UserDefaults 清理）+ 几个 nit（CreditLineRow 用 credit. 不是 line.；credit isEnabled corner case；ProviderUnconfiguredView Codex 文案）。
+      全部已在 plan v2 应用。line-number / 既有代码声明经核对准确；SC1-7 覆盖完整。
 ---
 
 # Codex provider 对接（第一条数据源）
