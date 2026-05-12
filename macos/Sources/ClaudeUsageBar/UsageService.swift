@@ -32,6 +32,10 @@ class UsageService: ObservableObject {
     private let tokenEndpoint: URL
     private let credentialsStore: StoredCredentialsStore
     private let localProfileLoader: @MainActor () -> String?
+    /// v0.2.7：refresh 永久失败时回退去读 Claude CLI Keychain（fail-silent，不弹 ACL）。`internal` 是为单测可替换。
+    var cliKeychainLoader: () async -> StoredCredentials? = {
+        try? await ClaudeCLICredentialsStrategy().loadCredentials(allowInteraction: false)
+    }
     private var currentInterval: TimeInterval
     private enum RefreshResult {
         case success
@@ -602,7 +606,7 @@ class UsageService: ObservableObject {
                 switch refreshResult {
                 case .permanentFailure:
                     if expireSessionOnAuthFailure {
-                        expireSession()
+                        await expireSession()
                     }
                 case .transientFailure:
                     lastError = "Token refresh failed — will retry"
@@ -629,7 +633,7 @@ class UsageService: ObservableObject {
         case .success:
             guard let refreshedCredentials = loadCredentials() else {
                 if expireSessionOnAuthFailure {
-                    expireSession()
+                    await expireSession()
                 }
                 return nil
             }
@@ -641,7 +645,7 @@ class UsageService: ObservableObject {
 
             if result.1.statusCode == 401 {
                 if expireSessionOnAuthFailure {
-                    expireSession()
+                    await expireSession()
                 }
                 return nil
             }
@@ -650,7 +654,7 @@ class UsageService: ObservableObject {
 
         case .permanentFailure:
             if expireSessionOnAuthFailure {
-                expireSession()
+                await expireSession()
             }
             return nil
 
@@ -804,7 +808,10 @@ class UsageService: ObservableObject {
         return Date().addingTimeInterval(seconds)
     }
 
-    private func expireSession() {
+    private func expireSession() async {
+        // v0.2.7：硬过期前先试着从 Claude CLI Keychain 续上 —— 用户的 claude CLI 往往还在正常用，
+        // 此时 Keychain 里有新鲜 token，没必要逼用户重登。能恢复就直接 return（timer 不动，下一轮 polling 用新 token）。
+        if await attemptCLIKeychainRecovery() { return }
         deleteCredentials()
         isAuthenticated = false
         usage = nil
@@ -816,6 +823,27 @@ class UsageService: ObservableObject {
         refreshTask = nil
         lastError = "Session expired — please sign in again"
         runtime.setError("Session expired — please sign in again", clearSnapshot: true)
+    }
+
+    /// v0.2.7：refresh 永久失败时，试着从 Claude CLI Keychain 续上凭证。返回 true = 已恢复（调用方不要再硬过期）。
+    /// 三道门：① 单账号（不冒险用别人的 token 覆盖某个非 active 账号）；② Keychain token ≠ 刚失败的那个（防恢复循环）；
+    /// ③ Keychain token 未过期（不同但已过期的同样会推迟硬过期、变相循环）。
+    private func attemptCLIKeychainRecovery() async -> Bool {
+        guard accounts.count <= 1 else { return false }
+        let current = loadCredentials()
+        guard let recovered = await cliKeychainLoader() else { return false }
+        guard recovered.accessToken != current?.accessToken else { return false }
+        guard !recovered.isExpired() else { return false }
+        do {
+            try saveCredentials(recovered)
+            isAuthenticated = true
+            lastError = nil
+            runtime.clear()              // 抹掉上一轮 expireSession 残留的「Session expired」错误（那时 snapshot 已被 clearSnapshot 清空，clear() 安全）
+            runtime.setConfigured(true)  // 注：上面 isAuthenticated = true 已经经 runtimeAuthSync sink 触发过 setConfigured(true)，这里幂等、显式
+            return true
+        } catch {
+            return false
+        }
     }
 }
 

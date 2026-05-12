@@ -203,6 +203,7 @@ final class UsageServiceTests: XCTestCase {
             tokenEndpoint: tokenURL,
             credentialsStore: store
         )
+        service.cliKeychainLoader = { nil }  // v0.2.7：本测试断言硬过期路径，禁掉 Keychain 恢复回退
 
         await service.fetchUsage()
 
@@ -438,12 +439,180 @@ final class UsageServiceTests: XCTestCase {
             tokenEndpoint: tokenURL,
             credentialsStore: store
         )
+        service.cliKeychainLoader = { nil }  // v0.2.7：本测试断言硬过期路径，禁掉 Keychain 恢复回退
 
         await service.fetchUsage()
 
         XCTAssertFalse(service.isAuthenticated)
         XCTAssertEqual(service.lastError, "Session expired — please sign in again")
         XCTAssertNil(store.load(defaultScopes: UsageService.defaultOAuthScopes))
+    }
+
+    // MARK: - v0.2.7: Claude CLI Keychain re-import on permanent refresh failure
+
+    /// 给「refresh 永久失败」场景搭台：已存一个带 refresh token 的过期凭证；
+    /// token endpoint 对 refresh 返 400 invalid_grant（→ `.permanentFailure` → `expireSession`）。
+    /// 返回 (service, store)；调用方再设 `service.cliKeychainLoader`。
+    private func makePermanentRefreshFailureService(
+        storedAccessToken: String = "stale-access"
+    ) throws -> (UsageService, StoredCredentialsStore) {
+        let store = try makeStore()
+        try store.save(StoredCredentials(
+            accessToken: storedAccessToken,
+            refreshToken: "refresh-old",
+            expiresAt: Date().addingTimeInterval(-60),
+            scopes: UsageService.defaultOAuthScopes
+        ))
+        let tokenURL = URL(string: "https://example.com/v1/oauth/token")!
+        MockURLProtocol.handler = { request in
+            switch (request.httpMethod, request.url?.path) {
+            case ("POST", "/v1/oauth/token"):
+                return try Self.httpResponse(url: tokenURL, statusCode: 400, body: #"{"error":"invalid_grant"}"#)
+            default:
+                XCTFail("Unexpected request: \(request)")
+                return try Self.httpResponse(url: request.url!, statusCode: 500)
+            }
+        }
+        let service = UsageService(
+            session: makeSession(),
+            usageEndpoint: URL(string: "https://example.com/api/oauth/usage")!,
+            userinfoEndpoint: URL(string: "https://example.com/api/oauth/userinfo")!,
+            tokenEndpoint: tokenURL,
+            credentialsStore: store
+        )
+        return (service, store)
+    }
+
+    private func freshCreds(accessToken: String) -> StoredCredentials {
+        StoredCredentials(accessToken: accessToken, refreshToken: "kc-refresh",
+                          expiresAt: Date().addingTimeInterval(3600), scopes: UsageService.defaultOAuthScopes)
+    }
+
+    func testRecoversFromKeychainOnPermanentRefreshFailure() async throws {
+        let (service, store) = try makePermanentRefreshFailureService()
+        service.cliKeychainLoader = { self.freshCreds(accessToken: "FRESH_FROM_KEYCHAIN") }
+
+        await service.fetchUsage()
+
+        XCTAssertTrue(service.isAuthenticated, "Keychain 有新鲜凭证 → 应静默续上、不硬过期")
+        XCTAssertEqual(store.load(defaultScopes: UsageService.defaultOAuthScopes)?.accessToken, "FRESH_FROM_KEYCHAIN")
+        XCTAssertNil(service.lastError)
+        XCTAssertNil(service.runtime.lastError)
+    }
+
+    func testHardExpiresWhenKeychainEmpty() async throws {
+        let (service, store) = try makePermanentRefreshFailureService()
+        service.cliKeychainLoader = { nil }
+
+        await service.fetchUsage()
+
+        XCTAssertFalse(service.isAuthenticated)
+        XCTAssertNil(store.load(defaultScopes: UsageService.defaultOAuthScopes))
+        XCTAssertEqual(service.lastError, "Session expired — please sign in again")
+        XCTAssertEqual(service.runtime.lastError, "Session expired — please sign in again")
+        XCTAssertNil(service.runtime.snapshot)
+    }
+
+    func testNoRecoveryLoopWhenKeychainHasSameStaleToken() async throws {
+        let (service, _) = try makePermanentRefreshFailureService(storedAccessToken: "STALE")
+        service.cliKeychainLoader = { self.freshCreds(accessToken: "STALE") }  // 同一个失效 token
+
+        await service.fetchUsage()
+
+        XCTAssertFalse(service.isAuthenticated)
+        XCTAssertEqual(service.lastError, "Session expired — please sign in again")
+    }
+
+    func testHardExpiresWhenKeychainTokenAlreadyExpired() async throws {
+        let (service, _) = try makePermanentRefreshFailureService()
+        service.cliKeychainLoader = {
+            StoredCredentials(accessToken: "DIFFERENT_BUT_DEAD", refreshToken: "x",
+                              expiresAt: Date().addingTimeInterval(-10), scopes: UsageService.defaultOAuthScopes)
+        }
+
+        await service.fetchUsage()
+
+        XCTAssertFalse(service.isAuthenticated)
+        XCTAssertEqual(service.lastError, "Session expired — please sign in again")
+    }
+
+    func testNoRecoveryWhenMultipleAccounts() async throws {
+        // 在 init 前种两个账号；active(index 0) 带 refresh token + 过期 → 走 .permanentFailure。
+        let store = try makeStore()
+        let active = StoredAccount(
+            id: UUID(), label: "active",
+            addedAt: Date(timeIntervalSince1970: 1_700_000_000), lastUsed: Date(timeIntervalSince1970: 1_700_000_000),
+            credentials: StoredCredentials(accessToken: "stale-access", refreshToken: "refresh-old",
+                                           expiresAt: Date().addingTimeInterval(-60), scopes: UsageService.defaultOAuthScopes)
+        )
+        let other = StoredAccount(
+            id: UUID(), label: "other",
+            addedAt: Date(timeIntervalSince1970: 1_700_000_000), lastUsed: Date(timeIntervalSince1970: 1_700_000_000),
+            credentials: StoredCredentials(accessToken: "other-access", refreshToken: nil, expiresAt: nil, scopes: ["user:profile"])
+        )
+        try store.saveAccounts(StoredAccountsFile(version: 2, activeIndex: 0, accounts: [active, other]))
+        try store.save(active.credentials)  // v1 镜像
+
+        let tokenURL = URL(string: "https://example.com/v1/oauth/token")!
+        MockURLProtocol.handler = { request in
+            switch (request.httpMethod, request.url?.path) {
+            case ("POST", "/v1/oauth/token"):
+                return try Self.httpResponse(url: tokenURL, statusCode: 400, body: #"{"error":"invalid_grant"}"#)
+            default:
+                XCTFail("Unexpected request: \(request)")
+                return try Self.httpResponse(url: request.url!, statusCode: 500)
+            }
+        }
+        let service = UsageService(
+            session: makeSession(),
+            usageEndpoint: URL(string: "https://example.com/api/oauth/usage")!,
+            userinfoEndpoint: URL(string: "https://example.com/api/oauth/userinfo")!,
+            tokenEndpoint: tokenURL,
+            credentialsStore: store
+        )
+        XCTAssertEqual(service.accounts.count, 2)
+        service.cliKeychainLoader = { self.freshCreds(accessToken: "FRESH_FROM_KEYCHAIN") }
+
+        await service.fetchUsage()
+
+        XCTAssertFalse(service.isAuthenticated, "多账号 → 不走 Keychain 恢复")
+        XCTAssertEqual(service.lastError, "Session expired — please sign in again")
+    }
+
+    func testNormalRefreshSuccessDoesNotTouchKeychain() async throws {
+        let store = try makeStore()
+        try store.save(StoredCredentials(accessToken: "old-access", refreshToken: "refresh-old",
+                                         expiresAt: Date().addingTimeInterval(-60), scopes: UsageService.defaultOAuthScopes))
+        let usageURL = URL(string: "https://example.com/api/oauth/usage")!
+        let tokenURL = URL(string: "https://example.com/v1/oauth/token")!
+        let userinfoURL = URL(string: "https://example.com/api/oauth/userinfo")!
+        MockURLProtocol.handler = { request in
+            switch (request.httpMethod, request.url?.path) {
+            case ("POST", "/v1/oauth/token"):
+                return try Self.httpResponse(url: tokenURL, statusCode: 200,
+                    body: #"{"access_token":"new-access","refresh_token":"new-refresh","expires_in":3600}"#)
+            case ("GET", "/api/oauth/usage"):
+                return try Self.httpResponse(url: usageURL, statusCode: 200, body: #"{"five_hour":{"utilization":12.0}}"#)
+            case ("GET", "/api/oauth/userinfo"):
+                return try Self.httpResponse(url: userinfoURL, statusCode: 200, body: #"{"email":"a@b.c"}"#)
+            default:
+                XCTFail("Unexpected request: \(request)")
+                return try Self.httpResponse(url: request.url!, statusCode: 500)
+            }
+        }
+        let service = UsageService(
+            session: makeSession(),
+            usageEndpoint: usageURL,
+            userinfoEndpoint: userinfoURL,
+            tokenEndpoint: tokenURL,
+            credentialsStore: store
+        )
+        service.cliKeychainLoader = { XCTFail("正常 refresh 成功路径不该读 Keychain"); return nil }
+
+        await service.fetchUsage()
+
+        XCTAssertTrue(service.isAuthenticated)
+        XCTAssertNotNil(service.runtime.snapshot)
     }
 
     // MARK: - End-to-end refresh recovery simulation
