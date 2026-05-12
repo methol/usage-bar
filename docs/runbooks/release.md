@@ -67,8 +67,8 @@ swift build -c release
 swift test
 cd ..
 make release-artifacts
-bash macos/scripts/verify-release.sh macos/ClaudeUsageBar.zip
-bash macos/scripts/verify-release.sh macos/ClaudeUsageBar.dmg
+bash macos/scripts/verify-release.sh macos/UsageBar.zip
+bash macos/scripts/verify-release.sh macos/UsageBar.dmg
 ```
 
 判定：
@@ -77,11 +77,11 @@ bash macos/scripts/verify-release.sh macos/ClaudeUsageBar.dmg
 
 ## 4. Release artifacts 准备
 
-- [ ] `macos/ClaudeUsageBar.zip` 存在且 verify 通过
-- [ ] `macos/ClaudeUsageBar.dmg` 存在且 verify 通过
+- [ ] `macos/UsageBar.zip` 存在且 verify 通过
+- [ ] `macos/UsageBar.dmg` 存在且 verify 通过
 - [ ] 自 v0.2.1 公证后：检查 stapled ticket
   ```bash
-  spctl --assess --type execute --verbose=4 macos/ClaudeUsageBar.app
+  spctl --assess --type execute --verbose=4 macos/UsageBar.app
   ```
   期望输出含 `accepted`
 
@@ -152,7 +152,7 @@ git push origin ${VER}
 
 CI 完成后：
 - [ ] GitHub Release 已自动创建
-- [ ] 上传资源：`ClaudeUsageBar.zip` + `ClaudeUsageBar.dmg`
+- [ ] 上传资源：`UsageBar.zip` + `UsageBar.dmg`
 - [ ] release notes 含本版本 CHANGELOG entry（自动从 `release_notes_zh` 同步）
 - [ ] Sparkle appcast (`https://methol.github.io/usage-bar/appcast.xml`) 已更新
 - [ ] minor / major 版本：额外跑 `/ultrareview` 整体 review（G7）

@@ -135,7 +135,7 @@ reviews:
 
 ## 1. 背景与目标
 
-本仓库（`claude-usage-bar`，remote `github.com/methol/usage-bar`）从 `Blimp-Labs/claude-usage-bar` fork 而来，截止 fork 时上游已发到 **v0.0.6**（2026-03-10）。在 [docs/research/competitive-analysis.md](../../research/competitive-analysis.md) 中确立了下一阶段的产品方向：将 [SessionWatcher](https://www.sessionwatcher.com/) 的 UI/交互精致度 与 [CodexBar](https://github.com/steipete/CodexBar) 的功能广度/数据源健壮性融合，全栈坚持 Swift 原生。
+本仓库（`usage-bar`，remote `github.com/methol/usage-bar`）从 `Blimp-Labs/claude-usage-bar` fork 而来，截止 fork 时上游已发到 **v0.0.6**（2026-03-10）。在 [docs/research/competitive-analysis.md](../../research/competitive-analysis.md) 中确立了下一阶段的产品方向：将 [SessionWatcher](https://www.sessionwatcher.com/) 的 UI/交互精致度 与 [CodexBar](https://github.com/steipete/CodexBar) 的功能广度/数据源健壮性融合，全栈坚持 Swift 原生。
 
 这一升级路线涉及 ≥15 个独立功能模块、跨越数月、由 AI 主导。如果不先把文档治理框架立起来：
 
@@ -376,7 +376,7 @@ research/  ─G1─►  spec/ADR  ─G2─►  writing-plans  ─G3─►  imple
 cd macos && swift build -c release
 cd macos && swift test
 make release-artifacts            # 仅发版必要
-bash macos/scripts/verify-release.sh macos/ClaudeUsageBar.zip
+bash macos/scripts/verify-release.sh macos/UsageBar.zip
 
 # 纯文档版本（v0.0.7 类）
 # 见本 spec frontmatter automated_checks 中的 SC_AUTO_LINKCHECK / SC_AUTO_FRONTMATTER
@@ -478,7 +478,7 @@ bash macos/scripts/verify-release.sh macos/ClaudeUsageBar.zip
 | v0.2.3 | claude.ai cookie 回退路径 | `cookie-fallback` | 🔧 |
 | v0.2.4 | claude CLI PTY 兜底路径 | `cli-pty-fallback` | 🔧 |
 | v0.2.5 | WidgetKit 扩展（Usage / History / Compact） | `widgetkit` | 🔧 |
-| v0.2.6 | `claude-usage-bar` CLI 工具 | `cli-tool` | 🔧 |
+| v0.2.6 | `usage-bar` CLI 工具 | `cli-tool` | 🔧 |
 | **v0.3.0** | Phase 3 里程碑（平台能力完整） | — | 🏁 minor |
 | v0.3.x+ | 性能 / 能源 / a11y / 暗黑模式 / 中文 UI / 隐私 audit | 各自独立 spec | 0.x 持续 |
 | **v1.0.0** | 稳定可用 | 满足 §7.3 清单 | 🚀 major |

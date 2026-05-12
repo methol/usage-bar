@@ -11,11 +11,11 @@ related_adrs: [0001, 0002]
 related_research: [competitive-analysis]
 spec_criteria:
   - id: SC1
-    criterion: "新增 macos/Sources/ClaudeUsageBar/MenuBarDisplayMode.swift：enum MenuBarDisplayMode: String, CaseIterable, Identifiable { case icon, percent, percentWithTrend }；含 displayName 人类可读 label 与 storageKey 'menubarDisplayMode'；默认值 .icon"
+    criterion: "新增 macos/Sources/UsageBar/MenuBarDisplayMode.swift：enum MenuBarDisplayMode: String, CaseIterable, Identifiable { case icon, percent, percentWithTrend }；含 displayName 人类可读 label 与 storageKey 'menubarDisplayMode'；默认值 .icon"
     done: true
     evidence: "see ## Verification log"
   - id: SC2
-    criterion: "新增 macos/Sources/ClaudeUsageBar/MenuBarLabel.swift：SwiftUI View，根据 @AppStorage(MenuBarDisplayMode.storageKey) 切换三种显示分支：.icon → 现有 renderIcon / renderUnauthenticatedIcon；.percent → Text('5h N%' 或 '5h —')；.percentWithTrend → HStack(percent + trend)"
+    criterion: "新增 macos/Sources/UsageBar/MenuBarLabel.swift：SwiftUI View，根据 @AppStorage(MenuBarDisplayMode.storageKey) 切换三种显示分支：.icon → 现有 renderIcon / renderUnauthenticatedIcon；.percent → Text('5h N%' 或 '5h —')；.percentWithTrend → HStack(percent + trend)"
     done: true
     evidence: "see ## Verification log"
   - id: SC3
@@ -27,7 +27,7 @@ spec_criteria:
     done: true
     evidence: "see ## Verification log"
   - id: SC5
-    criterion: "macos/Sources/ClaudeUsageBar/ClaudeUsageBarApp.swift MenuBarExtra label 替换为 MenuBarLabel(service: service, historyService: historyService).task { ... }；.task 闭包保留不变；验证 .task 内 startPolling()/loadHistory() 重复执行幂等（startPolling→scheduleTimer 自带 timer?.invalidate；loadHistory 是覆盖式赋值），即使 SwiftUI 多次重渲染 label 也不引入累积副作用"
+    criterion: "macos/Sources/UsageBar/UsageBarApp.swift MenuBarExtra label 替换为 MenuBarLabel(service: service, historyService: historyService).task { ... }；.task 闭包保留不变；验证 .task 内 startPolling()/loadHistory() 重复执行幂等（startPolling→scheduleTimer 自带 timer?.invalidate；loadHistory 是覆盖式赋值），即使 SwiftUI 多次重渲染 label 也不引入累积副作用"
     done: true
     evidence: "see ## Verification log"
   - id: SC6
@@ -65,7 +65,7 @@ manual_checks:
   - "Settings 切换三种 displayMode，目视确认菜单栏 label 切换：.icon = 双进度条图标；.percent = 文本 '5h 42%'；.percentWithTrend = '5h 42% ▼5'（需 ≥6h history 才会有 trend）；.icon 仍是默认值"
   - "Settings 切换 displayMode 后菜单栏 label ≤1s 内立即响应（@AppStorage → SwiftUI 重渲染）"
   - "未登录状态下切到 .percent / .percentWithTrend，目视确认 label 显示 '5h —'（em-dash）无误导性内容；可接受不强制改为 'Sign in' 提示"
-  - "P2 commit 后 git diff --stat 确认仅触三文件（MenuBarLabel.swift / ClaudeUsageBarApp.swift / SettingsView.swift）；其余文件无改动（SC8 反向断言）"
+  - "P2 commit 后 git diff --stat 确认仅触三文件（MenuBarLabel.swift / UsageBarApp.swift / SettingsView.swift）；其余文件无改动（SC8 反向断言）"
 reviews:
   - gate: G2
     reviewer: codex:codex-rescue (general-purpose fallback, agentId a78db21ea62686f9e)
@@ -293,7 +293,7 @@ struct MenuBarLabel: View {
 }
 ```
 
-### 3.4 `ClaudeUsageBarApp.swift` 改动
+### 3.4 `UsageBarApp.swift` 改动
 
 ```swift
 // Before:
@@ -357,9 +357,9 @@ struct SettingsWindowContent: View {
 - **Success**: `swift test`（**全集**，G3 R3 修订 — 防新 enum/helper 引入命名冲突误伤其他测试，成本 < 10s）全绿；`swift build -c release` 绿
 - **覆盖 SC**: SC1, SC3（pure logic 部分）
 
-**Step P2 — 新增 MenuBarLabel.swift + ClaudeUsageBarApp 接入 + Settings Picker**（Commit C，刻意合并）
+**Step P2 — 新增 MenuBarLabel.swift + UsageBarApp 接入 + Settings Picker**（Commit C，刻意合并）
 - 新增 `MenuBarLabel.swift`
-- ClaudeUsageBarApp.swift MenuBarExtra label 替换为 MenuBarLabel（保留 .task）
+- UsageBarApp.swift MenuBarExtra label 替换为 MenuBarLabel（保留 .task）
 - SettingsWindowContent 加 displayMode Picker
 - **Success**: `swift build -c release && swift test` 全绿；启动 .app 进程不崩；Settings 能看到 Picker
 - **覆盖 SC**: SC2, SC4, SC5, SC6, SC7, SC8, SC9, SC10
@@ -382,11 +382,11 @@ struct SettingsWindowContent: View {
 
 | 动作 | 文件 | 备注 |
 |---|---|---|
-| 🆕 | `macos/Sources/ClaudeUsageBar/MenuBarDisplayMode.swift` | enum + formatMenuBarPercent helper |
-| 🆕 | `macos/Sources/ClaudeUsageBar/MenuBarLabel.swift` | SwiftUI View，3 分支切换 |
-| 🆕 | `macos/Tests/ClaudeUsageBarTests/MenuBarDisplayModeTests.swift` | ≥3 case |
-| 🔧 | `macos/Sources/ClaudeUsageBar/ClaudeUsageBarApp.swift` | MenuBarExtra label 替换为 MenuBarLabel；.task 保留 |
-| 🔧 | `macos/Sources/ClaudeUsageBar/SettingsView.swift` | General section 加 displayMode Picker |
+| 🆕 | `macos/Sources/UsageBar/MenuBarDisplayMode.swift` | enum + formatMenuBarPercent helper |
+| 🆕 | `macos/Sources/UsageBar/MenuBarLabel.swift` | SwiftUI View，3 分支切换 |
+| 🆕 | `macos/Tests/UsageBarTests/MenuBarDisplayModeTests.swift` | ≥3 case |
+| 🔧 | `macos/Sources/UsageBar/UsageBarApp.swift` | MenuBarExtra label 替换为 MenuBarLabel；.task 保留 |
+| 🔧 | `macos/Sources/UsageBar/SettingsView.swift` | General section 加 displayMode Picker |
 | 🔧 | `docs/versions/v0.0.10-menubar-display-modes.md` | placeholder→planned→in-progress |
 | 🔧 | `docs/versions/README.md` / `docs/superpowers/specs/README.md` | 索引同步 |
 | 🔧 | `CHANGELOG.md` | append v0.0.10 entry |
@@ -426,10 +426,10 @@ struct SettingsWindowContent: View {
 - [x] SC2 — evidence: commit `51c824a` 新增 `MenuBarLabel.swift`；G5 修订 commit `ec83e67` 简化为直接 @AppStorage(.icon) 绑定
 - [x] SC3 — evidence: commit `b186749` 新增 `formatMenuBarPercent(utilization:prefix:)` + 9 case 单测覆盖（含 nil / 0 / 100 边界 / round / 不同 prefix）
 - [x] SC4 — evidence: `MenuBarLabel.swift` body `.percentWithTrend` 分支 HStack(percent + 可选 ▲N/▼N) + foregroundStyle(.red/.green)；trend 复用 v0.0.9 computeTrend；commit `51c824a`
-- [x] SC5 — evidence: commit `51c824a` `ClaudeUsageBarApp.swift:18` MenuBarExtra label 替换为 MenuBarLabel(...)；.task 闭包保留；G2 B1 已论证 startPolling→scheduleTimer 幂等（UsageService.swift:103-122 timer?.invalidate）
+- [x] SC5 — evidence: commit `51c824a` `UsageBarApp.swift:18` MenuBarExtra label 替换为 MenuBarLabel(...)；.task 闭包保留；G2 B1 已论证 startPolling→scheduleTimer 幂等（UsageService.swift:103-122 timer?.invalidate）
 - [x] SC6 — evidence: commit `51c824a` SettingsView.swift General section 加 Picker；G5 B1 修订 commit `ec83e67` 改为 @AppStorage 直接绑定 enum + Picker(selection: $menubarMode) 干净写法，与 MenuBarLabel 对称（消除双轨写）
 - [x] SC7 — evidence: 两处 @AppStorage 默认值都是 `.icon`（MenuBarLabel.swift / SettingsView.swift），新装 / 升级用户视觉无变化（仍是双进度条图标）；MenuBarDisplayModeTests.testDisplayModeDefaultIsIcon 防御此契约
-- [x] SC8 — evidence: `git diff 97c2359..ec83e67 --stat` 仅触 5 文件（spec 4 + macos 5：MenuBarDisplayMode.swift + MenuBarLabel.swift + MenuBarDisplayModeTests.swift + ClaudeUsageBarApp.swift + SettingsView.swift）；MenuBarIconRenderer.swift / UsageService.swift / UsageHistoryService.swift / NotificationService.swift / PopoverView.swift / UsageHeroCard.swift / TrendCalculator.swift / 模型层 0 改动 ✅
+- [x] SC8 — evidence: `git diff 97c2359..ec83e67 --stat` 仅触 5 文件（spec 4 + macos 5：MenuBarDisplayMode.swift + MenuBarLabel.swift + MenuBarDisplayModeTests.swift + UsageBarApp.swift + SettingsView.swift）；MenuBarIconRenderer.swift / UsageService.swift / UsageHistoryService.swift / NotificationService.swift / PopoverView.swift / UsageHeroCard.swift / TrendCalculator.swift / 模型层 0 改动 ✅
 - [x] SC9 — evidence: `cd macos && swift build -c release` 输出 `Build complete!`（多次复跑均绿）
 - [x] SC10 — evidence: `cd macos && swift test` `Executed 69 tests, with 0 failures` ✅
 - [x] SC11 — evidence: 5 个中文 commit 均含 spec id（97c2359 / b186749 / 51c824a / ec83e67 / 本 commit）；spec.reviews 数组含 G2 / G3 / G5 / G6 共 4 条 verdict

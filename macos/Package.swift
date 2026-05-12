@@ -3,7 +3,7 @@
 import PackageDescription
 
 let package = Package(
-    name: "ClaudeUsageBar",
+    name: "UsageBar",
     defaultLocalization: "en",
     platforms: [
         .macOS(.v14)
@@ -13,11 +13,11 @@ let package = Package(
     ],
     targets: [
         .executableTarget(
-            name: "ClaudeUsageBar",
+            name: "UsageBar",
             dependencies: [
                 .product(name: "Sparkle", package: "Sparkle")
             ],
-            path: "Sources/ClaudeUsageBar",
+            path: "Sources/UsageBar",
             resources: [
                 .process("Resources")
             ],
@@ -26,9 +26,9 @@ let package = Package(
             ]
         ),
         .testTarget(
-            name: "ClaudeUsageBarTests",
-            dependencies: ["ClaudeUsageBar"],
-            path: "Tests/ClaudeUsageBarTests"
+            name: "UsageBarTests",
+            dependencies: ["UsageBar"],
+            path: "Tests/UsageBarTests"
         )
     ]
 )

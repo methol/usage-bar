@@ -11,11 +11,11 @@ related_adrs: [0001, 0002]
 related_research: [competitive-analysis]
 spec_criteria:
   - id: SC1
-    criterion: "新增 macos/Sources/ClaudeUsageBar/UsageHeroCard.swift（独立文件，按一主视图一文件惯例），单一组件支持 hero / secondary 两档尺寸"
+    criterion: "新增 macos/Sources/UsageBar/UsageHeroCard.swift（独立文件，按一主视图一文件惯例），单一组件支持 hero / secondary 两档尺寸"
     done: true
     evidence: "commit ab12f14"
   - id: SC2
-    criterion: "新增 macos/Sources/ClaudeUsageBar/ResetCountdownFormatter.swift，纯逻辑函数 formatResetCountdown(date:now:) -> String?；ResetCountdownFormatterTests 至少含 3 个 case（≥1h 紧凑格式 / 分钟级 / nil 输入），§3.5 列出的 5 个 case 为推荐全覆盖（实施时 ≥3 即满足 SC2）"
+    criterion: "新增 macos/Sources/UsageBar/ResetCountdownFormatter.swift，纯逻辑函数 formatResetCountdown(date:now:) -> String?；ResetCountdownFormatterTests 至少含 3 个 case（≥1h 紧凑格式 / 分钟级 / nil 输入），§3.5 列出的 5 个 case 为推荐全覆盖（实施时 ≥3 即满足 SC2）"
     done: true
     evidence: "see ## Verification log"
   - id: SC3
@@ -133,7 +133,7 @@ reviews:
         极小；统一 a11y audit 在 v1.0 #12 处理（v1.0 硬清单）。
       - N2（#Preview 生产剥离）confirmed ✅。
       - N3（未触文件 grep 验证）confirmed：UsageService / Settings /
-        UsageChart / Notifications / StoredCredentials / ClaudeUsageBarApp /
+        UsageChart / Notifications / StoredCredentials / UsageBarApp /
         AppUpdater / UsageHistoryService 在 commit B/C/c566db9 均无改动，
         SC8 无回归 ✅。
       - N4（commit B/C 独立可 revert）confirmed ✅。
@@ -149,7 +149,7 @@ reviews:
         `swift test` 49/49（含 ResetCountdownFormatterTests 6 个用例）✅
       - 视觉验证：UsageHeroCard.swift 含 #Preview 三档示例供 Xcode preview
         与 G5 reviewer 看代码确认；菜单栏 popover 视觉细节由用户在
-        ClaudeUsageBar.app（make app + open）目视确认（manual_checks 5 点）
+        UsageBar.app（make app + open）目视确认（manual_checks 5 点）
       - 治理流程：G2/G3/G5 三轮独立 reviewer verdict 全数 approved-after-revisions，
         作者按 superpowers:receiving-code-review 逐条响应 BLOCKING/RECOMMENDED/NOTES，
         rejection 均 reasoned（spec §10 / spec.reviews summary）
@@ -187,7 +187,7 @@ reviews:
 | Reset countdown | 紧凑格式 "1h 23m" / "12m"（替换 SwiftUI 默认 `.relative` "in 1 hour"） | 紧凑 hero 卡片需要更短文本；可单测 |
 | Frame 宽度 | 340 → 360pt | hero 数字 + countdown 在 340pt 下偏挤；360 仍属菜单栏 popover 可接受范围 |
 | 文件拆分 | 新增 `UsageHeroCard.swift` + `ResetCountdownFormatter.swift`，`PopoverView.swift` 仍保留 SetupView/CodeEntryView/UsageBucketRow/ExtraUsageRow | 一主视图一文件惯例（CLAUDE.md），但只拆受影响的；surgical changes |
-| 测试策略 | 仅对 `ResetCountdownFormatter` 加单测（≥3 case）；视觉用 manual check | 与现有 ClaudeUsageBarTests 惯例一致（无 SwiftUI snapshot 测试） |
+| 测试策略 | 仅对 `ResetCountdownFormatter` 加单测（≥3 case）；视觉用 manual check | 与现有 UsageBarTests 惯例一致（无 SwiftUI snapshot 测试） |
 
 ## 3. 设计
 
@@ -313,7 +313,7 @@ UsageHeroCard(size: .secondary, label: "7-Day", bucket: service.usage?.sevenDay)
 
 ### 3.5 测试
 
-`Tests/ClaudeUsageBarTests/ResetCountdownFormatterTests.swift`：
+`Tests/UsageBarTests/ResetCountdownFormatterTests.swift`：
 
 - `testHourMinute`: now+1h23m → "1h 23m"
 - `testMinuteOnly`: now+12m → "12m"
@@ -333,19 +333,19 @@ UsageHeroCard(size: .secondary, label: "7-Day", bucket: service.usage?.sevenDay)
 - **覆盖 SC**: 无（文档基础设施，为后续 SC evidence 提供载体）
 
 **Step P1 — 新增 ResetCountdownFormatter + 单测**（pure logic，无 UI 依赖）
-- 新增 `macos/Sources/ClaudeUsageBar/ResetCountdownFormatter.swift`（顶层函数 `formatResetCountdown(date:now:)`）
-- 新增 `macos/Tests/ClaudeUsageBarTests/ResetCountdownFormatterTests.swift`（≥3 case：testHourMinute / testMinuteOnly / testNilDate；可选 testPast / testSubMinute）
+- 新增 `macos/Sources/UsageBar/ResetCountdownFormatter.swift`（顶层函数 `formatResetCountdown(date:now:)`）
+- 新增 `macos/Tests/UsageBarTests/ResetCountdownFormatterTests.swift`（≥3 case：testHourMinute / testMinuteOnly / testNilDate；可选 testPast / testSubMinute）
 - **测试时间注入约定**：每个测试方法构造局部 `let now = Date()`，两个参数都用同一 now 防 wall clock 漂移；签名默认参数 `now: Date = Date()` 仅供生产代码方便，**单测必须显式传两参**
 - **Success**: `cd macos && swift test --filter ResetCountdownFormatterTests` 全绿
 - **覆盖 SC**: SC2
 
 **Step P2 — colorForPct 访问级别修复**（PopoverView.swift 一行改）
 - `private func colorForPct` → `func colorForPct`（去掉 `private`，默认 internal，跨文件可见）
-- **Success**: `cd macos && swift build -c release` 仍绿（行为不变，仅可见性放宽）；`git diff macos/Sources/ClaudeUsageBar/PopoverView.swift` 仅含 1 行 access modifier 变更
+- **Success**: `cd macos && swift build -c release` 仍绿（行为不变，仅可见性放宽）；`git diff macos/Sources/UsageBar/PopoverView.swift` 仅含 1 行 access modifier 变更
 - **覆盖 SC**: 无独立 SC；P2 commit hash 计入 SC1 evidence chain（为 P3 跨文件调用 colorForPct 的前置）
 
 **Step P3 — 新增 UsageHeroCard.swift**（含 UsageHeroCard + CapsuleProgressBar）
-- 新增 `macos/Sources/ClaudeUsageBar/UsageHeroCard.swift`（按 §3.2 实现）
+- 新增 `macos/Sources/UsageBar/UsageHeroCard.swift`（按 §3.2 实现）
 - 不修改 PopoverView 主视图
 - **Success**: `cd macos && swift build -c release` 绿；新增类型 internal 可见、未引用不报 unused warning
 - **覆盖 SC**: 无独立 evidence — SC1/SC4/SC5/SC6 的 evidence 在 **P4 接入后统一收集**（P3 是中间态，若 G6 时只 build 不接入将无法目视验证字号/进度条/着色，故依赖 P4）
@@ -382,10 +382,10 @@ UsageHeroCard(size: .secondary, label: "7-Day", bucket: service.usage?.sevenDay)
 
 | 动作 | 文件 | 备注 |
 |---|---|---|
-| 🆕 | `macos/Sources/ClaudeUsageBar/UsageHeroCard.swift` | 含 UsageHeroCard + CapsuleProgressBar + colorForPct（colorForPct 从 PopoverView 移过来） |
-| 🆕 | `macos/Sources/ClaudeUsageBar/ResetCountdownFormatter.swift` | 纯逻辑顶层函数 |
-| 🆕 | `macos/Tests/ClaudeUsageBarTests/ResetCountdownFormatterTests.swift` | XCTest，5 个 case |
-| 🔧 | `macos/Sources/ClaudeUsageBar/PopoverView.swift` | usageView 替换 hero/secondary；frame 340→360；`colorForPct` 仍留此文件但 `private`→默认 internal，让 UsageHeroCard 跨文件调用；UsageBucketRow 保留给 Per-Model |
+| 🆕 | `macos/Sources/UsageBar/UsageHeroCard.swift` | 含 UsageHeroCard + CapsuleProgressBar + colorForPct（colorForPct 从 PopoverView 移过来） |
+| 🆕 | `macos/Sources/UsageBar/ResetCountdownFormatter.swift` | 纯逻辑顶层函数 |
+| 🆕 | `macos/Tests/UsageBarTests/ResetCountdownFormatterTests.swift` | XCTest，5 个 case |
+| 🔧 | `macos/Sources/UsageBar/PopoverView.swift` | usageView 替换 hero/secondary；frame 340→360；`colorForPct` 仍留此文件但 `private`→默认 internal，让 UsageHeroCard 跨文件调用；UsageBucketRow 保留给 Per-Model |
 | 🔧 | `docs/versions/v0.0.8-hero-popover.md` | status placeholder→planned→in-progress；includes_specs；删 guardrail；填 release_notes_zh |
 | 🔧 | `docs/versions/README.md` | 索引表 v0.0.8 status 列同步 |
 | 🔧 | `docs/superpowers/specs/README.md` | 索引表 append 本 spec |
@@ -420,14 +420,14 @@ UsageHeroCard(size: .secondary, label: "7-Day", bucket: service.usage?.sevenDay)
 
 > G6 验收依据。每条 SC 完成时勾选并填 evidence。
 
-- [x] SC1 — evidence: commit `ab12f14` 新增 `macos/Sources/ClaudeUsageBar/UsageHeroCard.swift`，含 UsageHeroCard struct（hero/secondary 双档 size enum）+ CapsuleProgressBar + #Preview
+- [x] SC1 — evidence: commit `ab12f14` 新增 `macos/Sources/UsageBar/UsageHeroCard.swift`，含 UsageHeroCard struct（hero/secondary 双档 size enum）+ CapsuleProgressBar + #Preview
 - [x] SC2 — evidence: commit `ab12f14` 新增 `ResetCountdownFormatter.swift` + `ResetCountdownFormatterTests.swift`（5 case），commit `c566db9` 加 testExactHour 共 6 case；swift test --filter ResetCountdownFormatterTests 6/6 ✅
 - [x] SC3 — evidence: commit `9c8f397` PopoverView.usageView 5h `UsageBucketRow` → `UsageHeroCard(.hero, "5-Hour", fiveHour)`、7d → `UsageHeroCard(.secondary, "7-Day", sevenDay)`；UsageBucketRow 仅保留给 Per-Model（Opus/Sonnet）
 - [x] SC4 — evidence: UsageHeroCard.swift `pctFontSize` 在 .hero 时 = 56；rounded design + semibold + monospacedDigit；着色由 commit `c566db9` 提取的 `pctColor` computed property（colorForPct 复用）；reset countdown 用 formatResetCountdown 紧凑格式
 - [x] SC5 — evidence: UsageHeroCard.swift `pctFontSize` 在 .secondary 时 = 28（在 24-32pt 区间内）；同 monospacedDigit；着色复用 colorForPct
 - [x] SC6 — evidence: CapsuleProgressBar 用 `Capsule().fill(.secondary.opacity(0.15)).overlay(alignment: .leading)` 内 GeometryReader+Capsule().fill(color)；`.frame(height: 8)` 由 caller 设置；hero/secondary 共用同一 CapsuleProgressBar
 - [x] SC7 — evidence: commit `9c8f397` PopoverView.swift `frame(width: 340)` → `frame(width: 360)`
-- [x] SC8 — evidence: G5 review N3 grep 验证 `git diff HEAD~3..HEAD` 对 UsageService / Settings / UsageChart / Notifications / StoredCredentials / ClaudeUsageBarApp / AppUpdater / UsageHistoryService / ExtraUsageRow 差异行数 = 0；.app 启动后进程不崩（PID 13588）
+- [x] SC8 — evidence: G5 review N3 grep 验证 `git diff HEAD~3..HEAD` 对 UsageService / Settings / UsageChart / Notifications / StoredCredentials / UsageBarApp / AppUpdater / UsageHistoryService / ExtraUsageRow 差异行数 = 0；.app 启动后进程不崩（PID 13588）
 - [x] SC9 — evidence: `cd macos && swift build -c release` 输出 `Build complete!`（多次复跑均绿）
 - [x] SC10 — evidence: `cd macos && swift test` `Executed 49 tests, with 0 failures` ✅
 - [x] SC11 — evidence: 4 个中文 commit 均含 spec id（2c99ea1 / ab12f14 / 9c8f397 / c566db9）；spec.reviews 数组含 G2 / G3 / G5 / G6 共 4 条 verdict

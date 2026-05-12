@@ -18,7 +18,7 @@
 - `func colorForPct(_ pct: Double) -> Color`（`PopoverView.swift` 文件作用域，pct 入参是 0...1）。
 - `struct CapsuleProgressBar { let value: Double; let color: Color }`（`UsageHeroCard.swift`，value 期望 0...1）。
 - 折线图 `UsageChartView.swift` 里 `struct UsageChartView` 是死代码（grep 确认仅其定义 + 一句注释提到名字，无引用）；活的是 `UsageChartSectionView` → 私有 `UsageChartContentView`。
-- 测试文件均在 `macos/Tests/ClaudeUsageBarTests/`；`ResetCountdownFormatterTests.swift` 已存在（追加），`UsagePaceAreaTests.swift` / `UsageProviderTests.swift` 需新建。
+- 测试文件均在 `macos/Tests/UsageBarTests/`；`ResetCountdownFormatterTests.swift` 已存在（追加），`UsagePaceAreaTests.swift` / `UsageProviderTests.swift` 需新建。
 - commit message 用中文，结尾带 `Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>`，并在 subject 带 `[spec:2026-05-12-popover-redesign]`。
 
 ---
@@ -27,15 +27,15 @@
 
 | 动作 | 文件 | 职责 |
 |---|---|---|
-| 🔧 | `macos/Sources/ClaudeUsageBar/ResetCountdownFormatter.swift` | 加 `formatResetWithClock(date:now:)` |
-| 🔧 | `macos/Tests/ClaudeUsageBarTests/ResetCountdownFormatterTests.swift` | 追加 `formatResetWithClock` 测试 |
-| 🆕 | `macos/Sources/ClaudeUsageBar/ProviderTabBar.swift` | `enum UsageProvider` + `struct ProviderTabBar` + `struct ProviderComingSoonView`（私有） |
-| 🆕 | `macos/Tests/ClaudeUsageBarTests/UsageProviderTests.swift` | `UsageProvider` 枚举逻辑测试 |
-| 🆕 | `macos/Tests/ClaudeUsageBarTests/UsagePaceAreaTests.swift` | `UsagePaceArea.series` 测试 |
-| 🔧 | `macos/Sources/ClaudeUsageBar/UsageChartView.swift` | 删死代码 `struct UsageChartView`；加 `struct PacePoint` + `enum UsagePaceArea`；`UsageChartSectionView`/`UsageChartContentView` 加 `fiveHourResetDate`/`sevenDayResetDate` 参数（默认 nil）；`chartView` 在最前面加两组 `AreaMark` |
-| 🆕 | `macos/Sources/ClaudeUsageBar/UsageCard.swift` | `struct UsageCard<Content: View>` 圆角卡片容器 |
-| 🔧 | `macos/Sources/ClaudeUsageBar/UsageHeroCard.swift` | 删 `enum UsageCardSize`；`UsageHeroCard` 去 `size` 参、加 `icon: String`、改 3 行布局、加 `paceWord(_:)`；更新 `#Preview` |
-| 🔧 | `macos/Sources/ClaudeUsageBar/PopoverView.swift` | 渐变背景；`ProviderTabBar` + `@State selectedProvider` + ComingSoon 路由；删 `Text("Claude Usage")`；各内容区块换 `UsageCard` 并删区块间 `Divider()`；算 `pace7d` 传 7d 卡；给 `UsageChartSectionView` 传 reset 日期；两处 `UsageHeroCard` 调用更新（去 `size:`、加 `icon:`） |
+| 🔧 | `macos/Sources/UsageBar/ResetCountdownFormatter.swift` | 加 `formatResetWithClock(date:now:)` |
+| 🔧 | `macos/Tests/UsageBarTests/ResetCountdownFormatterTests.swift` | 追加 `formatResetWithClock` 测试 |
+| 🆕 | `macos/Sources/UsageBar/ProviderTabBar.swift` | `enum UsageProvider` + `struct ProviderTabBar` + `struct ProviderComingSoonView`（私有） |
+| 🆕 | `macos/Tests/UsageBarTests/UsageProviderTests.swift` | `UsageProvider` 枚举逻辑测试 |
+| 🆕 | `macos/Tests/UsageBarTests/UsagePaceAreaTests.swift` | `UsagePaceArea.series` 测试 |
+| 🔧 | `macos/Sources/UsageBar/UsageChartView.swift` | 删死代码 `struct UsageChartView`；加 `struct PacePoint` + `enum UsagePaceArea`；`UsageChartSectionView`/`UsageChartContentView` 加 `fiveHourResetDate`/`sevenDayResetDate` 参数（默认 nil）；`chartView` 在最前面加两组 `AreaMark` |
+| 🆕 | `macos/Sources/UsageBar/UsageCard.swift` | `struct UsageCard<Content: View>` 圆角卡片容器 |
+| 🔧 | `macos/Sources/UsageBar/UsageHeroCard.swift` | 删 `enum UsageCardSize`；`UsageHeroCard` 去 `size` 参、加 `icon: String`、改 3 行布局、加 `paceWord(_:)`；更新 `#Preview` |
+| 🔧 | `macos/Sources/UsageBar/PopoverView.swift` | 渐变背景；`ProviderTabBar` + `@State selectedProvider` + ComingSoon 路由；删 `Text("Claude Usage")`；各内容区块换 `UsageCard` 并删区块间 `Divider()`；算 `pace7d` 传 7d 卡；给 `UsageChartSectionView` 传 reset 日期；两处 `UsageHeroCard` 调用更新（去 `size:`、加 `icon:`） |
 | ✅ 不动 | `UsageService.swift` / `UsageHistoryService.swift` / `UsageStatsService.swift` / `PaceCalculator.swift` / `UsageModel.swift` / `UsageChartInterpolation*` / `chartOverlay`/`tooltipView`/`chartForegroundStyleScale`/图例 | 本计划不碰 |
 
 ---
@@ -43,8 +43,8 @@
 ## Task 1: `formatResetWithClock` 文案格式化函数（TDD）
 
 **Files:**
-- Modify: `macos/Sources/ClaudeUsageBar/ResetCountdownFormatter.swift`
-- Test: `macos/Tests/ClaudeUsageBarTests/ResetCountdownFormatterTests.swift`
+- Modify: `macos/Sources/UsageBar/ResetCountdownFormatter.swift`
+- Test: `macos/Tests/UsageBarTests/ResetCountdownFormatterTests.swift`
 
 - [ ] **Step 1: 写失败测试**
 
@@ -131,7 +131,7 @@ Expected: PASS
 - [ ] **Step 6: commit**
 
 ```bash
-git add macos/Sources/ClaudeUsageBar/ResetCountdownFormatter.swift macos/Tests/ClaudeUsageBarTests/ResetCountdownFormatterTests.swift
+git add macos/Sources/UsageBar/ResetCountdownFormatter.swift macos/Tests/UsageBarTests/ResetCountdownFormatterTests.swift
 git commit -m "$(cat <<'EOF'
 feat: formatResetWithClock — 卡片底行 "Resets in: 2h 44m at 11:44 PM" / "4 days 5h 59m" [spec:2026-05-12-popover-redesign]
 
@@ -145,16 +145,16 @@ EOF
 ## Task 2: `UsageProvider` 枚举 + `ProviderTabBar` 视图
 
 **Files:**
-- Create: `macos/Sources/ClaudeUsageBar/ProviderTabBar.swift`
-- Test: `macos/Tests/ClaudeUsageBarTests/UsageProviderTests.swift`
+- Create: `macos/Sources/UsageBar/ProviderTabBar.swift`
+- Test: `macos/Tests/UsageBarTests/UsageProviderTests.swift`
 
 - [ ] **Step 1: 写失败测试**
 
-新建 `macos/Tests/ClaudeUsageBarTests/UsageProviderTests.swift`：
+新建 `macos/Tests/UsageBarTests/UsageProviderTests.swift`：
 
 ```swift
 import XCTest
-@testable import ClaudeUsageBar
+@testable import UsageBar
 
 final class UsageProviderTests: XCTestCase {
     func testAllCasesOrder() {
@@ -183,7 +183,7 @@ Expected: FAIL（`UsageProvider` 未定义）
 
 - [ ] **Step 3: 实现 `ProviderTabBar.swift`**
 
-新建 `macos/Sources/ClaudeUsageBar/ProviderTabBar.swift`：
+新建 `macos/Sources/UsageBar/ProviderTabBar.swift`：
 
 ```swift
 import SwiftUI
@@ -289,7 +289,7 @@ Expected: PASS
 - [ ] **Step 6: commit**
 
 ```bash
-git add macos/Sources/ClaudeUsageBar/ProviderTabBar.swift macos/Tests/ClaudeUsageBarTests/UsageProviderTests.swift
+git add macos/Sources/UsageBar/ProviderTabBar.swift macos/Tests/UsageBarTests/UsageProviderTests.swift
 git commit -m "$(cat <<'EOF'
 feat: UsageProvider 枚举 + ProviderTabBar / ProviderComingSoonView 视图（仅 Claude 可用）[spec:2026-05-12-popover-redesign]
 
@@ -303,16 +303,16 @@ EOF
 ## Task 3: `PacePoint` + `UsagePaceArea.series`（TDD）
 
 **Files:**
-- Modify: `macos/Sources/ClaudeUsageBar/UsageChartView.swift`（在文件末尾、`UsageChartInterpolation` 之后追加）
-- Test: `macos/Tests/ClaudeUsageBarTests/UsagePaceAreaTests.swift`
+- Modify: `macos/Sources/UsageBar/UsageChartView.swift`（在文件末尾、`UsageChartInterpolation` 之后追加）
+- Test: `macos/Tests/UsageBarTests/UsagePaceAreaTests.swift`
 
 - [ ] **Step 1: 写失败测试**
 
-新建 `macos/Tests/ClaudeUsageBarTests/UsagePaceAreaTests.swift`：
+新建 `macos/Tests/UsageBarTests/UsagePaceAreaTests.swift`：
 
 ```swift
 import XCTest
-@testable import ClaudeUsageBar
+@testable import UsageBar
 
 final class UsagePaceAreaTests: XCTestCase {
     func testNilResetReturnsEmpty() {
@@ -384,7 +384,7 @@ Expected: FAIL（`UsagePaceArea` / `PacePoint` 未定义）
 
 - [ ] **Step 3: 实现**
 
-在 `macos/Sources/ClaudeUsageBar/UsageChartView.swift` 文件末尾（`UsageChartInterpolation` 之后）追加：
+在 `macos/Sources/UsageBar/UsageChartView.swift` 文件末尾（`UsageChartInterpolation` 之后）追加：
 
 ```swift
 // MARK: - Pace area
@@ -437,7 +437,7 @@ Expected: PASS
 - [ ] **Step 6: commit**
 
 ```bash
-git add macos/Sources/ClaudeUsageBar/UsageChartView.swift macos/Tests/ClaudeUsageBarTests/UsagePaceAreaTests.swift
+git add macos/Sources/UsageBar/UsageChartView.swift macos/Tests/UsageBarTests/UsagePaceAreaTests.swift
 git commit -m "$(cat <<'EOF'
 feat: UsagePaceArea.series — 折线图 pace 面积序列（窗口回推近似 + 跨窗口锯齿）[spec:2026-05-12-popover-redesign]
 
@@ -451,7 +451,7 @@ EOF
 ## Task 4: 折线图 — 删死代码 + 接 reset 日期参数 + 叠 pace AreaMark
 
 **Files:**
-- Modify: `macos/Sources/ClaudeUsageBar/UsageChartView.swift`
+- Modify: `macos/Sources/UsageBar/UsageChartView.swift`
 
 > 目标：删 `struct UsageChartView`（死代码）；`UsageChartSectionView` 和私有 `UsageChartContentView` 各加两个**带默认值 `= nil`** 的参数 `fiveHourResetDate: Date?` / `sevenDayResetDate: Date?`（这样 `PopoverView` 现有调用先不改也能编译）；`UsageChartContentView.chartView` 在 `Chart { }` 最前面叠两组 `AreaMark`。
 
@@ -574,7 +574,7 @@ Expected: PASS（`PopoverView` 现有 `UsageChartSectionView(historyService:rece
 - [ ] **Step 5: commit**
 
 ```bash
-git add macos/Sources/ClaudeUsageBar/UsageChartView.swift
+git add macos/Sources/UsageBar/UsageChartView.swift
 git commit -m "$(cat <<'EOF'
 feat: 折线图叠极浅 5h/7d pace 面积 + 删死代码 UsageChartView struct [spec:2026-05-12-popover-redesign]
 
@@ -588,7 +588,7 @@ EOF
 ## Task 5: `UsageCard` 圆角卡片容器
 
 **Files:**
-- Create: `macos/Sources/ClaudeUsageBar/UsageCard.swift`
+- Create: `macos/Sources/UsageBar/UsageCard.swift`
 
 - [ ] **Step 1: 实现**
 
@@ -636,7 +636,7 @@ Expected: PASS
 - [ ] **Step 3: commit**
 
 ```bash
-git add macos/Sources/ClaudeUsageBar/UsageCard.swift
+git add macos/Sources/UsageBar/UsageCard.swift
 git commit -m "$(cat <<'EOF'
 feat: UsageCard — popover 区块统一圆角卡片容器 [spec:2026-05-12-popover-redesign]
 
@@ -650,8 +650,8 @@ EOF
 ## Task 6: 重做 `UsageHeroCard`（去 size、加 icon、新 3 行布局、paceWord）
 
 **Files:**
-- Modify: `macos/Sources/ClaudeUsageBar/UsageHeroCard.swift`
-- Modify: `macos/Sources/ClaudeUsageBar/PopoverView.swift`（仅最小改两处 `UsageHeroCard(...)` 调用使其编译；完整重排留到 Task 7）
+- Modify: `macos/Sources/UsageBar/UsageHeroCard.swift`
+- Modify: `macos/Sources/UsageBar/PopoverView.swift`（仅最小改两处 `UsageHeroCard(...)` 调用使其编译；完整重排留到 Task 7）
 
 - [ ] **Step 1: 重写 `UsageHeroCard.swift`**
 
@@ -799,7 +799,7 @@ Expected: PASS
 - [ ] **Step 4: commit**
 
 ```bash
-git add macos/Sources/ClaudeUsageBar/UsageHeroCard.swift macos/Sources/ClaudeUsageBar/PopoverView.swift
+git add macos/Sources/UsageBar/UsageHeroCard.swift macos/Sources/UsageBar/PopoverView.swift
 git commit -m "$(cat <<'EOF'
 feat: UsageHeroCard 重做 — 去双尺寸/加 icon/三行布局（Resets in: X at TIME + Pace: safe-fast）+ 7d 也算 pace [spec:2026-05-12-popover-redesign]
 
@@ -813,7 +813,7 @@ EOF
 ## Task 7: `PopoverView` 完整重排（tab + 渐变背景 + 卡片化 + 接图 reset 日期）
 
 **Files:**
-- Modify: `macos/Sources/ClaudeUsageBar/PopoverView.swift`
+- Modify: `macos/Sources/UsageBar/PopoverView.swift`
 
 - [ ] **Step 1: 加 `selectedProvider` 状态 + 渐变背景 + tab 路由**
 
@@ -942,12 +942,12 @@ Expected: PASS
 
 - [ ] **Step 4: 目测（人工 / 截图）**
 
-`make app && open macos/ClaudeUsageBar.app`（或既有的本地运行方式）。检查：① 顶部 5 个 provider 药丸，Claude 选中（白底+轻阴影），其余 dimmed；点 Codex → 显示「Codex 支持开发中，敬请期待」+「← 回到 Claude」，点回来正常。② 两个用量卡是圆角卡片，左上 clock/calendar 图标 + 标题，右上 大一号百分比（颜色随档位）+ 趋势箭头；进度条；底行「Resets in: Xh Ym at H:MM AM/PM」（5h，<24h）/「X days Yh Zm」（7d），右侧「Pace: safe/fast」。③ popover 背景有极淡渐变（不刺眼）。④ 折线图区在卡片里，原两条折线 + 悬停明细不变，下方有极浅蓝（5h，跨 5h 边界呈锯齿）/极浅黄（7d）面积，图例仍只有 5h/7d。⑤ dark mode 切换看背景与卡片对比度。
+`make app && open macos/UsageBar.app`（或既有的本地运行方式）。检查：① 顶部 5 个 provider 药丸，Claude 选中（白底+轻阴影），其余 dimmed；点 Codex → 显示「Codex 支持开发中，敬请期待」+「← 回到 Claude」，点回来正常。② 两个用量卡是圆角卡片，左上 clock/calendar 图标 + 标题，右上 大一号百分比（颜色随档位）+ 趋势箭头；进度条；底行「Resets in: Xh Ym at H:MM AM/PM」（5h，<24h）/「X days Yh Zm」（7d），右侧「Pace: safe/fast」。③ popover 背景有极淡渐变（不刺眼）。④ 折线图区在卡片里，原两条折线 + 悬停明细不变，下方有极浅蓝（5h，跨 5h 边界呈锯齿）/极浅黄（7d）面积，图例仍只有 5h/7d。⑤ dark mode 切换看背景与卡片对比度。
 
 - [ ] **Step 5: commit**
 
 ```bash
-git add macos/Sources/ClaudeUsageBar/PopoverView.swift
+git add macos/Sources/UsageBar/PopoverView.swift
 git commit -m "$(cat <<'EOF'
 feat: PopoverView 重排 — provider tab + 渐变背景 + 内容区块卡片化 + 折线图接 reset 日期 [spec:2026-05-12-popover-redesign]
 

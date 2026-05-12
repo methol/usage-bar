@@ -11,11 +11,11 @@ related_adrs: [0001, 0002]
 related_research: [competitive-analysis]
 spec_criteria:
   - id: SC1
-    criterion: "新增 macos/Sources/ClaudeUsageBar/PaceCalculator.swift：含 enum PaceState (.onPace / .inDeficit(percentOver:Int, runsOutIn:TimeInterval) / .inReserve(percentUnder:Int)) + 顶层纯函数 computePaceState(currentPct:resetDate:windowDuration:now:) -> PaceState?"
+    criterion: "新增 macos/Sources/UsageBar/PaceCalculator.swift：含 enum PaceState (.onPace / .inDeficit(percentOver:Int, runsOutIn:TimeInterval) / .inReserve(percentUnder:Int)) + 顶层纯函数 computePaceState(currentPct:resetDate:windowDuration:now:) -> PaceState?"
     done: true
     evidence: "see ## Verification log"
   - id: SC2
-    criterion: "新增 macos/Tests/ClaudeUsageBarTests/PaceCalculatorTests.swift，≥6 case：onPace（小偏差 < 3pp）/ inDeficit（actual 远超 expected）/ inReserve（actual 远低 expected）/ early window（elapsed/total < 3% 返回 nil）/ resetDate nil 返回 nil / runsOut 不超过 reset 剩余时间"
+    criterion: "新增 macos/Tests/UsageBarTests/PaceCalculatorTests.swift，≥6 case：onPace（小偏差 < 3pp）/ inDeficit（actual 远超 expected）/ inReserve（actual 远低 expected）/ early window（elapsed/total < 3% 返回 nil）/ resetDate nil 返回 nil / runsOut 不超过 reset 剩余时间"
     done: true
     evidence: "see ## Verification log"
   - id: SC3
@@ -358,10 +358,10 @@ UsageHeroCard(size: .secondary, label: "7-Day", bucket: ..., trend: trend7d)  //
 
 | 动作 | 文件 | 备注 |
 |---|---|---|
-| 🆕 | `macos/Sources/ClaudeUsageBar/PaceCalculator.swift` | PaceState enum + computePaceState func |
-| 🆕 | `macos/Tests/ClaudeUsageBarTests/PaceCalculatorTests.swift` | ≥6 case |
-| 🔧 | `macos/Sources/ClaudeUsageBar/UsageHeroCard.swift` | 加 var pace + body 追加 paceText 行 + #Preview 补 pace 示例 |
-| 🔧 | `macos/Sources/ClaudeUsageBar/PopoverView.swift` | usageView 计算 pace5h 传入；7d hero 不传 |
+| 🆕 | `macos/Sources/UsageBar/PaceCalculator.swift` | PaceState enum + computePaceState func |
+| 🆕 | `macos/Tests/UsageBarTests/PaceCalculatorTests.swift` | ≥6 case |
+| 🔧 | `macos/Sources/UsageBar/UsageHeroCard.swift` | 加 var pace + body 追加 paceText 行 + #Preview 补 pace 示例 |
+| 🔧 | `macos/Sources/UsageBar/PopoverView.swift` | usageView 计算 pace5h 传入；7d hero 不传 |
 | 🔧 | `docs/versions/v0.0.11-pace-tracking.md` / `docs/versions/README.md` / `docs/superpowers/specs/README.md` | 索引同步 |
 | 🔧 | `CHANGELOG.md` | append v0.0.11 entry |
 | ✅ 不动 | UsageService / UsageHistoryService / TrendCalculator / MenuBarLabel / Settings / 数据层 / OAuth | pace 完全本地计算，复用 v0.0.8 formatResetCountdown 与 v0.0.9 hero card 容器 |

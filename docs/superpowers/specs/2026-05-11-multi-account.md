@@ -11,7 +11,7 @@ related_adrs: [0001, 0002]
 related_research: [competitive-analysis]
 spec_criteria:
   - id: SC1
-    criterion: "新增 macos/Sources/ClaudeUsageBar/StoredAccount.swift：struct StoredAccount { id: UUID, label: String, addedAt: Date, lastUsed: Date, credentials: StoredCredentials }；struct StoredAccountsFile { version: Int = 2, activeIndex: Int, accounts: [StoredAccount] }"
+    criterion: "新增 macos/Sources/UsageBar/StoredAccount.swift：struct StoredAccount { id: UUID, label: String, addedAt: Date, lastUsed: Date, credentials: StoredCredentials }；struct StoredAccountsFile { version: Int = 2, activeIndex: Int, accounts: [StoredAccount] }"
     done: true
     evidence: "see ## Verification log"
   - id: SC2
@@ -31,7 +31,7 @@ spec_criteria:
     done: true
     evidence: "see ## Verification log"
   - id: SC6
-    criterion: "新增 macos/Sources/ClaudeUsageBar/AccountSwitcherView.swift：popover 顶部 Menu/Picker 显示当前账号 label，下拉列出所有 accounts（标 ✓ active）+ 底部 \"添加账号...\" 触发 service.beginAddAccount() 进 PKCE 流程；账号数 ≤ 1 时整个 switcher 隐藏（不打扰单账号用户）"
+    criterion: "新增 macos/Sources/UsageBar/AccountSwitcherView.swift：popover 顶部 Menu/Picker 显示当前账号 label，下拉列出所有 accounts（标 ✓ active）+ 底部 \"添加账号...\" 触发 service.beginAddAccount() 进 PKCE 流程；账号数 ≤ 1 时整个 switcher 隐藏（不打扰单账号用户）"
     done: true
     evidence: "see ## Verification log"
   - id: SC7
@@ -65,14 +65,14 @@ spec_criteria:
 automated_checks:
   - "SC_AUTO_BUILD: cd /Users/methol/data/code-methol/usage-bar/macos && swift build -c release 2>&1 | tail -3 | grep -q 'Build complete'"
   - "SC_AUTO_TEST: cd /Users/methol/data/code-methol/usage-bar/macos && swift test 2>&1 | tail -5 | grep -E 'Executed [0-9]+ test.*0 failures'"
-  - "SC_AUTO_NO_PRINT_TOKENS: ! grep -nrI -E '(print|NSLog|os_log|os\\.log|Logger)\\s*[\\(,].*([Aa]ccess[Tt]oken|[Rr]efresh[Tt]oken|rawJSON|claudeAiOauth|message\\.content|jsonlLine|rawLine|lastPathComponent|account\\.credentials)' macos/Sources/ClaudeUsageBar/ 2>/dev/null"
+  - "SC_AUTO_NO_PRINT_TOKENS: ! grep -nrI -E '(print|NSLog|os_log|os\\.log|Logger)\\s*[\\(,].*([Aa]ccess[Tt]oken|[Rr]efresh[Tt]oken|rawJSON|claudeAiOauth|message\\.content|jsonlLine|rawLine|lastPathComponent|account\\.credentials)' macos/Sources/UsageBar/ 2>/dev/null"
   - "SC_AUTO_NO_REAL_TOKEN_PREFIX: ! grep -nrI -E 'sk-ant-(oat|ort|api)[0-9a-zA-Z]|sk-proj-[0-9a-zA-Z]|AKIA[0-9A-Z]{16}' macos/ docs/ CHANGELOG.md 2>/dev/null"
-  - "SC_AUTO_SC11_GUARD: git diff --name-only 82c68cd..HEAD -- macos/Sources/ClaudeUsageBar/ | grep -vE '^macos/Sources/ClaudeUsageBar/(StoredCredentials\\.swift|UsageService\\.swift|StoredAccount\\.swift|AccountSwitcherView\\.swift|PopoverView\\.swift)$' | wc -l | grep -q '^[[:space:]]*0[[:space:]]*$'  # G3-B6：spec 立项 commit 82c68cd 之后只允许触碰白名单 5 文件"
+  - "SC_AUTO_SC11_GUARD: git diff --name-only 82c68cd..HEAD -- macos/Sources/UsageBar/ | grep -vE '^macos/Sources/UsageBar/(StoredCredentials\\.swift|UsageService\\.swift|StoredAccount\\.swift|AccountSwitcherView\\.swift|PopoverView\\.swift)$' | wc -l | grep -q '^[[:space:]]*0[[:space:]]*$'  # G3-B6：spec 立项 commit 82c68cd 之后只允许触碰白名单 5 文件"
 manual_checks:
   - "**单账号用户启动**：accounts.json 不存在，credentials.json 存在 → 自动迁移成 1 个 account；popover 顶部不显示 switcher（accounts.count == 1）"
   - "**添加第二个账号**：popover 顶部下拉 → 添加账号 → 走 PKCE → CodeEntry 标题显示 \"添加账号\" → 完成后 accounts.count == 2，active 切到新账号；popover 顶部出现 switcher"
   - "**切换账号**：下拉选另一账号 → 立即清 usage 占位、重新 fetchUsage / fetchProfile / refreshLocalCostIfNeeded；菜单栏图标 percent 即时更新"
-  - "**安全 manual check**：grep 'sk-ant-' 全仓 0 匹配；`stat -f '%OLp' ~/.config/claude-usage-bar/accounts.json` 显示 `600`（G3-R4：实际持续守护降级为 manual，单测 testAccountsJSONFilePermissionsAre0600 是绑定证据）"
+  - "**安全 manual check**：grep 'sk-ant-' 全仓 0 匹配；`stat -f '%OLp' ~/.config/usage-bar/accounts.json` 显示 `600`（G3-R4：实际持续守护降级为 manual，单测 testAccountsJSONFilePermissionsAre0600 是绑定证据）"
 reviews:
   - gate: G2
     reviewer: codex:codex-rescue (general-purpose fallback, agentId a2b9f484c1d44b1a7, with security/privacy review focus)
@@ -238,14 +238,14 @@ reviews:
 | 单账号用户体验 | accounts.count <= 1 时 switcher 完全隐藏 | 不打扰未用 multi-account 的用户 |
 | 文件权限 | accounts.json 0600（同 credentials.json）；目录 0700 | SC7 安全约束 |
 | **安全 SC7** | 与 v0.1.1/v0.1.2 同款：禁 print/log token；test mock 'mock-' 前缀；error log 仅 type | 永久警示延续 |
-| Logger | NSLog "[claude-usage-bar] accounts <op>: <ErrorType>" | 与已有路径对齐 |
+| Logger | NSLog "[usage-bar] accounts <op>: <ErrorType>" | 与已有路径对齐 |
 
 ## 3. 设计
 
 ### 3.1 数据流
 
 ```
-.app 启动 → ClaudeUsageBarApp.task
+.app 启动 → UsageBarApp.task
               ├─ historyService.loadHistory()
               ├─ service.bootstrapFromCLIIfNeeded() (v0.1.1)
               ├─ service.refreshLocalCostIfNeeded() (v0.1.2)
@@ -343,7 +343,7 @@ extension StoredCredentialsStore {
             try? fileManager.removeItem(at: credentialsFileURL)
             try? fileManager.removeItem(at: legacyTokenFileURL)
         } catch {
-            NSLog("[claude-usage-bar] accounts migration save failed: \(type(of: error))")
+            NSLog("[usage-bar] accounts migration save failed: \(type(of: error))")
         }
         return migrated
     }
@@ -380,7 +380,7 @@ func switchAccount(to id: UUID) {
     var file = StoredAccountsFile(version: 2, activeIndex: idx, accounts: accounts)
     file.accounts[idx].lastUsed = Date()
     do { try credentialsStore.saveAccounts(file) } catch {
-        NSLog("[claude-usage-bar] switchAccount save failed: \(type(of: error))")
+        NSLog("[usage-bar] switchAccount save failed: \(type(of: error))")
         return
     }
     self.accounts = file.accounts
@@ -503,7 +503,7 @@ AccountSwitcherView(service: service)
 - UsageService 不动（B-1 是纯增量 store API，无 caller change）
 - **Success**:
   - `cd macos && swift build -c release && swift test` 全绿；测试数 103 + 8 = 111
-  - `git diff --name-only 82c68cd..HEAD -- macos/Sources/ClaudeUsageBar/` 仅含 `StoredCredentials.swift` + `StoredAccount.swift`
+  - `git diff --name-only 82c68cd..HEAD -- macos/Sources/UsageBar/` 仅含 `StoredCredentials.swift` + `StoredAccount.swift`
   - SC_AUTO_NO_PRINT_TOKENS / SC_AUTO_NO_REAL_TOKEN_PREFIX 守护无匹配
 - **覆盖 SC**: SC1, SC2, SC3, SC7（前置）, SC10（部分）, SC12（前部分）
 
@@ -514,7 +514,7 @@ AccountSwitcherView(service: service)
 - **Success**:
   - `cd macos && swift build -c release && swift test` 全绿
   - `swift test 2>&1 | grep -E 'Executed (11[4-9]|1[2-9][0-9]) tests.*0 failures'` 命中（111 + ≥3 = ≥114）
-  - `git diff --name-only <B-1 sha>..HEAD -- macos/Sources/ClaudeUsageBar/` 仅含 `UsageService.swift`
+  - `git diff --name-only <B-1 sha>..HEAD -- macos/Sources/UsageBar/` 仅含 `UsageService.swift`
   - SC_AUTO_NO_PRINT_TOKENS / SC_AUTO_NO_REAL_TOKEN_PREFIX 守护无匹配
 - **覆盖 SC**: SC4, SC5（前置）, SC8, SC10（剩余）, SC12（中段）
 
@@ -525,7 +525,7 @@ AccountSwitcherView(service: service)
 - CodeEntryView 标题文案区分（accounts.count > 0 → "添加账号"，否则 "登录"）
 - **Success**:
   - `cd macos && swift build -c release && swift test` 全绿
-  - `git diff --name-only <B-2 sha>..HEAD -- macos/Sources/ClaudeUsageBar/` 仅含 `AccountSwitcherView.swift` + `PopoverView.swift`
+  - `git diff --name-only <B-2 sha>..HEAD -- macos/Sources/UsageBar/` 仅含 `AccountSwitcherView.swift` + `PopoverView.swift`
   - 三守护仍无匹配
   - SC_AUTO_SC11_GUARD（git diff 全程白名单 5 文件）退 0
 - **覆盖 SC**: SC5（剩余 UX）, SC6, SC9, SC11, SC12（后半）
@@ -552,14 +552,14 @@ AccountSwitcherView(service: service)
 
 | 动作 | 文件 | 备注 |
 |---|---|---|
-| 🆕 | `macos/Sources/ClaudeUsageBar/StoredAccount.swift` | 数据模型 |
-| 🆕 | `macos/Sources/ClaudeUsageBar/AccountSwitcherView.swift` | popover 切换器 |
-| 🆕 | `macos/Tests/ClaudeUsageBarTests/StoredAccountsFileTests.swift` | ≥4 case |
-| 🆕 | `macos/Tests/ClaudeUsageBarTests/StoredCredentialsStoreMigrationTests.swift` | ≥4 case |
-| 🆕 | `macos/Tests/ClaudeUsageBarTests/UsageServiceMultiAccountTests.swift` | ≥3 case |
-| 🔧 | `macos/Sources/ClaudeUsageBar/StoredCredentials.swift` | 加 extension：accountsFileURL / loadAccounts / saveAccounts / deleteAccounts；提升 fileManager/encoder/decoder 为 internal |
-| 🔧 | `macos/Sources/ClaudeUsageBar/UsageService.swift` | 加 @Published accounts + activeAccountId；switchAccount / beginAddAccount；init 用 loadAccounts；completeSignIn 分支 |
-| 🔧 | `macos/Sources/ClaudeUsageBar/PopoverView.swift` | 顶部插入 AccountSwitcherView |
+| 🆕 | `macos/Sources/UsageBar/StoredAccount.swift` | 数据模型 |
+| 🆕 | `macos/Sources/UsageBar/AccountSwitcherView.swift` | popover 切换器 |
+| 🆕 | `macos/Tests/UsageBarTests/StoredAccountsFileTests.swift` | ≥4 case |
+| 🆕 | `macos/Tests/UsageBarTests/StoredCredentialsStoreMigrationTests.swift` | ≥4 case |
+| 🆕 | `macos/Tests/UsageBarTests/UsageServiceMultiAccountTests.swift` | ≥3 case |
+| 🔧 | `macos/Sources/UsageBar/StoredCredentials.swift` | 加 extension：accountsFileURL / loadAccounts / saveAccounts / deleteAccounts；提升 fileManager/encoder/decoder 为 internal |
+| 🔧 | `macos/Sources/UsageBar/UsageService.swift` | 加 @Published accounts + activeAccountId；switchAccount / beginAddAccount；init 用 loadAccounts；completeSignIn 分支 |
+| 🔧 | `macos/Sources/UsageBar/PopoverView.swift` | 顶部插入 AccountSwitcherView |
 | 🔧 | `docs/versions/v0.1.3-multi-account.md` / 索引 / CHANGELOG | 标准收尾 |
 | ✅ 不动 | OAuth PKCE / refresh / SetupView / CodeEntry / Settings / Notifications / Strategy(v0.1.1) / LocalCost(v0.1.2) / hero/menubar/pace/trend | 仅 store 加 accounts API + UsageService 多账号字段 + popover 顶部加 switcher |
 
@@ -576,7 +576,7 @@ AccountSwitcherView(service: service)
 9. **token 不在 label 暴露**：StoredAccount.label 仅 "账号 N" 或 email；UI 渲染只读 label。
 10. **完成 sign in 后 active 切换时机**：用户 add 第二个账号完成 PKCE 时立即切到新；与系统 menu add option 一致。
 11. **Schema v3 rollback**（G2-D 修订）：accounts.json `version > currentVersion` 时 JSONDecoder 默认忽略未知字段，通常仍能 decode 为 v2 结构 — 这是好的意外行为；breaking rename（去掉 `accounts` 字段）时 decode 失败 → loadAccounts fallback 找 credentials.json 不存在 → 返回 nil → 用户被登出（重 sign-in 即可）。**accepted risk** 不阻塞 v0.1.3。
-12. **双写 v1 credentials.json 永久保留 — 迁机安全**（G5-R3 修订）：双写镜像设计让 `~/.config/claude-usage-bar/credentials.json` 永久保留即使 accounts.json 已存在（保留 v0.1.0~v0.1.2 backward compat）。若用户迁机时未做 secure erase，攻击者可读取 v1 token（虽 0600 权限，root / Time Machine 备份可绕过）。**accepted risk** — 与 v0.1.0~v0.1.2 同款风险（之前就只有 v1 文件），multi-account 引入 accounts.json 仅增加额外副本不引入新攻击面。后续 v0.2.x 若引入 macOS Sandbox + Keychain item 替代 plaintext file 一并解决。
+12. **双写 v1 credentials.json 永久保留 — 迁机安全**（G5-R3 修订）：双写镜像设计让 `~/.config/usage-bar/credentials.json` 永久保留即使 accounts.json 已存在（保留 v0.1.0~v0.1.2 backward compat）。若用户迁机时未做 secure erase，攻击者可读取 v1 token（虽 0600 权限，root / Time Machine 备份可绕过）。**accepted risk** — 与 v0.1.0~v0.1.2 同款风险（之前就只有 v1 文件），multi-account 引入 accounts.json 仅增加额外副本不引入新攻击面。后续 v0.2.x 若引入 macOS Sandbox + Keychain item 替代 plaintext file 一并解决。
 
 ## 6. 后续工作（不在本 spec 范围）
 
@@ -607,6 +607,6 @@ AccountSwitcherView(service: service)
 - [x] SC8 — evidence: testSwitchAccountClearsTransientState 验证 usage/lastError/localCost30d/accountEmail 全清；history 不清（v0.1.4 留位）
 - [x] SC9 — evidence: commit `8f91bf8` PopoverView else 分支首子（Text("Claude Usage")之前 G3-R1）插入 AccountSwitcherView；accounts.count <= 1 视图自隐藏；CodeEntryView 路由提升后 isAuthenticated + isAwaitingCode 用户也能看到（add account UX 流程闭环 G2-A/G3-R3）
 - [x] SC10 — evidence: 17 case 总计（基线 103 → 120）：StoredAccountsFileTests 4 + StoredCredentialsStoreMigrationTests 5（含 fail-safe mock + 0600 + 双 fallback + precedence + v2 优先）+ UsageServiceMultiAccountTests 8（含 init 三态 + switch 清状态 + lastUsed + invalid id noop + index clamp + signOut clear）
-- [x] SC11 — evidence: SC_AUTO_SC11_GUARD `git diff --name-only 82c68cd..HEAD -- macos/Sources/ClaudeUsageBar/` 白名单 5 文件（StoredCredentials/StoredAccount/UsageService/AccountSwitcherView/PopoverView）外 0 命中 ✅；OAuth/refresh/SetupView/CodeEntry/Settings/Notifications/Strategy(v0.1.1)/LocalCost(v0.1.2)/hero/menubar/pace/trend 全无改动
+- [x] SC11 — evidence: SC_AUTO_SC11_GUARD `git diff --name-only 82c68cd..HEAD -- macos/Sources/UsageBar/` 白名单 5 文件（StoredCredentials/StoredAccount/UsageService/AccountSwitcherView/PopoverView）外 0 命中 ✅；OAuth/refresh/SetupView/CodeEntry/Settings/Notifications/Strategy(v0.1.1)/LocalCost(v0.1.2)/hero/menubar/pace/trend 全无改动
 - [x] SC12 — evidence: `cd macos && swift build -c release` 输出 `Build complete!`；`cd macos && swift test` `Executed 120 tests, with 0 failures` ✅（基线 103 + 17 新增 = 120）
 - [x] SC13 — evidence: 4 个中文 commit 均含 spec id（82c68cd P0 / a6680b2 P1a / 326de70 P1b / 8f91bf8 P2 / 本 commit P3 G6）；spec.reviews 含 G2/G3/G5/G5-cross-check/G6 共 5 条 verdict（cross-check 是 codex 12 分钟无响应触发 fallback 走 general-purpose 的 cross-check）；version v0.1.3 frontmatter status placeholder→planned（82c68cd）→in-progress（本 commit）；CHANGELOG.md append v0.1.3 entry（本 commit）

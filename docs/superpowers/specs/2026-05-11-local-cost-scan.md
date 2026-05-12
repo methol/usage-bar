@@ -12,15 +12,15 @@ related_research: [competitive-analysis]
 superseded_by: 2026-05-12-usage-store-redesign
 spec_criteria:
   - id: SC1
-    criterion: "新增 macos/Sources/ClaudeUsageBar/ClaudePricing.swift：内嵌 LiteLLM-compatible 离线快照价格表（截至 2026-05 公开模型）；提供 struct ClaudeModelPricing { inputUSDPerMTok, outputUSDPerMTok, cacheReadUSDPerMTok, cacheWriteUSDPerMTok }；提供 lookup(model:) -> ClaudeModelPricing? 返回 nil 表示未知模型（unknown 落盘但 cost=0 且 unknownModelCount++）"
+    criterion: "新增 macos/Sources/UsageBar/ClaudePricing.swift：内嵌 LiteLLM-compatible 离线快照价格表（截至 2026-05 公开模型）；提供 struct ClaudeModelPricing { inputUSDPerMTok, outputUSDPerMTok, cacheReadUSDPerMTok, cacheWriteUSDPerMTok }；提供 lookup(model:) -> ClaudeModelPricing? 返回 nil 表示未知模型（unknown 落盘但 cost=0 且 unknownModelCount++）"
     done: true
     evidence: "see ## Verification log"
   - id: SC2
-    criterion: "新增 macos/Sources/ClaudeUsageBar/JSONLCostParser.swift：纯函数 parseLine(_ line: String) throws -> JSONLUsageEvent?（type≠assistant 返回 nil；JSON 失败抛错；只读 message.{id, model, usage.{input_tokens, output_tokens, cache_creation_input_tokens, cache_read_input_tokens}} + top.{requestId, timestamp}；**不读 message.content**）"
+    criterion: "新增 macos/Sources/UsageBar/JSONLCostParser.swift：纯函数 parseLine(_ line: String) throws -> JSONLUsageEvent?（type≠assistant 返回 nil；JSON 失败抛错；只读 message.{id, model, usage.{input_tokens, output_tokens, cache_creation_input_tokens, cache_read_input_tokens}} + top.{requestId, timestamp}；**不读 message.content**）"
     done: true
     evidence: "see ## Verification log"
   - id: SC3
-    criterion: "新增 macos/Sources/ClaudeUsageBar/LocalCostScanner.swift：actor LocalCostScanner（@MainActor 不需要，actor 隔离即可）；scan() async -> CostSummary：枚举扫描根 → 列 *.jsonl → 按行读 → parser → 按 (msg.id, requestId) 去重 → 按 timestamp 滚动 30 天窗口 → per-model 累积 token + 用 ClaudePricing 算 USD；CostSummary { generatedAt, windowDays:30, totalUSD, perModel:[ModelCost], unknownModelCount, parseErrorCount }"
+    criterion: "新增 macos/Sources/UsageBar/LocalCostScanner.swift：actor LocalCostScanner（@MainActor 不需要，actor 隔离即可）；scan() async -> CostSummary：枚举扫描根 → 列 *.jsonl → 按行读 → parser → 按 (msg.id, requestId) 去重 → 按 timestamp 滚动 30 天窗口 → per-model 累积 token + 用 ClaudePricing 算 USD；CostSummary { generatedAt, windowDays:30, totalUSD, perModel:[ModelCost], unknownModelCount, parseErrorCount }"
     done: true
     evidence: "see ## Verification log"
   - id: SC4
@@ -28,7 +28,7 @@ spec_criteria:
     done: true
     evidence: "see ## Verification log"
   - id: SC5
-    criterion: "缓存：~/Library/Caches/claude-usage-bar/cost-usage/claude-v1.json（mode 0644 即可，不含 secrets）；scan() 调用时若 cache.generatedAt < 60s 直接返回 cache；写盘失败仅 log 不抛；版本号 v1（schema 升级时 bump）"
+    criterion: "缓存：~/Library/Caches/usage-bar/cost-usage/claude-v1.json（mode 0644 即可，不含 secrets）；scan() 调用时若 cache.generatedAt < 60s 直接返回 cache；写盘失败仅 log 不抛；版本号 v1（schema 升级时 bump）"
     done: true
     evidence: "see ## Verification log"
   - id: SC6
@@ -40,7 +40,7 @@ spec_criteria:
     done: true
     evidence: "see ## Verification log"
   - id: SC8
-    criterion: "UsageService 暴露 @Published localCost30d: CostSummary?；新增 func refreshLocalCostIfNeeded() async **不带 @MainActor**（G3 #2 修订：内部用 Task.detached 跑 scan，避免 await actor IO 期间持有 MainActor 任务）；启动 task 内调用一次；**polling timer 内禁止调用 scan 或 refreshLocalCostIfNeeded**（grep 守护：`! grep -nE '(refreshLocalCostIfNeeded|LocalCostScanner)' macos/Sources/ClaudeUsageBar/UsageService.swift | grep -v '^.*: *func\\|^.*: *@Published\\|^.*: *let summary'` 只允许声明行命中）"
+    criterion: "UsageService 暴露 @Published localCost30d: CostSummary?；新增 func refreshLocalCostIfNeeded() async **不带 @MainActor**（G3 #2 修订：内部用 Task.detached 跑 scan，避免 await actor IO 期间持有 MainActor 任务）；启动 task 内调用一次；**polling timer 内禁止调用 scan 或 refreshLocalCostIfNeeded**（grep 守护：`! grep -nE '(refreshLocalCostIfNeeded|LocalCostScanner)' macos/Sources/UsageBar/UsageService.swift | grep -v '^.*: *func\\|^.*: *@Published\\|^.*: *let summary'` 只允许声明行命中）"
     done: true
     evidence: "see ## Verification log"
   - id: SC9
@@ -66,9 +66,9 @@ spec_criteria:
 automated_checks:
   - "SC_AUTO_BUILD: cd /Users/methol/data/code-methol/usage-bar/macos && swift build -c release 2>&1 | tail -3 | grep -q 'Build complete'"
   - "SC_AUTO_TEST: cd /Users/methol/data/code-methol/usage-bar/macos && swift test 2>&1 | tail -5 | grep -E 'Executed [0-9]+ test.*0 failures'"
-  - "SC_AUTO_NO_PRINT_TOKENS: ! grep -nrI -E '(print|NSLog|os_log|os\\.log|Logger)\\s*[\\(,].*([Aa]ccess[Tt]oken|[Rr]efresh[Tt]oken|rawJSON|claudeAiOauth|message\\.content|jsonlLine|rawLine|lastPathComponent)' macos/Sources/ClaudeUsageBar/ 2>/dev/null"
+  - "SC_AUTO_NO_PRINT_TOKENS: ! grep -nrI -E '(print|NSLog|os_log|os\\.log|Logger)\\s*[\\(,].*([Aa]ccess[Tt]oken|[Rr]efresh[Tt]oken|rawJSON|claudeAiOauth|message\\.content|jsonlLine|rawLine|lastPathComponent)' macos/Sources/UsageBar/ 2>/dev/null"
   - "SC_AUTO_NO_REAL_TOKEN_PREFIX: ! grep -nrI -E 'sk-ant-(oat|ort|api)[0-9a-zA-Z]|sk-proj-[0-9a-zA-Z]|AKIA[0-9A-Z]{16}' macos/ docs/ CHANGELOG.md 2>/dev/null  # 后置硬匹配避免命中 spec 描述用的 grep 表达式自身"
-  - "SC_AUTO_NO_CONTENT_READ: ! grep -nrIE 'message\\.content|JSONLUsageEvent[^/]*\\.content|Envelope\\.Message[^/]*\\bcontent\\b\\s*:' macos/Sources/ClaudeUsageBar/JSONLCostParser.swift macos/Sources/ClaudeUsageBar/LocalCostScanner.swift macos/Sources/ClaudeUsageBar/LocalCostCard.swift 2>/dev/null  # G2 C 修订：仅捕获 message.content 或 schema 字段引用，不误报 let content 变量"
+  - "SC_AUTO_NO_CONTENT_READ: ! grep -nrIE 'message\\.content|JSONLUsageEvent[^/]*\\.content|Envelope\\.Message[^/]*\\bcontent\\b\\s*:' macos/Sources/UsageBar/JSONLCostParser.swift macos/Sources/UsageBar/LocalCostScanner.swift macos/Sources/UsageBar/LocalCostCard.swift 2>/dev/null  # G2 C 修订：仅捕获 message.content 或 schema 字段引用，不误报 let content 变量"
 manual_checks:
   - "已用过 Claude CLI 的用户启动 .app：popover 出现"本地 30 天估算 ≈ $X.XX"卡片"
   - "未装 Claude CLI / 无 JSONL 文件用户：cost 卡片完全隐藏（不显示 $0.00 误导）"
@@ -226,18 +226,18 @@ reviews:
 | 未知模型 fallback | cost=0 + unknownModelCount++ | 不阻塞扫描；UI 提示"含 N 个未知模型条目（价格表过时？）" |
 | 30 天窗口 | scan now - 30*86400 ≤ event.timestamp ≤ now | 与调研 §2.4 Path 4 对齐 |
 | 节流 | 60s in-memory + on-disk cache | 用户连续打开 popover 只触发一次 IO |
-| 缓存路径 | `~/Library/Caches/claude-usage-bar/cost-usage/claude-v1.json` | macOS 标准 cache 位；不含 secrets，0644；schema 版本 v1 |
+| 缓存路径 | `~/Library/Caches/usage-bar/cost-usage/claude-v1.json` | macOS 标准 cache 位；不含 secrets，0644；schema 版本 v1 |
 | 触发时机 | UsageService 启动 task 内调用一次；polling timer **不**触发；可选 popover open 时检查 60s cache | 避免 IO 抖动；polling 是网络任务不该混合 IO |
 | Strategy 协议复用 | **不复用** v0.1.1 ClaudeUsageStrategy（语义不同：那个返 credentials；这个返 cost summary） | YAGNI；强行抽象会损害单职责；v0.1.3 multi-account 才会真正出现"多 strategy 链"需要统一抽象 |
 | **安全约束 SC7** | parser schema 层不 decode `content` 字段；error log 只 log file basename 不 log 完整路径 | v0.1.1 事故警示延续；架构防御 |
-| Logger 选择 | NSLog 简短：`[claude-usage-bar] cost scan: <ErrorType> in <basename>` | 与 v0.1.1 对齐 |
+| Logger 选择 | NSLog 简短：`[usage-bar] cost scan: <ErrorType> in <basename>` | 与 v0.1.1 对齐 |
 
 ## 3. 设计
 
 ### 3.1 数据流
 
 ```
-.app 启动 → ClaudeUsageBarApp.task
+.app 启动 → UsageBarApp.task
               ├─ historyService.loadHistory()
               ├─ service.bootstrapFromCLIIfNeeded()
               ├─ service.refreshLocalCostIfNeeded()  // 新增（async，不阻塞 polling 启动）
@@ -465,7 +465,7 @@ actor LocalCostScanner {
     init(cacheDirOverride: URL? = nil) {
         let base = cacheDirOverride
             ?? FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
-                .appendingPathComponent("claude-usage-bar/cost-usage", isDirectory: true)
+                .appendingPathComponent("usage-bar/cost-usage", isDirectory: true)
         self.cacheDir = base
         self.cacheFile = base.appendingPathComponent("claude-v1.json")
     }
@@ -514,7 +514,7 @@ actor LocalCostScanner {
                         } catch {
                             parseErrors += 1
                             // SC7：仅 log error type + basename，不 log line raw / 完整路径
-                            NSLog("[claude-usage-bar] cost scan: \(type(of: error)) in \(file.lastPathComponent)")
+                            NSLog("[usage-bar] cost scan: \(type(of: error)) in \(file.lastPathComponent)")
                         }
                     }
                 }
@@ -592,7 +592,7 @@ actor LocalCostScanner {
             let data = try JSONEncoder.iso.encode(summary)
             try data.write(to: cacheFile, options: .atomic)
         } catch {
-            NSLog("[claude-usage-bar] cost cache write failed: \(type(of: error))")
+            NSLog("[usage-bar] cost cache write failed: \(type(of: error))")
         }
     }
 
@@ -649,7 +649,7 @@ func refreshLocalCostIfNeeded() async {
 }
 ```
 
-`ClaudeUsageBarApp.task` 在 `bootstrapFromCLIIfNeeded()` 之后、`startPolling()` 之前 `await service.refreshLocalCostIfNeeded()`。**polling timer 内不调用 scan**（SC8 grep 守护）。
+`UsageBarApp.task` 在 `bootstrapFromCLIIfNeeded()` 之后、`startPolling()` 之前 `await service.refreshLocalCostIfNeeded()`。**polling timer 内不调用 scan**（SC8 grep 守护）。
 
 ### 3.6 `LocalCostCard.swift` (PopoverView 内嵌或独立)
 
@@ -738,15 +738,15 @@ struct LocalCostCard: View {
   - SC_AUTO_NO_REAL_TOKEN_PREFIX / SC_AUTO_NO_PRINT_TOKENS / SC_AUTO_NO_CONTENT_READ 三守护无匹配（G3 #4 修订：用 frontmatter 已修订的 grep，注释行排除）
 - **覆盖 SC**: SC1, SC2, SC3, SC4, SC5, SC6, SC7（前置）, SC10, SC12（前半）
 
-**Step P2** — UsageService 暴露 + ClaudeUsageBarApp 接入 + LocalCostCard（Commit C）
+**Step P2** — UsageService 暴露 + UsageBarApp 接入 + LocalCostCard（Commit C）
 - UsageService 加 @Published localCost30d + refreshLocalCostIfNeeded()（**不 @MainActor**，内部 Task.detached + MainActor.run；G3 #2 修订）
-- ClaudeUsageBarApp.task 在 bootstrapFromCLIIfNeeded 之后、startPolling 之前 await refreshLocalCostIfNeeded
+- UsageBarApp.task 在 bootstrapFromCLIIfNeeded 之后、startPolling 之前 await refreshLocalCostIfNeeded
 - PopoverView 在 ExtraUsageRow 之后插入 LocalCostCard 引用（G3 N3）
-- **新文件** macos/Sources/ClaudeUsageBar/LocalCostCard.swift（G3 #5 决议：避免 PopoverView 380+ 行膨胀）
+- **新文件** macos/Sources/UsageBar/LocalCostCard.swift（G3 #5 决议：避免 PopoverView 380+ 行膨胀）
 - **Success**:
   - `cd macos && swift build -c release && swift test` 全绿
-  - `git diff --stat HEAD~1..HEAD` 仅触白名单：`macos/Sources/ClaudeUsageBar/UsageService.swift` + `ClaudeUsageBarApp.swift` + `PopoverView.swift` + `LocalCostCard.swift`（新文件）
-  - SC8 polling 守护：`! grep -nE 'refreshLocalCostIfNeeded|LocalCostScanner' macos/Sources/ClaudeUsageBar/UsageService.swift | grep -v -E '^\d+:\s*(func|@Published|let summary|await)'` 应为空（除声明 + 直接 await 行外不该出现）
+  - `git diff --stat HEAD~1..HEAD` 仅触白名单：`macos/Sources/UsageBar/UsageService.swift` + `UsageBarApp.swift` + `PopoverView.swift` + `LocalCostCard.swift`（新文件）
+  - SC8 polling 守护：`! grep -nE 'refreshLocalCostIfNeeded|LocalCostScanner' macos/Sources/UsageBar/UsageService.swift | grep -v -E '^\d+:\s*(func|@Published|let summary|await)'` 应为空（除声明 + 直接 await 行外不该出现）
   - SC_AUTO_NO_PRINT_TOKENS / SC_AUTO_NO_REAL_TOKEN_PREFIX / SC_AUTO_NO_CONTENT_READ 仍无匹配
 - **覆盖 SC**: SC8, SC9, SC11, SC12（后半）
 
@@ -772,16 +772,16 @@ struct LocalCostCard: View {
 
 | 动作 | 文件 | 备注 |
 |---|---|---|
-| 🆕 | `macos/Sources/ClaudeUsageBar/ClaudePricing.swift` | 离线价格表 |
-| 🆕 | `macos/Sources/ClaudeUsageBar/JSONLCostParser.swift` | 行级 parser，schema 不含 content |
-| 🆕 | `macos/Sources/ClaudeUsageBar/LocalCostScanner.swift` | actor 扫描器 + 缓存 |
-| 🆕 | `macos/Sources/ClaudeUsageBar/LocalCostCard.swift` | popover 内嵌卡（或合并入 PopoverView.swift） |
-| 🆕 | `macos/Tests/ClaudeUsageBarTests/ClaudePricingTests.swift` | ≥3 case |
-| 🆕 | `macos/Tests/ClaudeUsageBarTests/JSONLCostParserTests.swift` | ≥4 case 含 SC7 守护 |
-| 🆕 | `macos/Tests/ClaudeUsageBarTests/LocalCostScannerTests.swift` | ≥3 case |
-| 🔧 | `macos/Sources/ClaudeUsageBar/UsageService.swift` | 加 @Published + refreshLocalCostIfNeeded() |
-| 🔧 | `macos/Sources/ClaudeUsageBar/ClaudeUsageBarApp.swift` | .task 加 await |
-| 🔧 | `macos/Sources/ClaudeUsageBar/PopoverView.swift` | 引用 LocalCostCard |
+| 🆕 | `macos/Sources/UsageBar/ClaudePricing.swift` | 离线价格表 |
+| 🆕 | `macos/Sources/UsageBar/JSONLCostParser.swift` | 行级 parser，schema 不含 content |
+| 🆕 | `macos/Sources/UsageBar/LocalCostScanner.swift` | actor 扫描器 + 缓存 |
+| 🆕 | `macos/Sources/UsageBar/LocalCostCard.swift` | popover 内嵌卡（或合并入 PopoverView.swift） |
+| 🆕 | `macos/Tests/UsageBarTests/ClaudePricingTests.swift` | ≥3 case |
+| 🆕 | `macos/Tests/UsageBarTests/JSONLCostParserTests.swift` | ≥4 case 含 SC7 守护 |
+| 🆕 | `macos/Tests/UsageBarTests/LocalCostScannerTests.swift` | ≥3 case |
+| 🔧 | `macos/Sources/UsageBar/UsageService.swift` | 加 @Published + refreshLocalCostIfNeeded() |
+| 🔧 | `macos/Sources/UsageBar/UsageBarApp.swift` | .task 加 await |
+| 🔧 | `macos/Sources/UsageBar/PopoverView.swift` | 引用 LocalCostCard |
 | 🔧 | `docs/versions/v0.1.2-local-cost-scan.md` / 索引 / CHANGELOG | 标准收尾 |
 | ✅ 不动 | OAuth / refresh / SetupView / CodeEntry / Settings / Notifications / Strategy(v0.1.1) / 数据层 / hero/menubar/pace/trend | 仅 popover 加新卡 + bootstrap 链路加 1 await |
 
@@ -822,12 +822,12 @@ struct LocalCostCard: View {
 - [x] SC2 — evidence: commit `5183583` 新增 JSONLCostParser.swift（Envelope.Message schema 仅 id/model/usage 不含 content；testValidAssistantLineDecodes / testNonAssistantTypeReturnsNil / testEmptyLineReturnsNil / testInvalidJSONThrows / testMissingRequiredFieldThrows / testEnvelopeDoesNotDecodeContentField / testIso8601WithoutFractionalParses / testRequestIdFallbackToMessageId 8 case ✅）
 - [x] SC3 — evidence: commit `5183583` 新增 LocalCostScanner.swift（actor 隔离 + scan(now:) async + (msgId,requestId) 去重 + 30 天滚动窗 + per-model 累积 + ClaudePricing.cost 算 USD；CostSummary/ModelCost 完整字段）
 - [x] SC4 — evidence: commit `5183583` LocalCostScanner.scanRoots 实现优先级（CLAUDE_CONFIG_DIR/projects 冒号分隔 → ~/.config/claude/projects → ~/.claude/projects；不存在跳过）；testScanRootsRespectsEnvOverride 多场景 ✅
-- [x] SC5 — evidence: cacheDir 默认 `~/Library/Caches/claude-usage-bar/cost-usage`，cacheFile `claude-v1.json`；写盘 .atomic；cacheTTL = 60；testCacheHitWithin60s + testCacheMissAfter60sCutoff 边界 ✅
+- [x] SC5 — evidence: cacheDir 默认 `~/Library/Caches/usage-bar/cost-usage`，cacheFile `claude-v1.json`；写盘 .atomic；cacheTTL = 60；testCacheHitWithin60s + testCacheMissAfter60sCutoff 边界 ✅
 - [x] SC6 — evidence: performScan cutoff = now - windowDays(30) * 86400；event.timestamp >= cutoff；windowDays 单一 actor 字段（SSOT）；testWindowFilters30Days 31d/1d 实证 ✅
 - [x] SC7 — evidence: Envelope.Message struct 不含 content 字段（schema-level 守护）；testEnvelopeDoesNotDecodeContentField Mirror 反射验证 JSONLUsageEvent 无 content/contentBlocks/text 属性；NSLog 仅 type(of: error) 不 log lastPathComponent；测试 mock JSONL 用 'mock-' / 'msg_mock_' / 'req_mock_' 前缀；SC_AUTO_NO_REAL_TOKEN_PREFIX `sk-ant-(oat\|ort\|api)[0-9a-zA-Z]\|sk-proj-[0-9a-zA-Z]\|AKIA[0-9A-Z]{16}` 全仓 0 匹配；SC_AUTO_NO_PRINT_TOKENS（含 lastPathComponent 守护）+ SC_AUTO_NO_CONTENT_READ 双守护 0 匹配
-- [x] SC8 — evidence: commit `87e374f` UsageService 加 @Published localCost30d + refreshLocalCostIfNeeded() async（内部 Task.detached + MainActor.run 显式标注 G5 R1）；polling 守护 grep `refreshLocalCostIfNeeded\|LocalCostScanner` macos/Sources/ClaudeUsageBar/UsageService.swift 仅命中函数声明 + 函数体内 await 行，startPolling/scheduleTimer/fetchUsage 无引用 ✅
+- [x] SC8 — evidence: commit `87e374f` UsageService 加 @Published localCost30d + refreshLocalCostIfNeeded() async（内部 Task.detached + MainActor.run 显式标注 G5 R1）；polling 守护 grep `refreshLocalCostIfNeeded\|LocalCostScanner` macos/Sources/UsageBar/UsageService.swift 仅命中函数声明 + 函数体内 await 行，startPolling/scheduleTimer/fetchUsage 无引用 ✅
 - [x] SC9 — evidence: commit `87e374f` 新增 LocalCostCard.swift（独立文件 G3 #5 决议）；PopoverView ExtraUsageRow 之后插入 `if let cost = service.localCost30d { Divider(); LocalCostCard(...) }`；nil 时整张隐藏；点击 toggle expanded + chevron 视觉提示；per-model 行 calls 数 + USD（unknown 显 "—"）；底部"ℹ️ 仅扫本地 JSONL 用量字段，不读对话内容"隐私一行；未知模型橙色"含 N 条未知模型调用记录"
 - [x] SC10 — evidence: 19 case 总计（4 ClaudePricing + 8 JSONLCostParser + 7 LocalCostScanner，超 ≥10 要求）；inline mock 不读真实文件；mock 不含 'sk-ant-' 真实前缀（SC_AUTO_NO_REAL_TOKEN_PREFIX 0 匹配）
-- [x] SC11 — evidence: `git diff d24e311..HEAD --stat` 仅触白名单文件：UsageService.swift（仅加 @Published + refreshLocalCostIfNeeded 方法块）+ ClaudeUsageBarApp.swift（仅 .task 加 await refreshLocalCostIfNeeded）+ PopoverView.swift（仅插入 6 行 if let cost 块）+ LocalCostCard.swift（新文件）+ 3 新源 + 3 测试；OAuth/refresh/polling timer/SetupView/CodeEntry/Settings/Notifications/Strategy(v0.1.1)/数据层/hero/menubar/pace/trend 全无改动 ✅
+- [x] SC11 — evidence: `git diff d24e311..HEAD --stat` 仅触白名单文件：UsageService.swift（仅加 @Published + refreshLocalCostIfNeeded 方法块）+ UsageBarApp.swift（仅 .task 加 await refreshLocalCostIfNeeded）+ PopoverView.swift（仅插入 6 行 if let cost 块）+ LocalCostCard.swift（新文件）+ 3 新源 + 3 测试；OAuth/refresh/polling timer/SetupView/CodeEntry/Settings/Notifications/Strategy(v0.1.1)/数据层/hero/menubar/pace/trend 全无改动 ✅
 - [x] SC12 — evidence: `cd macos && swift build -c release` 输出 `Build complete!`；`cd macos && swift test` `Executed 103 tests, with 0 failures` ✅（基线 84 + 19 新增 = 103）
 - [x] SC13 — evidence: 4 个中文 commit 均含 spec id（d24e311 P0 / 5183583 P1 / 87e374f P2 / 本 commit P3）；spec.reviews 含 G2/G3/G5/G6 共 4 条 verdict；version v0.1.2 frontmatter status placeholder→planned（d24e311）→in-progress（本 commit）；CHANGELOG.md append v0.1.2 entry（本 commit）

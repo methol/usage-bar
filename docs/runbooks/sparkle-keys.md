@@ -14,7 +14,7 @@ Sparkle 2.x Ed25519 密钥的：
 
 - Sparkle 版本：`2.8.1`（pinned exact in `macos/Package.swift`）
 - 公钥位置：`macos/Resources/Info.plist` 的 `SUPublicEDKey`
-- 私钥位置：本地 Keychain account `claude-usage-bar`；CI 中以 `SPARKLE_PRIVATE_KEY` secret 注入
+- 私钥位置：本地 Keychain account `usage-bar`；CI 中以 `SPARKLE_PRIVATE_KEY` secret 注入
 - Feed URL（v0.0.7 后）：`https://methol.github.io/usage-bar/appcast.xml`
 
 ## Hard gate
@@ -24,7 +24,7 @@ Sparkle 2.x Ed25519 密钥的：
 ## 计划内容
 
 - 首次启用 GitHub Pages + secrets 设置（v0.0.7 发首版前）
-- 私钥导出：`macos/.build/artifacts/sparkle/Sparkle/bin/generate_keys --account claude-usage-bar -x /tmp/...key`
+- 私钥导出：`macos/.build/artifacts/sparkle/Sparkle/bin/generate_keys --account usage-bar -x /tmp/...key`
 - `gh secret set SPARKLE_PRIVATE_KEY < /tmp/...key`
 - 失败诊断：appcast 签名验证错误、`Sparkle Updater` 报错
 

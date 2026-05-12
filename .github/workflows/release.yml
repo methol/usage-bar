@@ -73,7 +73,7 @@ jobs:
           with urllib.request.urlopen(request) as response:
               html = response.read().decode("utf-8")
 
-          with open("dist/archives/ClaudeUsageBar.html", "w", encoding="utf-8") as fh:
+          with open("dist/archives/UsageBar.html", "w", encoding="utf-8") as fh:
               fh.write(html)
           PY
 
@@ -81,8 +81,8 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            macos/ClaudeUsageBar.zip
-            macos/ClaudeUsageBar.dmg
+            macos/UsageBar.zip
+            macos/UsageBar.dmg
           body_path: dist/release-notes.md
 
       - name: Generate Sparkle appcast
@@ -94,7 +94,7 @@ jobs:
             exit 1
           fi
 
-          cp macos/ClaudeUsageBar.zip dist/archives/ClaudeUsageBar.zip
+          cp macos/UsageBar.zip dist/archives/UsageBar.zip
 
           printf '%s' "$SPARKLE_PRIVATE_KEY" | \
             macos/.build/artifacts/sparkle/Sparkle/bin/generate_appcast \
