@@ -6,7 +6,7 @@ import Foundation
 /// token 出现在后续 `event_msg` / `token_count` 行的 `payload.info.last_token_usage` —— 边走边跟踪「当前模型」。
 ///
 /// 落出来的只有 `StoredUsageEvent`（token 计数 + 模型名 + 时间 + 合成 id）—— **绝不**碰 rollout 里的对话/代码原文，
-/// 也不 print / NSLog / os_log（rollout 文件含用户完整会话；连「第几行解析失败」都不打）。见 spec SC9。
+/// 也不写任何日志输出（rollout 文件含用户完整会话；连「第几行解析失败」都不打）。见 spec SC9。
 enum CodexRolloutCostParser {
     /// `lines`：rollout 文件的全部行（含坏行）；`sessionId`：文件名里的 UUID（见 `sessionId(fromFileName:)`）。
     /// `reqId` / `msgId` 用**绝对行号**（含被跳过的行）—— 这样整文件 re-parse 时同一行始终映射到同一 id，

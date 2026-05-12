@@ -5,7 +5,7 @@ import Foundation
 /// 与 `ClaudeUsageCollector` 的区别：rollout 文件是 append-only 但**含用户完整会话/代码原文**，所以这里
 /// - 游标只用来判「文件变没变」（`nextReadOffset` 返回 nil 即跳过），变了就**整文件 re-parse**，靠
 ///   `(msgId,reqId) = sessionId:lineIndex` 在 `UsageEventStore.mergeEvents` 里去重保证幂等；
-/// - **绝不** print / NSLog / os_log（连「第几行解析失败」都不打）。见 spec SC9。
+/// - **绝不**写任何日志输出（连「第几行解析失败」都不打）。见 spec SC9。
 actor CodexUsageCollector: UsageCollecting {
     private let store: UsageEventStore
     private let cursor: ScanCursorStore
