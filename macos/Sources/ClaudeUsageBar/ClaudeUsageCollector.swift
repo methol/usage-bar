@@ -26,6 +26,7 @@ actor ClaudeUsageCollector {
 
         let roots = scanRootsOverride ?? Self.scanRoots()
         var collected: [StoredUsageEvent] = []
+        var scannedFiles: [URL] = []
         var scanned = 0, parseErrors = 0
 
         for root in roots {
@@ -40,6 +41,7 @@ actor ClaudeUsageCollector {
                 }
                 for file in jsonls {
                     scanned += 1
+                    scannedFiles.append(file)
                     let attrs = (try? fm.attributesOfItem(atPath: file.path)) ?? [:]
                     let size = (attrs[.size] as? Int) ?? 0
                     let mtime = (attrs[.modificationDate] as? Date) ?? Date(timeIntervalSince1970: 0)
@@ -77,6 +79,7 @@ actor ClaudeUsageCollector {
         if dirty.isEmpty {
             await store.rebuildAggregates(forDayKeys: touchedDays)
         } else {
+            for f in scannedFiles { await cursor.clearCursor(for: f) }
             await store.rebuildAllAggregates()
         }
         lastResult = CollectResult(newEventCount: collected.count, scannedFileCount: scanned, parseErrorCount: parseErrors, touchedDayKeys: touchedDays)

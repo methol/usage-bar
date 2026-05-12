@@ -102,4 +102,41 @@ final class ClaudeUsageCollectorTests: XCTestCase {
                                           to: ISO8601DateFormatter().date(from: "2026-06-01T00:00:00Z")!)
         XCTAssertEqual(got.count, 1)
     }
+
+    func testCorruptedMonthFileTriggersCursorResetAndRecovery() async throws {
+        let store = UsageEventStore(dataDirOverride: tmpData)
+        let cursor = ScanCursorStore(dataDirOverride: tmpData)
+        let f = try writeSession("p1", "00000000-mock-0000-0000-000000000001", lines: [
+            assistantLine(ts: "2026-05-10T10:00:00.000Z", msg: "msg_mock_a", req: "req_mock_a"),
+        ])
+
+        // 第一次 collect：写入 1 个事件，游标推进到 line 1
+        let r1 = await ClaudeUsageCollector(store: store, cursor: cursor, scanRootsOverride: [tmpRoot]).collect()
+        XCTAssertEqual(r1.newEventCount, 1)
+
+        // 损坏月明细文件，模拟 mergeEvents 返回非空 dirty set 的场景
+        let monthFile = tmpData.appendingPathComponent("claude/2026-05.json")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: monthFile.path), "月明细文件应已存在")
+        try "{ not json".data(using: .utf8)!.write(to: monthFile)
+
+        // 追加第二行到同一个 jsonl 文件
+        var content = try String(contentsOf: f, encoding: .utf8)
+        content += assistantLine(ts: "2026-05-10T11:00:00.000Z", msg: "msg_mock_b", req: "req_mock_b") + "\n"
+        try content.data(using: .utf8)!.write(to: f)
+
+        // 第二次 collect：mergeEvents 会遇到损坏的月文件 → dirty 非空 → 清掉游标 → rebuildAllAggregates
+        _ = await ClaudeUsageCollector(store: store, cursor: cursor, scanRootsOverride: [tmpRoot]).collect()
+
+        // 第三次 collect：游标已被清除，从头全量重读，两个事件都应被重新写入
+        _ = await ClaudeUsageCollector(store: store, cursor: cursor, scanRootsOverride: [tmpRoot]).collect()
+
+        let fmt = ISO8601DateFormatter()
+        let events = await store.queryEvents(
+            from: fmt.date(from: "2026-05-01T00:00:00Z")!,
+            to: fmt.date(from: "2026-06-01T00:00:00Z")!)
+        let msgIds = Set(events.map { $0.msgId })
+        XCTAssertTrue(msgIds.contains("msg_mock_a"), "msg_mock_a 应在恢复后可查询")
+        XCTAssertTrue(msgIds.contains("msg_mock_b"), "msg_mock_b 应在恢复后可查询")
+        XCTAssertEqual(events.count, 2)
+    }
 }
