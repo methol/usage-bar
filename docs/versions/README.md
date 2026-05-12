@@ -40,9 +40,10 @@ placeholder ─首个 spec 落地─► planned ─开发开始─► in-progres
 | [v0.2.2](./v0.2.2-sparkle-beta-channel.md) | sparkle-beta-channel | in-progress | 2026-05-12 | 🔧 Sparkle beta 通道 |
 | [v0.2.3](./v0.2.3-usage-store-redesign.md) | usage-store-redesign | in-progress | 2026-05-12 | 🔌 用量统计与存储重设计（持久化 + 消费热力图） |
 | [v0.2.4](./v0.2.4-popover-redesign.md) | popover-redesign | in-progress | 2026-05-12 | 🎨 Popover 重做（provider tab 外壳 + 卡片化 + 折线图 pace 面积） |
-| [v0.2.5](./v0.2.5-codex-provider.md) | codex-provider | planned | 2026-05-12 | 🔌 Codex provider（第一条数据源：`~/.codex/auth.json` → `wham/usage`） |
+| [v0.2.5](./v0.2.5-multi-provider-refactor.md) | multi-provider-refactor | planned | 2026-05-12 | 🏗️ 多供应商架构重构（`UsageProvider` 协议 + per-provider 运行时；Claude 行为不变） |
+| [v0.2.6](./v0.2.6-codex-provider.md) | codex-provider | planned | 2026-05-12 | 🔌 Codex provider（第一条数据源：`~/.codex/auth.json` → `wham/usage`） |
 
-> **路线截止于 v0.2.5**（v0.2.5 于 2026-05-12 新立项）。新版本立项时按 §7.1 命名规范 append 即可。
+> **路线截止于 v0.2.6**（v0.2.5 重构 + v0.2.6 Codex 于 2026-05-12 新立项）。新版本立项时按 §7.1 命名规范 append 即可。
 >
 > 注：母法 spec [`2026-05-11-docs-governance.md`](../superpowers/specs/2026-05-11-docs-governance.md) §7.2 / §7.3 中的 v0.2.3~v1.0.0 路线是 v0.0.7 立项历史快照（implemented spec 不可变），不代表当前路线。
 
