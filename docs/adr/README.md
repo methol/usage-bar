@@ -3,7 +3,7 @@ slug: adr-index
 title: ADR 索引
 type: index
 created: 2026-05-11
-updated: 2026-05-12
+updated: 2026-05-13
 ---
 
 # Architecture Decision Records
@@ -22,6 +22,7 @@ updated: 2026-05-12
 | [0003](./0003-ai-led-development.md) | AI-led development | accepted | AI 主导调研 / 设计 / 实施，人类辅助 |
 | [0004](./0004-fork-divergence-from-blimp-labs.md) | Fork divergence from Blimp-Labs | accepted | 自 v0.0.7 起独立编号 + URL 校准 |
 | [0005](./0005-reopen-multi-provider-direction.md) | 重新开放多 provider 方向 | accepted | supersede 0002；先搭 UI 外壳，逐步对接（首个 Codex） |
+| [0006](./0006-rename-claudeusagebar-to-usagebar.md) | Rename ClaudeUsageBar → UsageBar | accepted | app / 模块 / bundle 去掉 `Claude` 前缀；bundle id → `com.tuzhihao.app.UsageBar`；本地数据目录 → `~/.config/usage-bar/` |
 
 ## 状态机
 
