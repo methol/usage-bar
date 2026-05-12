@@ -16,13 +16,15 @@
 ### 改进（Changed）
 
 - 本地用量从「一次性 30 天估算」升级为**持久化存储**：`~/.config/claude-usage-bar/data/claude/` 下按月份文件保存每次调用的 token 明细（`2026-05.json` 等），另维护按天/月/年三个聚合文件（`agg-day/month/year.json`）
-- 后台采集改为增量：挂在和 API 用量同一个刷新周期上，但每次只读有变化的本地日志文件（per-file size/mtime/行偏移游标），绝大多数刷新近乎零开销；启动时一次性回填全部历史
+- 后台采集改为**递归增量**：`FileManager.enumerator` 递归扫描 `~/.claude/projects/` 下任意层级的 `.jsonl`（含 `<session>/subagents/agent-*.jsonl` 三层深），per-file size/mtime/行偏移游标，每轮 collect 末尾批量 flush 一次游标（不再逐文件写盘）；绝大多数刷新近乎零开销；启动时一次性回填全部历史
 - 金额不落盘：明细与聚合只存 token 数，金额按**当前价格表**实时折算 —— 价格表升级后历史消费自动按新价重算
 
 ### 新增（Added）
 
-- popover 新增 **GitHub 贡献图风格的消费热力图**：整年 53 周网格，每格一天，颜色按当天估算消费额分 9 档（轻度用户也能看出梯度）；悬停显示「日期 · ≈ $X · N 次调用」；统计中显示「统计中…」骨架
-- 「本地 30 天估算 ≈ $X.XX」卡片保留（数据源切到新存储层，外观不变）
+- popover 新增 **GitHub 贡献图风格的消费热力图**：从用户最早有数据那天铺到今天的网格（不限一年），打开时默认滚到最右（最新）；往左滑看历史；鼠标悬停某格 → 网格下方一行显示该天「日期 · ≈ $X · N 次」（不再用系统 tooltip）；颜色按当天估算消费额分 9 档（轻度用户也能看出梯度）
+- 估算卡跟随趋势图的时间范围 picker（1h/6h/1d/7d/30d → 对应窗口的 USD 估算）；版块顺序调整为：趋势图 → 估算卡 → 热力图
+- per-model 明细行新增 token 总数；金额/token 用紧凑单位（K/M/B/T，两位小数）；金额前缀简化为「$」（去掉「US」）；collapsed 头部用 SF Symbol icon 展示金额/次数/token
+- 「本地估算」卡片保留（数据源切到新存储层，外观不变；标题随时间范围 picker 参数化）
 
 ### 安全隐私（Security & Privacy）
 
@@ -32,8 +34,11 @@
 
 - 新增 `UsageEventStore` / `ScanCursorStore` / `ClaudeUsageCollector`（actor）+ `UsageAggregator`（纯函数）+ `UsageStatsService`（`@MainActor ObservableObject`）+ `UsageHeatmapView` / `UsageHeatmapModel`
 - 退役 `LocalCostScanner`（被存储层 + 采集器取代）；启动时清理 v0.1.2 旧的 `~/Library/Caches/claude-usage-bar/cost-usage/`
+- 损坏月明细 → 游标重置全量重读：`mergeEvents` 返回非空 dirtyMonths 时，清掉本轮所有已扫 jsonl 的游标 + `rebuildAllAggregates()`，避免被清空的损坏月里 pre-cursor 事件永久丢失
+- 已统计数据不随源文件删除而清除：`mergeEvents` 只 union、`rebuildAggregates` 从落盘月明细重算，删掉的 jsonl 下次扫描只是跳过
 - 多账号场景：本机用量统计是跨账号的，切换账号不再清空 / 重算（避免无意义闪烁）
-- 新增约 36 个测试（基线 131 → 160）：UsageEventStore / UsageAggregator / ScanCursorStore / ClaudeUsageCollector / UsageStatsService / UsageHeatmapModel 各套；删除 7 个 LocalCostScannerTests
+- 新增约 40 个测试（基线 131 → ~162，含发布后迭代新增）；删除 7 个 LocalCostScannerTests
+- 已知遗留：两处 Swift-6 严格并发警告（Swift 5.9 下无害），留待项目做 strict-concurrency pass 时统一处理
 - 治理：spec 过 G2（含 security/privacy）/ plan 过 G3 / 实现过 G5（含 security/privacy，命中并修复「损坏月明细不清游标导致 pre-cursor 事件丢失」）；每个实施 Task 一轮 spec+quality review
 
 ## [v0.2.2] — 2026-05-11

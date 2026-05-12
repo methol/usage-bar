@@ -506,6 +506,26 @@ return CollectResult(newEventCount: collectedEvents.count, scannedFileCount:, pa
 - 用量数据导出（CSV / JSON）→ 用户报告需求再评估。
 - **取代说明**：本 spec 删除 multi-account spec（v0.1.3）`switchAccount` 里 `localCost30d = nil` 的处理且不替换（理由见 §5 风险12）；multi-account spec 已 implemented 不改其文字，以本 spec 为准。
 
+## Post-ship amendments (2026-05-12)
+
+发布后根据真实运行反馈对实现做了以下调整。SC 原文保持不变（已 implemented，不可变），下述变更以本节为准。
+
+- **扫描根改为递归**：原 §2 决策表 / SC4 写「扫描 `<project>/*.jsonl`，与 ccusage / CodexBar 行为对齐」——存在事实错误：ccusage 实际使用 `**/*.jsonl` 递归 glob。实测用户 `~/.claude/projects/` 下 6073 个 jsonl 中 5918 个嵌在 `<project>/<sessionUUID>/subagents/agent-*.jsonl` 三层深，两层扫描全漏。`ClaudeUsageCollector.collect()` 已改为 `FileManager.enumerator` 递归遍历任意深度。commit `7aacda8`。
+
+- **游标写盘批量化**：原 `ScanCursorStore.updateCursor` 每扫一个文件就 atomic-write 整个游标文件，6000+ 文件下 O(n²) 写放大（实测 155 文件已需 ~25s）。改为 `updateCursor`/`clearCursor` 只改内存 cache，新增 `flush()`，`collect()` 末尾调用一次 flush。代价：collect 中途崩溃丢本轮游标进度（下次重读，dedup 兜底，可接受）。commit `7aacda8`。
+
+- **热力图全历史 + 默认滚最右 + 悬停明细行**：原 SC7 写「53 周 × 7 天整年网格」；改为从用户最早有数据那天所在周铺到今天（不限一年，往左滑看历史），用 `ScrollViewReader` 在首次出现时默认滚到最右（最新状态）。`.help()` 系统 tooltip 在 `MenuBarExtra` popover 里不可靠，已移除，改为 `.onHover` 跟踪 + 网格下方一行显示当天「日期 · ≈ $X · N 次」。commit `fa874e6`（+ 后续 UI polish commit）。
+
+- **估算卡跟随时间范围**：原设计固定「本地 30 天估算」；改为跟随趋势图的 1h/6h/1d/7d/30d picker 显示对应窗口的 USD 估算。`UsageStatsService` 新增 `@Published recentEvents` 发布最近 ~31 天 raw events；`UsageAggregator` 加 `costForEvents(since:)`；`PopoverView`/`UsageChartSectionView` 按 picker 窗口实时折算；`LocalCostCard` 标题参数化为「本地 N 小时/天 估算」。版块顺序调整为：趋势图 → 估算卡 → 热力图（热力图移到最底）。commit `fa874e6`。
+
+- **费用卡显示增强（UI polish）**：per-model 行除「次数 + 金额」外加 token 总数；金额去掉「US」前缀只用「$」；金额/token 用紧凑单位（K/M/B/T，两位小数）；collapsed 头部用 SF Symbol icon 展示金额/次数/token；精简文字（隐私提示收为一行）。commit（UI polish，本批）。
+
+- **损坏月明细 → 游标重置**：`mergeEvents` 返回非空 dirtyMonths（明细文件 decode 失败被当空覆盖）时，`collect()` 清掉本轮扫过的所有 jsonl 游标 + `rebuildAllAggregates()`，下次 collect 全量重读——否则被清空的损坏月里、游标之前的事件永久丢失。commit `9ad1522`（G5 修复，已记入 reviews.G5）。
+
+- **不删已统计数据（设计澄清 + 测试钉住）**：会话 jsonl 被用户删除时，已落盘的月明细与聚合不动（`mergeEvents` 只 union、`rebuildAggregates` 从落盘月明细重算，从不从 jsonl 删事件）；删掉的 jsonl 下次扫描只是被跳过。新增 `testDeletedSourceFileKeepsStoredEvents` 钉住该保证。commit `fa874e6`。
+
+- **Known-deferred（Swift 6 严格并发）**：两处 Swift-6-future-mode 警告（Swift 5.9 下仅警告，构建通过）：(1) `UsageService.init` 的默认参数 `usageStats: UsageStatsService = .shared` 从 nonisolated 上下文引用 `@MainActor`-isolated 的 `shared`；(2) `ClaudeUsageCollector` 里 `FileManager.enumerator` 的 `makeIterator` 在 async 上下文调用。与既有代码库的同类警告（如 v0.1.x actor 持 `FileManager`）一致，留待项目做 Swift 6 strict-concurrency pass 时统一处理。
+
 ## 7. 引用
 
 - 相关调研：[`docs/research/competitive-analysis.md`](../../research/competitive-analysis.md) §1.5 / §2.4 Path 4 / §5.2 Step C / §8.3（ccusage / CodexBar JSONL 解析）
