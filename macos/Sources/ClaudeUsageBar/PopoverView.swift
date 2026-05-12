@@ -67,9 +67,14 @@ struct PopoverView: View {
             // v0.2.6 起：泛化的 provider 用量区（Codex 等）。configured/unconfigured 由 ProviderUsageArea
             // 内部读 runtime.isConfigured 决定 —— 这样 runtime 的 @Published 变化能驱动该子树重渲染
             // （父视图 PopoverView 不必然在切 tab + 拉取后重渲染；v0.2.5 G5 nit ②）。
+            let history: (service: UsageHistoryService, primaryLabel: String, secondaryLabel: String)? =
+                (selectedProvider == .codex
+                    ? (coordinator.provider(.codex) as? CodexProvider).map { ($0.history, "Session", "Weekly") }
+                    : nil)
             ProviderUsageArea(runtime: runtime,
                               providerID: selectedProvider,
                               onBackToClaude: { selectedProvider = .claude },
+                              history: history,
                               bottomBar: { bottomBar })
         } else {
             ProviderComingSoonView(provider: selectedProvider,
@@ -82,11 +87,18 @@ struct PopoverView: View {
         @ObservedObject var runtime: ProviderRuntime
         let providerID: ProviderID
         let onBackToClaude: () -> Void
+        /// 该 provider 的历史（有则显示趋势箭头 + 折线图）。nil → 退化成只有 `ProviderUsageSection`（v0.2.6 现状）。
+        var history: (service: UsageHistoryService, primaryLabel: String, secondaryLabel: String)? = nil
         @ViewBuilder let bottomBar: () -> BottomBar
 
         var body: some View {
             if runtime.isConfigured {
-                ProviderUsageSection(runtime: runtime)
+                if let h = history {
+                    ProviderHistorySection(historyService: h.service, runtime: runtime,
+                                           primaryLabel: h.primaryLabel, secondaryLabel: h.secondaryLabel)
+                } else {
+                    ProviderUsageSection(runtime: runtime)
+                }
                 if let error = runtime.lastError {
                     UsageCard {
                         Label(error, systemImage: "exclamationmark.triangle")
@@ -111,6 +123,27 @@ struct PopoverView: View {
                     }
                 }
                 bottomBar()
+            }
+        }
+    }
+
+    /// 「带历史的 provider 用量区」：在 `ProviderUsageSection` 上挂趋势箭头（从 history 算）+ 额度折线图。
+    /// `historyService` 必须非 nil 才用本视图（SwiftUI 的 `@ObservedObject` 不能是 Optional）。
+    private struct ProviderHistorySection: View {
+        @ObservedObject var historyService: UsageHistoryService
+        @ObservedObject var runtime: ProviderRuntime
+        let primaryLabel: String
+        let secondaryLabel: String
+
+        var body: some View {
+            let pts = historyService.history.dataPoints
+            let snap = runtime.snapshot
+            let t5 = computeTrend(currentPct: snap?.primaryWindow?.utilizationPct, points: pts, metric: \.pct5h)
+            let t7 = computeTrend(currentPct: snap?.secondaryWindow?.utilizationPct, points: pts, metric: \.pct7d)
+            ProviderUsageSection(runtime: runtime, trendPrimary: t5, trendSecondary: t7)
+            UsageCard {
+                UsageChartSectionView(historyService: historyService, recentEvents: [],
+                                      primaryLabel: primaryLabel, secondaryLabel: secondaryLabel)
             }
         }
     }
