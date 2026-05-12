@@ -11,15 +11,24 @@ final class ProviderCoordinator: ObservableObject {
     let claude: UsageService
     let registry: ProviderRegistry
 
-    /// 哪个 provider 驱动菜单栏 label。持久化在 UserDefaults；只接受当前可用的 provider，否则回退 `.claude`。
+    /// 哪个 provider 驱动菜单栏 label。持久化在 UserDefaults；只接受 `primaryEligibleIDs` 里的 provider
+    /// （即支持后台轮询的），否则回退 / 拒绝。
     /// （故意用 `@Published` + 手动 UserDefaults 而非 `@AppStorage` —— `@AppStorage` 在
     /// `ObservableObject` 里不触发 `objectWillChange`。）
     @Published var primaryProviderID: ProviderID {
         didSet {
+            guard !isRevertingPrimary else { return }
             guard primaryProviderID != oldValue else { return }
+            guard primaryEligibleIDs.contains(primaryProviderID) else {
+                isRevertingPrimary = true
+                primaryProviderID = oldValue   // 拒绝非 eligible：恢复旧值（不写 UserDefaults）
+                isRevertingPrimary = false
+                return
+            }
             UserDefaults.standard.set(primaryProviderID.rawValue, forKey: Self.primaryProviderKey)
         }
     }
+    private var isRevertingPrimary = false
     static let primaryProviderKey = "primaryProviderID"
 
     init(claude: UsageService, additionalProviders: [UsageProvider] = []) {
@@ -28,7 +37,9 @@ final class ProviderCoordinator: ObservableObject {
         self.registry = registry
         let stored = UserDefaults.standard.string(forKey: Self.primaryProviderKey)
             .flatMap(ProviderID.init(rawValue:))
-        if let stored, registry.isAvailable(stored) {
+        // `primaryEligibleIDs` 是 self 上的计算属性，不能在 stored 属性全初始化前用；这里直接用本地 registry 算。
+        let eligible = registry.availableIDs.filter { registry.provider($0)?.supportsBackgroundPolling == true }
+        if let stored, eligible.contains(stored) {
             self.primaryProviderID = stored
         } else {
             self.primaryProviderID = .claude
@@ -39,6 +50,12 @@ final class ProviderCoordinator: ObservableObject {
     func runtime(for id: ProviderID) -> ProviderRuntime? { registry.provider(id)?.runtime }
     func isAvailable(_ id: ProviderID) -> Bool { registry.isAvailable(id) }
     var availableIDs: [ProviderID] { registry.availableIDs }
+
+    /// 已注册且**支持后台轮询**的 provider —— 只有这些能驱动菜单栏 label（否则菜单栏会显示一个只在
+    /// popover 打开时才更新的陈旧数字）。v0.2.6：只有 Claude 满足。
+    var primaryEligibleIDs: [ProviderID] {
+        registry.availableIDs.filter { registry.provider($0)?.supportsBackgroundPolling == true }
+    }
 
     /// 主 provider 的 runtime（一定非 nil —— `primaryProviderID` 已约束为可用 provider）。
     var primaryRuntime: ProviderRuntime { registry.provider(primaryProviderID)?.runtime ?? claude.runtime }

@@ -21,14 +21,15 @@ struct SettingsWindowContent: View {
                     }
                 }
 
-                // v0.2.5: 哪个 provider 驱动菜单栏 label。目前只有 Claude 可用 → 禁用并提示。
+                // 哪个 provider 驱动菜单栏 label —— 只列支持后台轮询的（primaryEligibleIDs）。
+                // v0.2.6：只有 Claude 满足（Codex 等无后台轮询，只在 popover 里看）→ 禁用并提示。
                 Picker("Primary Provider", selection: $coordinator.primaryProviderID) {
-                    ForEach(coordinator.availableIDs) { id in
+                    ForEach(coordinator.primaryEligibleIDs) { id in
                         Text(id.displayName).tag(id)
                     }
                 }
-                .disabled(coordinator.availableIDs.count <= 1)
-                if coordinator.availableIDs.count <= 1 {
+                .disabled(coordinator.primaryEligibleIDs.count <= 1)
+                if coordinator.primaryEligibleIDs.count <= 1 {
                     Text("More providers coming soon — the menu bar shows Claude for now.")
                         .font(.caption)
                         .foregroundStyle(.secondary)

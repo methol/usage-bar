@@ -165,17 +165,22 @@ final class ProviderAbstractionTests: XCTestCase {
     func testCoordinatorPrimarySwitchTracksRuntime() throws {
         UserDefaults.standard.removeObject(forKey: ProviderCoordinator.primaryProviderKey)
         let claude = try makeBareService()
+        // v0.2.6：只有 supportsBackgroundPolling 的 provider 能当 primary —— 把 stub 标成支持才进得了
+        // primaryEligibleIDs（真实 CodexProvider 不支持，见 testCoordinatorPrimaryEligibleExcludesNonPollingProvider）。
         let stub = StubProvider(id: .codex)
+        stub.supportsBackgroundPolling = true
         let coord = ProviderCoordinator(claude: claude, additionalProviders: [stub])
         XCTAssertEqual(Set(coord.availableIDs), Set([.claude, .codex]))
+        XCTAssertEqual(Set(coord.primaryEligibleIDs), Set([.claude, .codex]))
         XCTAssertTrue(coord.primaryRuntime === claude.runtime)
 
         coord.primaryProviderID = .codex
         XCTAssertTrue(coord.primaryRuntime === stub.runtime)
         XCTAssertEqual(UserDefaults.standard.string(forKey: ProviderCoordinator.primaryProviderKey), "codex")
 
-        // 新建 coordinator 应从 UserDefaults 恢复（codex 可用 → 保留）
-        let coord2 = ProviderCoordinator(claude: try makeBareService(), additionalProviders: [StubProvider(id: .codex)])
+        // 新建 coordinator 应从 UserDefaults 恢复（codex 仍 eligible → 保留）
+        let stub2 = StubProvider(id: .codex); stub2.supportsBackgroundPolling = true
+        let coord2 = ProviderCoordinator(claude: try makeBareService(), additionalProviders: [stub2])
         XCTAssertEqual(coord2.primaryProviderID, .codex)
 
         // codex 不再注册 → 回退 .claude

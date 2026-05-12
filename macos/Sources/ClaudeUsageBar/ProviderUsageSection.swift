@@ -93,13 +93,27 @@ struct UsageWindowRow: View {
 }
 
 /// 按量计费 / 额外用量行 —— 取代旧 `PopoverView` 私有的 `ExtraUsageRow`。
+/// 同时承载 Claude `extra_usage`（已用/上限 + 进度条）与 Codex `credits`（剩余余额 / Unlimited）。
 struct CreditLineRow: View {
     let credit: CreditLine
 
+    /// 用到了 Codex 语义字段（余额/无限）→ 标题叫 "Credits"；否则 Claude 的 "Extra Usage"。
+    private var title: String {
+        (credit.remainingAmount != nil || credit.isUnlimited) ? "Credits" : "Extra Usage"
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("Extra Usage").font(.subheadline)
-            if let used = credit.usedAmount, let limit = credit.limitAmount {
+            Text(title).font(.subheadline)
+            if credit.isUnlimited {
+                Text("Unlimited")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else if let remaining = credit.remainingAmount {
+                Text("\(ExtraUsage.formatUSD(remaining)) remaining")
+                    .font(.caption)
+                    .monospacedDigit()
+            } else if let used = credit.usedAmount, let limit = credit.limitAmount {
                 HStack {
                     Text("\(ExtraUsage.formatUSD(used)) / \(ExtraUsage.formatUSD(limit))")
                         .font(.caption)

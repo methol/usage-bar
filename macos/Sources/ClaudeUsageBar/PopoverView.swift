@@ -64,8 +64,28 @@ struct PopoverView: View {
             }
         } else if coordinator.isAvailable(selectedProvider),
                   let runtime = coordinator.runtime(for: selectedProvider) {
-            // v0.2.6 起：泛化的 provider 用量区（目前没有可用的非 Claude provider，此分支待 Codex 落地后生效）
-            if coordinator.provider(selectedProvider)?.isConfigured == true {
+            // v0.2.6 起：泛化的 provider 用量区（Codex 等）。configured/unconfigured 由 ProviderUsageArea
+            // 内部读 runtime.isConfigured 决定 —— 这样 runtime 的 @Published 变化能驱动该子树重渲染
+            // （父视图 PopoverView 不必然在切 tab + 拉取后重渲染；v0.2.5 G5 nit ②）。
+            ProviderUsageArea(runtime: runtime,
+                              providerID: selectedProvider,
+                              onBackToClaude: { selectedProvider = .claude },
+                              bottomBar: { bottomBar })
+        } else {
+            ProviderComingSoonView(provider: selectedProvider,
+                                   onBackToClaude: { selectedProvider = .claude })
+        }
+    }
+
+    /// 已注册的非 Claude provider 的用量区：观察其 `ProviderRuntime`，按 `isConfigured` 二选一渲染。
+    private struct ProviderUsageArea<BottomBar: View>: View {
+        @ObservedObject var runtime: ProviderRuntime
+        let providerID: ProviderID
+        let onBackToClaude: () -> Void
+        @ViewBuilder let bottomBar: () -> BottomBar
+
+        var body: some View {
+            if runtime.isConfigured {
                 ProviderUsageSection(runtime: runtime)
                 if let error = runtime.lastError {
                     UsageCard {
@@ -79,15 +99,11 @@ struct PopoverView: View {
                         Spacer()
                     }
                 }
-                bottomBar
+                bottomBar()
             } else {
-                ProviderUnconfiguredView(provider: selectedProvider,
-                                         onBackToClaude: { selectedProvider = .claude })
-                bottomBar
+                ProviderUnconfiguredView(provider: providerID, onBackToClaude: onBackToClaude)
+                bottomBar()
             }
-        } else {
-            ProviderComingSoonView(provider: selectedProvider,
-                                   onBackToClaude: { selectedProvider = .claude })
         }
     }
 

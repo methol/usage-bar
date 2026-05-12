@@ -81,7 +81,7 @@ struct ProviderUnconfiguredView: View {
                 .foregroundStyle(.secondary)
             Text("未检测到 \(provider.displayName) 凭证")
                 .font(.subheadline)
-            Text("请先在对应的 CLI / app 里登录 \(provider.displayName)。")
+            Text(hint)
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -91,6 +91,15 @@ struct ProviderUnconfiguredView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 24)
+    }
+
+    private var hint: String {
+        switch provider {
+        case .codex:
+            return "请在终端运行 `codex` 登录后回到这里。"
+        default:
+            return "请先在对应的 CLI / app 里登录 \(provider.displayName)。"
+        }
     }
 }
 

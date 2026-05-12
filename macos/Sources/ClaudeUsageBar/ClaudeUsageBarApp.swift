@@ -5,7 +5,8 @@ struct ClaudeUsageBarApp: App {
     // v0.2.5 多供应商重构：用 ProviderCoordinator 装配（内部注册 Claude provider = UsageService）。
     // Claude 的 OAuth/refresh/多账号/polling/backoff 等仍在 coordinator.claude（= UsageService）里，
     // coordinator 本版本不跑 timer——polling 仍由 coordinator.claude.startPolling() 起。
-    @StateObject private var coordinator = ProviderCoordinator(claude: UsageService())
+    @StateObject private var coordinator = ProviderCoordinator(claude: UsageService(),
+                                                               additionalProviders: [CodexProvider()])
     @StateObject private var historyService = UsageHistoryService()
     @StateObject private var notificationService = NotificationService()
     @StateObject private var appUpdater = AppUpdater()
