@@ -48,7 +48,7 @@ automated_checks:
   - "SC_AUTO_TEST: cd macos && swift test"
   - "SC_AUTO_ARTIFACTS: make release-artifacts"
   - "SC_AUTO_VERIFY_ZIP: bash macos/scripts/verify-release.sh macos/ClaudeUsageBar.zip"
-  - "SC_AUTO_NO_TIMER: grep -n 'private var timer\\|scheduleTimer\\|func startPolling\\|currentInterval' macos/Sources/ClaudeUsageBar/UsageService.swift  →  无命中（自持 timer / currentInterval 已退役）"
+  - "SC_AUTO_NO_TIMER: grep -nE 'private var timer\\b|scheduleTimer|func startPolling|private var currentInterval' macos/Sources/ClaudeUsageBar/UsageService.swift  →  无命中（自持 timer / 私有 currentInterval 已退役；保留的 static func backoffInterval(...currentInterval:) 同名参数刻意不在此 grep 范围）"
 manual_checks:
   - "改 Settings 的 Polling Interval（如 30→5min）→ Claude 与 Codex 的后台刷新都跟着变（看 popover 里各自的 Updated 时间在 ~5min 内更新）；改回 30min 同样跟随。"
   - "正常用一段时间不报错（无 429）→ Claude/Codex 的 Updated 时间按 pollingMinutes 节奏更新；切 Settings → Account section 仍没有；菜单栏 ✓ 切 Codex → 显示新的 Codex glyph（不是 SF terminal）。"
