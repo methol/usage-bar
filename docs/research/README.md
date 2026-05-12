@@ -3,7 +3,7 @@ slug: research-index
 title: 长期事实性调研索引
 type: research-index
 created: 2026-05-11
-updated: 2026-05-11
+updated: 2026-05-12
 ---
 
 # Research Notes
@@ -13,6 +13,7 @@ updated: 2026-05-11
 | 文档 | 主题 | 状态 |
 |---|---|---|
 | [competitive-analysis.md](./competitive-analysis.md) | SessionWatcher × CodexBar 详细调研 + Swift 化产品路线 | 2026-05-11 完成 |
+| [codex-data-sources.md](./codex-data-sources.md) | Codex CLI 用量数据源（`~/.codex/auth.json` OAuth → `wham/usage` 路径，取自 CodexBar 源码） | 2026-05-12 完成 |
 
 ## 调研结论速览
 
