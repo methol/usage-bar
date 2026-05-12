@@ -2,12 +2,13 @@ import SwiftUI
 
 struct LocalCostCard: View {
     let summary: CostSummary
+    var periodLabel: String = "30 天"
     @State private var expanded = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
-                Text("本地 30 天估算")
+                Text("本地 \(periodLabel)估算")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Spacer()

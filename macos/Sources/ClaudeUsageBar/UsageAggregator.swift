@@ -73,6 +73,27 @@ enum UsageAggregator {
         }.sorted { $0.monthKey < $1.monthKey }
     }
 
+    /// 从 raw events 列表中过滤出 ts >= cutoff 的事件，折叠计费，返回 CostSummary。
+    /// windowLabel 仅用于调用方区分，不存入结构体。
+    static func costForEvents(_ events: [StoredUsageEvent], since cutoff: Date, now: Date) -> CostSummary {
+        let filtered = events.filter { $0.ts >= cutoff }
+        guard !filtered.isEmpty else {
+            return CostSummary(generatedAt: now, windowDays: 0, totalUSD: 0, perModel: [],
+                               unknownModelCount: 0, parseErrorCount: 0, scannedFileCount: 0)
+        }
+        var merged: [String: TokenSums] = [:]
+        for e in filtered {
+            let mk = ClaudePricing.normalize(e.model)
+            var s = merged[mk] ?? TokenSums()
+            s.add(e)
+            merged[mk] = s
+        }
+        let c = usdForBucket(merged)
+        let windowDays = max(1, Int(ceil((now.timeIntervalSince(cutoff)) / 86400)))
+        return CostSummary(generatedAt: now, windowDays: windowDays, totalUSD: c.usd, perModel: c.perModel,
+                           unknownModelCount: c.unknownModelCalls, parseErrorCount: 0, scannedFileCount: 1)
+    }
+
     static func rolling30dSummary(dayAggregates: [String: [String: TokenSums]], now: Date,
                                   scannedFileCount: Int = 1, parseErrorCount: Int = 0) -> CostSummary {
         let cutoff = now.addingTimeInterval(-30 * 86400)

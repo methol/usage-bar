@@ -103,6 +103,43 @@ final class ClaudeUsageCollectorTests: XCTestCase {
         XCTAssertEqual(got.count, 1)
     }
 
+    /// 钉住"会话源文件被删除后，已统计到 store 的事件不会丢失"的保证。
+    /// mergeEvents 只做 union，rebuildAggregates 从落盘月明细重算——源 jsonl 删除不影响 store。
+    func testDeletedSourceFileKeepsStoredEvents() async throws {
+        let store = UsageEventStore(dataDirOverride: tmpData)
+        let cursor = ScanCursorStore(dataDirOverride: tmpData)
+
+        // 写入一个 session jsonl，包含一条事件
+        let f = try writeSession("p1", "00000000-mock-0000-0000-000000000099", lines: [
+            assistantLine(ts: "2026-05-10T10:00:00.000Z", msg: "msg_del_test", req: "req_del_test"),
+        ])
+
+        // 第一次 collect → 事件写入 store
+        let r1 = await ClaudeUsageCollector(store: store, cursor: cursor, scanRootsOverride: [tmpRoot]).collect()
+        XCTAssertEqual(r1.newEventCount, 1)
+
+        // 确认事件已存在
+        let fmt = ISO8601DateFormatter()
+        let eventsBefore = await store.queryEvents(
+            from: fmt.date(from: "2026-05-01T00:00:00Z")!,
+            to: fmt.date(from: "2026-06-01T00:00:00Z")!)
+        XCTAssertEqual(eventsBefore.count, 1)
+        XCTAssertEqual(eventsBefore.first?.msgId, "msg_del_test")
+
+        // 删除源 jsonl
+        try FileManager.default.removeItem(at: f)
+
+        // 第二次 collect（源文件已不存在）
+        _ = await ClaudeUsageCollector(store: store, cursor: cursor, scanRootsOverride: [tmpRoot]).collect()
+
+        // 已统计事件应仍然存在
+        let eventsAfter = await store.queryEvents(
+            from: fmt.date(from: "2026-05-01T00:00:00Z")!,
+            to: fmt.date(from: "2026-06-01T00:00:00Z")!)
+        XCTAssertEqual(eventsAfter.count, 1, "删除源文件后，已收集的事件不应从 store 中消失")
+        XCTAssertEqual(eventsAfter.first?.msgId, "msg_del_test")
+    }
+
     func testCorruptedMonthFileTriggersCursorResetAndRecovery() async throws {
         let store = UsageEventStore(dataDirOverride: tmpData)
         let cursor = ScanCursorStore(dataDirOverride: tmpData)

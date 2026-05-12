@@ -129,19 +129,13 @@ struct PopoverView: View {
             ExtraUsageRow(extra: extra)
         }
 
-        // v0.1.2+: 本地 30 天 cost 估算（数据源已切到 usageStats）；nil 时整张隐藏
-        if let cost = usageStats.rolling30d {
-            Divider()
-            LocalCostCard(summary: cost)
-        }
+        Divider()
+        UsageChartSectionView(historyService: historyService, recentEvents: usageStats.recentEvents)
 
         if !usageStats.dailySpend.isEmpty && !usageStats.dailySpend.allSatisfy({ $0.usd == 0 }) {
             Divider()
             UsageHeatmapView(daySpends: usageStats.dailySpend, isInitializing: usageStats.isInitializing)
         }
-
-        Divider()
-        UsageChartView(historyService: historyService)
 
         if let error = service.lastError {
             Divider()

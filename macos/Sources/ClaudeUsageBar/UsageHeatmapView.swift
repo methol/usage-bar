@@ -43,11 +43,19 @@ struct UsageHeatmapModel {
             return min(b, 8)
         }
 
-        // 网格末列 = 包含 referenceDate 的那一周；往前推 52 周 = 53 列。每列从周日开始。
+        // 网格范围：从最早 daySpend 所在周起，到 referenceDate 所在周止。
+        // 若无数据则退化为单列（当周）。
         let startOfRefWeek = cal.dateInterval(of: .weekOfYear, for: referenceDate)?.start ?? referenceDate
+        let earliestDate = daySpends.min(by: { $0.date < $1.date })?.date ?? referenceDate
+        let startOfEarliestWeek = cal.dateInterval(of: .weekOfYear, for: earliestDate)?.start ?? startOfRefWeek
+
+        // 计算列数（从最早那周到当前周，含两端）
+        let weeksBetween = cal.dateComponents([.weekOfYear], from: startOfEarliestWeek, to: startOfRefWeek).weekOfYear ?? 0
+        let totalCols = max(1, weeksBetween + 1)
+
         var cols: [[Cell]] = []
         var byKey: [String: Cell] = [:]
-        for colBack in stride(from: 52, through: 0, by: -1) {
+        for colBack in stride(from: totalCols - 1, through: 0, by: -1) {
             guard let weekStart = cal.date(byAdding: .weekOfYear, value: -colBack, to: startOfRefWeek) else { continue }
             var col: [Cell] = []
             for d in 0..<7 {
@@ -69,6 +77,8 @@ struct UsageHeatmapView: View {
     let daySpends: [DaySpend]
     let isInitializing: Bool
 
+    @State private var hovered: UsageHeatmapModel.Cell?
+
     private var model: UsageHeatmapModel { UsageHeatmapModel(daySpends: daySpends) }
 
     private func color(for bucket: Int) -> Color {
@@ -82,25 +92,54 @@ struct UsageHeatmapView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("消费热力图（近一年）").font(.caption).foregroundStyle(.secondary)
+            Text("消费热力图").font(.caption).foregroundStyle(.secondary)
             if isInitializing {
                 HStack { ProgressView().controlSize(.small); Text("统计中…").font(.caption2).foregroundStyle(.secondary) }
             } else {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(alignment: .top, spacing: 2) {
-                        ForEach(Array(model.weeks.enumerated()), id: \.offset) { _, col in
-                            VStack(spacing: 2) {
-                                ForEach(Array(col.enumerated()), id: \.offset) { _, cell in
-                                    RoundedRectangle(cornerRadius: 2)
-                                        .fill(color(for: cell.bucket))
-                                        .frame(width: 9, height: 9)
-                                        .help(tooltip(cell))
-                                        .accessibilityLabel(cell.dayKey.map { "\($0)，约 \(ExtraUsage.formatUSD(cell.usd))" } ?? "")
+                let m = model
+                let lastIndex = m.weeks.count - 1
+                ScrollViewReader { proxy in
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(alignment: .top, spacing: 2) {
+                            ForEach(Array(m.weeks.enumerated()), id: \.offset) { idx, col in
+                                VStack(spacing: 2) {
+                                    ForEach(Array(col.enumerated()), id: \.offset) { _, cell in
+                                        RoundedRectangle(cornerRadius: 2)
+                                            .fill(color(for: cell.bucket))
+                                            .frame(width: 9, height: 9)
+                                            .help(tooltip(cell))
+                                            .accessibilityLabel(cell.dayKey.map { "\($0)，约 \(ExtraUsage.formatUSD(cell.usd))" } ?? "")
+                                            .onHover { isHovering in
+                                                if isHovering {
+                                                    hovered = cell
+                                                } else if hovered == cell {
+                                                    hovered = nil
+                                                }
+                                            }
+                                    }
                                 }
+                                .id(idx)
                             }
                         }
                     }
+                    .onAppear {
+                        DispatchQueue.main.async {
+                            withAnimation(.none) { proxy.scrollTo(lastIndex, anchor: .trailing) }
+                        }
+                    }
                 }
+                // 悬停信息行：固定高度避免布局跳动
+                Group {
+                    if let cell = hovered, let key = cell.dayKey {
+                        Text("\(key) · ≈ \(ExtraUsage.formatUSD(cell.usd)) · \(cell.calls) 次调用")
+                    } else {
+                        Text("鼠标悬停查看某天明细")
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+                .font(.caption2)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(height: 14)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

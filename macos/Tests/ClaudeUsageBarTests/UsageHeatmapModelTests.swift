@@ -8,9 +8,19 @@ final class UsageHeatmapModelTests: XCTestCase {
         return DaySpend(dayKey: s, date: f.date(from: s)!, usd: usd, calls: calls)
     }
 
-    func testGridSpansAtLeast53Weeks() {
-        let model = UsageHeatmapModel(daySpends: [day("2026-05-11", usd: 1)], referenceDate: day("2026-05-11", usd: 0).date)
-        XCTAssertEqual(model.weeks.count, 53)
+    /// 新语义：网格从最早数据那周铺到 referenceDate 那周。
+    /// 单个 daySpend 与 referenceDate 同周 → 恰好 1 列。
+    func testGridSpansFromEarliestDataToReference_sameWeek() {
+        let ref = day("2026-05-11", usd: 0).date
+        let model = UsageHeatmapModel(daySpends: [day("2026-05-11", usd: 1)], referenceDate: ref)
+        XCTAssertEqual(model.weeks.count, 1)
+        XCTAssertTrue(model.weeks.allSatisfy { $0.count == 7 })
+    }
+    /// 两个 daySpend 相距约 3 周 → 至少 3 列。
+    func testGridSpansFromEarliestDataToReference_threeWeeks() {
+        let ref = day("2026-05-11", usd: 0).date
+        let model = UsageHeatmapModel(daySpends: [day("2026-04-20", usd: 1), day("2026-05-11", usd: 2)], referenceDate: ref)
+        XCTAssertGreaterThanOrEqual(model.weeks.count, 3)
         XCTAssertTrue(model.weeks.allSatisfy { $0.count == 7 })
     }
     func testZeroSpendDayIsBucketZero() {
