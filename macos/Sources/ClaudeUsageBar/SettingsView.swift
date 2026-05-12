@@ -33,14 +33,12 @@ struct SettingsWindowContent: View {
             }
 
             Section("Providers") {
-                List {
-                    ForEach(coordinator.orderedProviderIDs) { id in
-                        ProviderRow(coordinator: coordinator, id: id)
-                    }
-                    .onMove { coordinator.moveProvider(from: $0, to: $1) }
+                // 注：用 ↑/↓ 按钮重排而非拖动 —— macOS grouped `Form` 里 `List + .onMove` 的拖动手柄不稳定（已知 SwiftUI quirk），
+                // ↑/↓ 按钮功能等价、跨版本可靠（spec §3.2 风险 #1 的 fallback）。
+                ForEach(Array(coordinator.orderedProviderIDs.enumerated()), id: \.element) { idx, id in
+                    ProviderRow(coordinator: coordinator, id: id, index: idx)
                 }
-                .frame(minHeight: CGFloat(coordinator.orderedProviderIDs.count) * 28)
-                Text("✓ = 在菜单栏显示；开关 = 是否启用该供应商的 tab 与后台刷新。拖动重排。")
+                Text("✓ = 在菜单栏显示；开关 = 是否启用该供应商的 tab 与后台刷新；↑/↓ 调整顺序（也影响 popover 里的 tab 顺序）。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -91,14 +89,30 @@ struct SettingsWindowContent: View {
     }
 }
 
-/// Settings「Providers」section 的一行：名称 + 启用开关（Claude/未注册者禁用）+ 菜单栏单选 ✓。
+/// Settings「Providers」section 的一行：↑/↓ 重排 + 名称 + 启用开关（Claude/未注册者禁用）+ 菜单栏单选 ✓。
 private struct ProviderRow: View {
     @ObservedObject var coordinator: ProviderCoordinator
     let id: ProviderID
+    let index: Int
 
     var body: some View {
         let registered = coordinator.isAvailable(id)
-        HStack {
+        let count = coordinator.orderedProviderIDs.count
+        HStack(spacing: 8) {
+            VStack(spacing: 0) {
+                Button { coordinator.moveProvider(from: IndexSet(integer: index), to: index - 1) } label: {
+                    Image(systemName: "chevron.up")
+                }
+                .disabled(index == 0)
+                Button { coordinator.moveProvider(from: IndexSet(integer: index), to: index + 2) } label: {
+                    Image(systemName: "chevron.down")
+                }
+                .disabled(index >= count - 1)
+            }
+            .buttonStyle(.borderless)
+            .imageScale(.small)
+            .foregroundStyle(.secondary)
+
             Text(id.displayName).foregroundStyle(registered ? .primary : .secondary)
             if !registered {
                 Text("coming soon").font(.caption2).foregroundStyle(.tertiary)
