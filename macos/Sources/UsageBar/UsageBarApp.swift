@@ -25,13 +25,15 @@ struct UsageBarApp: App {
             )
             .environmentObject(usageStats)
         } label: {
-            MenuBarLabel(
-                runtime: coordinator.menuBarRuntime,
-                historyService: historyService,
-                showTrend: coordinator.menuBarProviderID == .claude,
-                providerID: coordinator.menuBarProviderID
-            )
+            // 所有已启用且已注册的 provider 并排展示（按 orderedProviderIDs 顺序）
+            MultiMenuBarLabel(coordinator: coordinator)
                 .task {
+                    // 迁移旧 "percentWithTrend" → "percentWithPace"
+                    if let stored = UserDefaults.standard.string(forKey: MenuBarDisplayMode.storageKey),
+                       stored == "percentWithTrend" {
+                        UserDefaults.standard.set(MenuBarDisplayMode.percentWithPace.rawValue,
+                                                  forKey: MenuBarDisplayMode.storageKey)
+                    }
                     // 退役 v0.1.2 的 cost-usage cache（已被 ~/.config/usage-bar/data/ 取代）
                     if let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first {
                         try? FileManager.default.removeItem(at: caches.appendingPathComponent("usage-bar/cost-usage", isDirectory: true))
