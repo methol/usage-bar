@@ -40,7 +40,7 @@ struct SettingsWindowContent: View {
                     .onMove { from, to in coordinator.moveProvider(from: from, to: to) }
                 }
                 .listStyle(.inset(alternatesRowBackgrounds: false))
-                .frame(height: CGFloat(coordinator.orderedProviderIDs.count) * 40 + 8)
+                .frame(height: CGFloat(coordinator.orderedProviderIDs.count) * 44 + 8)
                 Text("Enable = 控制数据采集与 tab；菜单栏 = 是否在状态栏展示。拖动可调整顺序。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -99,14 +99,15 @@ private struct ProviderRow: View {
     var body: some View {
         let registered = coordinator.isAvailable(id)
         let enabled = coordinator.enabledProviderIDs.contains(id)
-        HStack(spacing: 10) {
+        HStack(alignment: .center, spacing: 10) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(id.displayName)
                     .foregroundStyle(registered ? .primary : .secondary)
-                // 始终保留 caption2 高度，已注册行与 coming soon 行等高
-                Text(registered ? "" : "coming soon")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                if !registered {
+                    Text("coming soon")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
             }
             Spacer()
             Toggle(isOn: Binding(
@@ -129,6 +130,7 @@ private struct ProviderRow: View {
             .controlSize(.small)
             .disabled(!registered)
         }
+        .frame(minHeight: 44)
     }
 }
 
