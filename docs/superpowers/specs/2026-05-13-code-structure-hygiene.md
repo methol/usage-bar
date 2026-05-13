@@ -52,7 +52,13 @@ reviews:
     reviewer: general-purpose-subagent
     verdict: approved-after-revisions
     date: 2026-05-13
-    summary: "v1 must-fix 已修；新 must-fix 3 项已并入此版：(a) §3.2 示例 private extension 会破坏协议 conformance 与 internal 方法 → 改成 `extension UsageService` 不带前缀，每方法保留原 modifier；(b) 全文 9 子目录改 9；(c) §3.3 映射表写全 55 项。"
+    summary: "v1 must-fix 已修；新 must-fix 3 项已并入此版：(a) §3.2 示例 private extension 会破坏协议 conformance 与 internal 方法 → 改成 `extension UsageService` 不带前缀，每方法保留原 modifier；(b) 全文「8 子目录」改「9 子目录」；(c) §3.3 映射表写全 55 项。"
+  - gate: G5
+    round: 1
+    reviewer: general-purpose-subagent
+    verdict: approved
+    date: 2026-05-13
+    summary: "三维度（sort/signature/access-modifier）独立验证 SC4 UsageService.swift 纯重排序成立——method body 0 行差异、signature diff 空、access modifier diff 空。受保护文件 git diff 全空。SC1-SC5 五条 evidence 经独立命令复现全部成立。1 个 should-consider（specs/README 表格 status 同步 accepted）已顺手并入本 PR。"
 ---
 
 # 代码结构治理 —— 目录分层 + 死资源清理 + UsageService 文件内章节化
