@@ -1,7 +1,7 @@
 ---
 id: 2026-05-13-swiftui-hygiene
 title: SwiftUI hygiene：3 处 high bug + low 清理 + 死代码下线
-status: draft
+status: implemented
 created: 2026-05-13
 updated: 2026-05-13
 owner: claude-code
@@ -12,44 +12,44 @@ related_research: []
 spec_criteria:
   - id: SC1
     criterion: "UsageChartView 的 chartOverlay 不再使用 plotFrame! 强解包；plotFrame 为 nil 时 hoverDate 被设回 nil，不引入崩溃路径"
-    done: false
-    evidence: null
+    done: true
+    evidence: "UsageChartView.swift:202-210 改 guard let plot = proxy.plotFrame else { hoverDate = nil; return }；commit ad6fb27"
   - id: SC2
     criterion: "UsageHeatmapModel 改为 @State 缓存 + onChange(of: daySpends) 重建；body 重渲染不再每次重算 53×7 网格"
-    done: false
-    evidence: null
+    done: true
+    evidence: "UsageHeatmapView.swift: @State private var model + init 初始化 + body 末 .onChange(of: daySpends) { _, newValue in model = UsageHeatmapModel(daySpends: newValue) }；commit ad6fb27"
   - id: SC3
     criterion: "LocalCostCard 的展开/收起从 onTapGesture 改为 Button + .buttonStyle(.plain)，VoiceOver 可识别为按钮"
-    done: false
-    evidence: null
+    done: true
+    evidence: "LocalCostCard.swift: var body 顶层包 Button { withAnimation(...) { expanded.toggle() } } label: { VStack {...} } + .buttonStyle(.plain) + .accessibilityLabel + .accessibilityHint；commit ad6fb27"
   - id: SC4
     criterion: "UsageService.swift:766 的 Task.sleep(nanoseconds:) 替换为 Task.sleep(for:)；UsageService 类加 final"
-    done: false
-    evidence: null
+    done: true
+    evidence: "UsageService.swift:6 class → final class；UsageService.swift:766 Task.sleep(nanoseconds: 100_000_000) → Task.sleep(for: .milliseconds(100))；commit 165b1fb"
   - id: SC5
     criterion: "[撤回] 原计划去掉 ForEach(Array(seq.enumerated())) 的外层 Array(...) — 实测发现 SwiftUI ForEach 要求 RandomAccessCollection，而 Swift 标准库 Sequence.enumerated() 返回的 EnumeratedSequence 不符合该协议，外层 Array(...) 必须保留"
     done: true
     evidence: "撤回：编译错误 'Generic struct ForEach requires that EnumeratedSequence<[ProviderID]> conform to RandomAccessCollection'（MultiMenuBarLabel.swift:36）"
   - id: SC6
     criterion: "UsageBarApp.swift 的 Task.detached { await usageStats.refresh() } 改为 Task { ... }（usageStats.refresh 内部已自管 Task.detached）"
-    done: false
-    evidence: null
+    done: true
+    evidence: "UsageBarApp.swift:51,52 两处 Task.detached 改 Task；UsageService.swift:42 同步注释；commit 165b1fb"
   - id: SC7
     criterion: "CreditLine.currencyCode 字段及全部赋值点删除；grep 验证 currencyCode 0 命中"
-    done: false
-    evidence: null
+    done: true
+    evidence: "ProviderUsageSnapshot.swift 删字段 + init 参数 + self.currencyCode 赋值；CodexUsageModel.swift:131 + UsageModel.swift:252 删两处实参；grep -rn 'currencyCode' macos/Sources macos/Tests = 0 hits；commit bfd063f"
   - id: SC8
     criterion: "UsageProvider.supportsBackgroundPolling 协议成员 + 2 个 conformer impl + 4 处测试断言全部清理；grep 验证 supportsBackgroundPolling 0 命中"
-    done: false
-    evidence: null
+    done: true
+    evidence: "UsageProvider.swift 删协议成员 + TODO 注释；CodexProvider.swift:14 + UsageService.swift:868 删 impl；3 处测试 stub（CodexProviderTests:253、ProviderCoordinatorTests:199、ProviderAbstractionTests:237）+ 独立 test method testSupportsBackgroundPollingIsFalse 全删；CodexProviderTests:309 历史注释保留并 append v0.3.1 退役说明；grep -rn 'supportsBackgroundPolling' macos/Sources = 0 hits；commit bfd063f"
   - id: SC9
     criterion: "swift build -c release 与 swift test 均绿"
-    done: false
-    evidence: null
+    done: true
+    evidence: "swift build -c release: Build complete!（10.18s）；swift test: 272 passed, 0 failures（少 1 = 删掉的 testSupportsBackgroundPollingIsFalse，预期）"
   - id: SC10
     criterion: "make release-artifacts 与 verify-release.sh 全绿（含 litellm_model_prices.json / THIRD_PARTY_LICENSES.txt invariant）"
-    done: false
-    evidence: null
+    done: true
+    evidence: "make release-artifacts: UsageBar.zip + UsageBar.dmg 都成功；verify-release.sh 对 zip 与 dmg 各跑一次都 Release archive looks good"
 automated_checks:
   - "SC_AUTO_BUILD: cd macos && swift build -c release 2>&1 | tail -5"
   - "SC_AUTO_TEST: cd macos && swift test 2>&1 | tail -20"
@@ -302,13 +302,13 @@ Button {
 
 > G6 验收依据。每条 SC 完成时勾选并填 evidence。
 
-- [ ] SC1 — pending
-- [ ] SC2 — pending
-- [ ] SC3 — pending
-- [ ] SC4 — pending
+- [x] SC1 — UsageChartView plotFrame guard（commit ad6fb27）
+- [x] SC2 — UsageHeatmapModel @State 缓存 + onChange 重建（commit ad6fb27）
+- [x] SC3 — LocalCostCard Button + .plain（commit ad6fb27）
+- [x] SC4 — UsageService final + Task.sleep(for:)（commit 165b1fb）
 - [x] SC5 — **撤回**（audit 误判 `ForEach.enumerated()` 直接可用；实证 SwiftUI ForEach 要 RandomAccessCollection）
-- [ ] SC6 — pending
-- [ ] SC7 — pending
-- [ ] SC8 — pending
-- [ ] SC9 — pending
-- [ ] SC10 — pending
+- [x] SC6 — UsageBarApp 去多余 Task.detached + 同步注释（commit 165b1fb）
+- [x] SC7 — currencyCode 字段下线（commit bfd063f）
+- [x] SC8 — supportsBackgroundPolling 协议成员退役（commit bfd063f）
+- [x] SC9 — `swift build -c release` + `swift test` 272 passed 0 failed
+- [x] SC10 — `make release-artifacts` + `verify-release.sh` zip/dmg 全绿
