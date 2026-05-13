@@ -27,9 +27,9 @@ spec_criteria:
     done: false
     evidence: null
   - id: SC5
-    criterion: "UsageHeatmapView.swift (2 处) 与 MultiMenuBarLabel.swift (1 处) 的 Array(seq.enumerated()) 去掉外层 Array(...) — 共 3 处"
-    done: false
-    evidence: null
+    criterion: "[撤回] 原计划去掉 ForEach(Array(seq.enumerated())) 的外层 Array(...) — 实测发现 SwiftUI ForEach 要求 RandomAccessCollection，而 Swift 标准库 Sequence.enumerated() 返回的 EnumeratedSequence 不符合该协议，外层 Array(...) 必须保留"
+    done: true
+    evidence: "撤回：编译错误 'Generic struct ForEach requires that EnumeratedSequence<[ProviderID]> conform to RandomAccessCollection'（MultiMenuBarLabel.swift:36）"
   - id: SC6
     criterion: "UsageBarApp.swift 的 Task.detached { await usageStats.refresh() } 改为 Task { ... }（usageStats.refresh 内部已自管 Task.detached）"
     done: false
@@ -202,8 +202,8 @@ Button {
 |---|---|
 | `UsageService.swift:6` | `class UsageService: ObservableObject` → `final class UsageService: ObservableObject` |
 | `UsageService.swift:766` | `try? await Task.sleep(nanoseconds: 100_000_000)` → `try? await Task.sleep(for: .milliseconds(100))` |
-| `UsageHeatmapView.swift:102,104` | `ForEach(Array(m.weeks.enumerated()), …)` / `ForEach(Array(col.enumerated()), …)` → 去外层 `Array(...)`（共 2 处） |
-| `MultiMenuBarLabel.swift:36` | `ForEach(Array(ids.enumerated()), id: \.element)` → `ForEach(ids.enumerated(), id: \.element)` |
+| ~~`UsageHeatmapView.swift:102,104`~~ | ~~`ForEach(Array(m.weeks.enumerated()), …)` → 去外层~~ — **撤回**：`ForEach` 要 `RandomAccessCollection`，`EnumeratedSequence` 不符合 |
+| ~~`MultiMenuBarLabel.swift:36`~~ | ~~`ForEach(Array(ids.enumerated()), …)` → 去外层~~ — **撤回**：同上 |
 | `UsageBarApp.swift:51,52` | `Task.detached { await usageStats.refresh() }` → `Task { await usageStats.refresh() }`（`refresh` 内部已自管 `Task.detached(priority: .utility)`） |
 
 > 注：`UsageModel.swift` 的 `String(format: "%.2f", …)` 替换为 `.formatted(...)` 这条 **不收**——审计建议 low，且这里都是货币/单位 suffix 拼接，`.formatted` 风格相反更啰嗦，留作以后批量统一。
@@ -306,7 +306,7 @@ Button {
 - [ ] SC2 — pending
 - [ ] SC3 — pending
 - [ ] SC4 — pending
-- [ ] SC5 — pending
+- [x] SC5 — **撤回**（audit 误判 `ForEach.enumerated()` 直接可用；实证 SwiftUI ForEach 要 RandomAccessCollection）
 - [ ] SC6 — pending
 - [ ] SC7 — pending
 - [ ] SC8 — pending
