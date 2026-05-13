@@ -140,6 +140,17 @@ final class ProviderCoordinatorTests: XCTestCase {
         await Task.yield(); try? await Task.sleep(nanoseconds: 100_000_000)
         XCTAssertEqual(stub.refreshNowCallCount, 1)
     }
+
+    // 每次后台 tick 都会调 onTickSideEffects（默认让 ModelPricingCatalog 按 3h 节流自刷新）。
+    func testBackgroundTickInvokesPricingRefreshHook() {
+        let c = makeCoordinator(freshDefaults())
+        var called = 0
+        c.onTickSideEffects = { called += 1 }
+        c.onBackgroundTick()
+        XCTAssertGreaterThanOrEqual(called, 1)
+        c.onBackgroundTick()
+        XCTAssertGreaterThanOrEqual(called, 2)
+    }
 }
 
 /// 给 `ProviderCoordinatorTests` 用的最小 provider（带 refreshNow 计数 + nextEligibleRefresh override）。

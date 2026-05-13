@@ -28,7 +28,10 @@ let package = Package(
         .testTarget(
             name: "UsageBarTests",
             dependencies: ["UsageBar"],
-            path: "Tests/UsageBarTests"
+            path: "Tests/UsageBarTests",
+            resources: [
+                .process("Fixtures")
+            ]
         )
     ]
 )

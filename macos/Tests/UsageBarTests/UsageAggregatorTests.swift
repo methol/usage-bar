@@ -25,13 +25,17 @@ final class UsageAggregatorTests: XCTestCase {
         XCTAssertEqual(Set(UsageAggregator.foldByMonth(events: events).keys), ["2026-04", "2026-05"])
         XCTAssertEqual(Set(UsageAggregator.foldByYear(events: events).keys), ["2026"])
     }
-    func testUsdForBucketMatchesClaudePricingCost() {
+    func testUsdForBucketSumsCostsFromCatalog() {
         var sums = TokenSums()
         sums.calls = 1; sums.inputTokens = 1_000_000; sums.outputTokens = 1_000_000
         sums.cacheReadInputTokens = 1_000_000; sums.cacheCreationInputTokens = 1_000_000
         let bucket: [String: TokenSums] = ["claude-opus-4-7": sums]
-        XCTAssertEqual(UsageAggregator.usdForBucket(bucket).usd, 110.25, accuracy: 1e-6)
-        XCTAssertEqual(UsageAggregator.usdForBucket(bucket).unknownModelCalls, 0)
+        let r = UsageAggregator.usdForBucket(bucket)
+        XCTAssertEqual(r.unknownModelCalls, 0)               // bundle 内快照能查到 claude-opus-4-7
+        XCTAssertGreaterThan(r.usd, 0)
+        // 1M of each token type → usd 应等于该模型四项 per-Mtok 单价之和（验证 usdForBucket → catalog 的 plumbing，不硬编码金额）
+        guard let p = ClaudeModelPriceTable.shared.lookup("claude-opus-4-7") else { return XCTFail("claude-opus-4-7 not in bundled snapshot") }
+        XCTAssertEqual(r.usd, p.inputUSDPerMTok + p.outputUSDPerMTok + p.cacheReadUSDPerMTok + p.cacheWriteUSDPerMTok, accuracy: 1e-6)
     }
     func testUnknownModelContributesZeroUSDAndCountsCalls() {
         var sums = TokenSums(); sums.calls = 3; sums.inputTokens = 1_000_000

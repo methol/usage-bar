@@ -61,6 +61,9 @@ final class ProviderCoordinator: ObservableObject {
     private var defaultsObserver: NSObjectProtocol?
     private var lastBackgroundInterval: TimeInterval = 0
 
+    /// 每次后台 tick 的「附带副作用」——默认让模型价格目录按 3h 节流自刷新。可注入便于单测。
+    var onTickSideEffects: () -> Void = { ModelPricingCatalog.shared.refreshIfStale(now: Date()) }
+
     init(claude: UsageService, additionalProviders: [UsageProvider] = [], defaults: UserDefaults = .standard) {
         self.claude = claude
         self.defaults = defaults
@@ -189,5 +192,6 @@ final class ProviderCoordinator: ObservableObject {
             Task { await p.refreshNow() }
             p.onPollTick?()
         }
+        onTickSideEffects()
     }
 }

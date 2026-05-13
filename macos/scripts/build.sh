@@ -57,7 +57,42 @@ version_to_build_number() {
     printf '%s' "$version"
 }
 
+LITELLM_PRICES_REL="Sources/UsageBar/Resources/litellm_model_prices.json"
+LITELLM_PRICES_URL="https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json"
+
+# 构建前用 curl 刷新打包进 bundle 的 LiteLLM 价格快照；任何失败仅 warning，沿用仓库内 committed 副本（不中断构建）。
+fetch_litellm_prices() {
+    local dest="$PROJECT_DIR/$LITELLM_PRICES_REL"
+    local tmp="$BUILD_DIR/litellm_model_prices.json.dl"
+    mkdir -p "$BUILD_DIR"
+    if ! curl -fsSL --max-time 30 "$LITELLM_PRICES_URL" -o "$tmp" 2>/dev/null; then
+        echo "==> warning: LiteLLM price fetch failed (curl); keeping committed snapshot"
+        return 0
+    fi
+    local size
+    size="$(stat -f%z "$tmp" 2>/dev/null || stat -c%s "$tmp" 2>/dev/null || echo 0)"
+    if [[ "$size" -lt 50000 || "$size" -gt 10000000 ]]; then
+        echo "==> warning: LiteLLM price fetch size out of range ($size bytes); keeping committed snapshot"
+        return 0
+    fi
+    if ! "$PLUTIL" -lint "$tmp" >/dev/null 2>&1; then
+        echo "==> warning: LiteLLM price fetch is not valid JSON; keeping committed snapshot"
+        return 0
+    fi
+    cp "$tmp" "$dest"
+    echo "==> Refreshed LiteLLM price snapshot ($size bytes)"
+}
+
+# 装配完成后还原工作区里被 fetch_litellm_prices 覆盖的 committed 副本，使 dev/CI 工作区保持干净（tarball 构建无 .git 时跳过）。
+restore_litellm_snapshot() {
+    if git -C "$PROJECT_DIR" rev-parse --git-dir >/dev/null 2>&1; then
+        git -C "$PROJECT_DIR" checkout -- "$LITELLM_PRICES_REL" 2>/dev/null || true
+    fi
+}
+
 build_app_bundle() {
+    fetch_litellm_prices
+
     echo "==> Building release binary..."
     swift build -c release
 
@@ -129,6 +164,8 @@ build_app_bundle() {
     echo "==> Built $APP_BUNDLE"
     codesign -v "$APP_BUNDLE"
     echo "==> Codesign verified OK"
+
+    restore_litellm_snapshot
 }
 
 create_zip() {
