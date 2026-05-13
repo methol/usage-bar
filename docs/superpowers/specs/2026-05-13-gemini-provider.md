@@ -1,7 +1,7 @@
 ---
 id: 2026-05-13-gemini-provider
 title: Gemini provider 接入 — 对标 Claude / Codex 的第三条 provider 数据源
-status: draft
+status: approved
 created: 2026-05-13
 updated: 2026-05-13
 owner: claude-code
@@ -63,10 +63,14 @@ manual_checks:
   - "SC5: 卸载 gemini-cli(或临时改路径)→ 看到 unconfigured 文案"
   - "SC7: Settings 中拖拽 Gemini / 切换启用 / 切换菜单栏可见 — 全部生效"
 reviews:
-  - reviewer: g2-general-purpose-subagent
+  - reviewer: g2-general-purpose-subagent (round 1)
     date: 2026-05-13
-    verdict: needs-revision-addressed
-    notes: "首轮 5 条 required(用户授权钉死 / §2.3 范围确认 / v1internal payload fact-finding / oauth_creds.json 并发风险 / 合规披露移入 scope)+ 3 条 optional(SC3 / SC9 / SC7 改良)在本版 updated 落地;无 substantive 决策反转"
+    verdict: needs-revision
+    notes: "5 条 required(用户授权钉死 / §2.3 范围确认 / v1internal payload fact-finding / oauth_creds.json 并发风险 / 合规披露移入 scope)+ 3 条 optional(SC3 / SC9 / SC7 改良);无 substantive 决策反转"
+  - reviewer: g2-general-purpose-subagent (round 2)
+    date: 2026-05-13
+    verdict: approved
+    notes: "二轮轻量复核确认 5 条 required 全部 closed(双处留痕:frontmatter + 正文);spec 进入 plan 阶段"
   - reviewer: user-methol
     date: 2026-05-13
     verdict: approved
