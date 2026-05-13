@@ -9,6 +9,58 @@
 
 ---
 
+## [v0.3.2] — 2026-05-13
+
+> spec: [`2026-05-13-code-structure-hygiene`](./docs/superpowers/specs/2026-05-13-code-structure-hygiene.md) · 版本: [`v0.3.2`](./docs/versions/v0.3.2-code-structure-hygiene.md)
+
+### 内部（Internal）
+
+- 源码目录按职责分 **9 个子目录**（`App / Models / Services / Providers/{Core,Claude,Codex} / Pricing / LocalCost / MenuBar / Features/{Popover,Settings} / Utilities`）；55 个 Swift 文件全部迁移到位，保留完整 `git log --follow` 历史；为后续接入更多 provider 预留零成本扩展位（新 provider 只需新建 `Providers/<Name>/` 目录）
+- `UsageService.swift`（886 行）用 `// MARK: -` + `extension UsageService` 块按 OAuth / Polling / Backoff 三段章节化；0 个 access modifier 变更、0 个 method body 变更
+- `AppResources.swift` → `BundleLocator.swift`（名实相符；外部 API `usageBarResourceBundle()` 保持不变）
+- 删除死资源 `macos/Resources/demo.png`（README 已替换为外链截图）
+
+---
+
+## [v0.3.1] — 2026-05-13
+
+> spec: [`2026-05-13-swiftui-hygiene`](./docs/superpowers/specs/2026-05-13-swiftui-hygiene.md) · 版本: [`v0.3.1`](./docs/versions/v0.3.1-swiftui-hygiene.md)
+
+### 修复（Fixed）
+
+- 用量趋势图 hover：`plotFrame` 在首次布局时为 `.zero`，修复强解包崩溃路径（#25）
+- 消费热力图 hover 性能优化：不再每帧重算 53×7 网格，改为 `DragGesture.onChanged` 按需更新
+- 本地成本卡片改为 `Button`，VoiceOver 可识别并展开/收起（可访问性）
+
+### 内部（Internal）
+
+- 清理死代码：`CreditLine.currencyCode`、`UsageProvider.supportsBackgroundPolling`（协议要求早已移除，实现端残留）
+- `Task.sleep(for:)` 替换 `asyncAfter`；`UsageService` 加 `final`；`onPollTick` 闭包去多余 `Task.detached`
+
+---
+
+## [v0.3.0] — 2026-05-13
+
+> spec: [`2026-05-13-provider-self-management`](./docs/superpowers/specs/2026-05-13-provider-self-management.md) · 版本: [`v0.3.0`](./docs/versions/v0.3.0-provider-self-management.md)
+
+### 新增（Added）
+
+- **全供应商可禁用（含 Claude）**：Settings → Providers 列表每行有「启用」开关；禁用 Claude 后 popover 不再显示 Claude 登录提示，只用 Codex 的用户不受干扰
+- **每 provider 独立菜单栏开关**：启用一个 provider 不等于它一定出现在菜单栏；可以「后台采集数据但不占菜单栏空间」
+- **全部禁用空态**：所有 provider 都关闭时，popover 显示引导空态而非崩溃
+
+### 修复（Fixed）
+
+- Settings Providers 列表拖拽排序修复：`Form` 内 `ForEach.onMove` 在 macOS 不渲染拖拽手柄；改用 `List` + `.environment(\.editMode, .constant(.active))`，拖拽顺序立即同步到 popover tab 与菜单栏
+
+### 内部（Internal）
+
+- `ProviderCoordinator`：移除 Claude 恒在约束（`setEnabled` 不再 guard `.claude`）；新增 `menuBarVisibleProviderIDs` Set 替代旧 `menuBarProviderID` 单选
+- `PopoverView`：按 `enabledIDs` 分路，不再以 `claude.isAuthenticated` 作为全局门控
+- 移除 Claude OAuth sign-in / sign-out UI（凭证切为本地 CLI 模式后不再需要手动登录，功能于 issue #20/#23 下线）
+
+---
+
 ## [v0.2.3] — 用量统计与存储重设计
 
 > spec: [`2026-05-12-usage-store-redesign`](./docs/superpowers/specs/2026-05-12-usage-store-redesign.md) · 版本: [`v0.2.3`](./docs/versions/v0.2.3-usage-store-redesign.md)（supersede v0.1.2 local-cost-scan）
