@@ -12,28 +12,12 @@ struct PopoverView: View {
     @EnvironmentObject var usageStats: UsageStatsService
     /// Codex 本机用量/费用统计（与 Claude 的 `usageStats` 同型；`@EnvironmentObject` 一次只能注一个同型，故这里走构造参数）。
     @ObservedObject var codexStats: UsageStatsService
-    @AppStorage("setupComplete") private var setupComplete = false
     @State private var selectedProvider: ProviderID = .claude
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            if !setupComplete && !claude.isAuthenticated {
-                SetupView(
-                    service: claude,
-                    notificationService: notificationService,
-                    onComplete: { setupComplete = true }
-                )
-            } else if claude.isAwaitingCode {
-                // v0.1.3 G2-A/G3-R3: 提升 CodeEntryView 路由到 isAuthenticated 之外，
-                // 让"添加账号"流程（已 isAuthenticated + isAwaitingCode）也能看到 CodeEntry
-                Text(claude.accounts.isEmpty ? "登录" : "添加账号")
-                    .font(.headline)
-                CodeEntryView(service: claude)
-                if let error = claude.lastError {
-                    Label(error, systemImage: "exclamationmark.triangle")
-                        .foregroundStyle(.red)
-                        .font(.caption)
-                }
+            if !claude.isAuthenticated {
+                notAuthenticatedView
             } else {
                 AccountSwitcherView(service: claude)  // accounts.count <= 1 时自隐藏
                 ProviderTabBar(selection: $selectedProvider, availableIDs: coordinator.availableIDs)
@@ -61,11 +45,7 @@ struct PopoverView: View {
     @ViewBuilder
     private var providerArea: some View {
         if selectedProvider == .claude {
-            if !claude.isAuthenticated {
-                signInView
-            } else {
-                claudeUsageArea
-            }
+            claudeUsageArea
         } else if coordinator.availableIDs.contains(selectedProvider),
                   let runtime = coordinator.runtime(for: selectedProvider) {
             // v0.2.6 起：泛化的 provider 用量区（Codex 等）。configured/unconfigured 由 ProviderUsageArea
@@ -255,11 +235,6 @@ struct PopoverView: View {
             }
             .buttonStyle(.borderless)
             .font(.caption)
-            if claude.isAuthenticated {
-                Button("Sign Out") { claude.signOut() }
-                    .buttonStyle(.borderless)
-                    .font(.caption)
-            }
             if appUpdater.isConfigured {
                 Button("Check for Updates…") {
                     appUpdater.checkForUpdates()
@@ -276,32 +251,29 @@ struct PopoverView: View {
     }
 
     @ViewBuilder
-    private var signInView: some View {
-        // v0.1.3: isAwaitingCode 路由已提升到 body 顶层，本 view 仅处理"未登录且未等 code"场景
-        Text("Sign in to view your usage.")
+    private var notAuthenticatedView: some View {
+        Text("未检测到有效的授权凭证")
+            .font(.headline)
+        Text("请在终端完成 Claude 授权后，点击「重新检测」或重启本应用。")
             .font(.subheadline)
             .foregroundStyle(.secondary)
-
-        Button("Sign in with Claude") {
-            claude.startOAuthFlow()
+            .multilineTextAlignment(.leading)
+        Button("重新检测") {
+            Task { await coordinator.claude.bootstrapFromCLIIfNeeded() }
         }
         .buttonStyle(.borderedProminent)
         .frame(maxWidth: .infinity)
-
         if let error = claude.lastError {
             Label(error, systemImage: "exclamationmark.triangle")
                 .foregroundStyle(.red)
                 .font(.caption)
         }
-
         Divider()
         HStack {
             settingsButton
             Spacer()
-            Button("Quit") {
-                NSApplication.shared.terminate(nil)
-            }
-            .buttonStyle(.borderless)
+            Button("Quit") { NSApplication.shared.terminate(nil) }
+                .buttonStyle(.borderless)
         }
     }
 
@@ -314,163 +286,6 @@ struct PopoverView: View {
     }
 }
 
-// MARK: - Setup (first launch)
-
-private struct SetupView: View {
-    @ObservedObject var service: UsageService
-    @ObservedObject var notificationService: NotificationService
-    var onComplete: () -> Void
-
-    var body: some View {
-        Text("Welcome")
-            .font(.headline)
-        Text("Configure your preferences to get started.")
-            .font(.subheadline)
-            .foregroundStyle(.secondary)
-
-        Divider()
-
-        LaunchAtLoginToggle(controlSize: .small, useSwitchStyle: true)
-
-        Divider()
-
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Notifications")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-
-            SetupThresholdSlider(
-                label: "5-hour window",
-                value: notificationService.threshold5h,
-                onChange: { notificationService.setThreshold5h($0) }
-            )
-            SetupThresholdSlider(
-                label: "7-day window",
-                value: notificationService.threshold7d,
-                onChange: { notificationService.setThreshold7d($0) }
-            )
-            SetupThresholdSlider(
-                label: "Extra usage",
-                value: notificationService.thresholdExtra,
-                onChange: { notificationService.setThresholdExtra($0) }
-            )
-        }
-
-        Divider()
-
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Polling Interval")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-
-            Picker("", selection: Binding(
-                get: { service.pollingMinutes },
-                set: { service.updatePollingInterval($0) }
-            )) {
-                ForEach(UsageService.pollingOptions, id: \.self) { mins in
-                    Text(localizedPollingInterval(for: mins, locale: .autoupdatingCurrent))
-                        .tag(mins)
-                }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-
-            if isDiscouragedPollingOption(service.pollingMinutes) {
-                Text("Frequent polling may cause rate limiting")
-                    .font(.caption2)
-                    .foregroundStyle(.orange)
-            }
-        }
-
-        Divider()
-
-        Button("Get Started") {
-            onComplete()
-        }
-        .buttonStyle(.borderedProminent)
-        .frame(maxWidth: .infinity)
-
-        HStack {
-            Spacer()
-            Button("Quit") { NSApplication.shared.terminate(nil) }
-                .buttonStyle(.borderless)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
-    }
-}
-
-// MARK: - Subviews
-
-private struct CodeEntryView: View {
-    @ObservedObject var service: UsageService
-    @State private var code = ""
-
-    var body: some View {
-        Text("Paste the code from your browser:")
-            .font(.subheadline)
-            .foregroundStyle(.secondary)
-
-        HStack(spacing: 4) {
-            TextField("code#state", text: $code)
-                .textFieldStyle(.roundedBorder)
-                .font(.system(.body, design: .monospaced))
-                .onSubmit { submit() }
-            Button {
-                if let str = NSPasteboard.general.string(forType: .string) {
-                    code = str.trimmingCharacters(in: .whitespacesAndNewlines)
-                }
-            } label: {
-                Image(systemName: "doc.on.clipboard")
-            }
-            .buttonStyle(.borderless)
-        }
-
-        HStack {
-            Button("Cancel") {
-                service.isAwaitingCode = false
-            }
-            .buttonStyle(.borderless)
-            Spacer()
-            Button("Submit") { submit() }
-                .buttonStyle(.borderedProminent)
-                .disabled(code.isEmpty)
-        }
-    }
-
-    private func submit() {
-        let value = code
-        Task { await service.submitOAuthCode(value) }
-    }
-}
-
-private struct SetupThresholdSlider: View {
-    let label: String
-    let value: Int
-    let onChange: (Int) -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            HStack {
-                Text(label)
-                    .font(.callout)
-                Spacer()
-                Text(value > 0 ? "\(value)%" : "Off")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-            }
-            Slider(
-                value: Binding(
-                    get: { Double(value) },
-                    set: { onChange(Int($0)) }
-                ),
-                in: 0...100,
-                step: 5
-            )
-            .controlSize(.small)
-        }
-    }
-}
 
 func colorForPct(_ pct: Double) -> Color {
     switch pct {

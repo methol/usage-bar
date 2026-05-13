@@ -20,8 +20,6 @@ struct AccountSwitcherView: View {
                         }
                     }
                 }
-                Divider()
-                Button("添加账号...") { service.beginAddAccount() }
             } label: {
                 HStack(spacing: 4) {
                     Image(systemName: "person.crop.circle")
