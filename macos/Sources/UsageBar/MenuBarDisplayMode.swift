@@ -3,15 +3,15 @@ import Foundation
 enum MenuBarDisplayMode: String, CaseIterable, Identifiable {
     case icon
     case percent
-    case percentWithTrend
+    case percentWithPace
 
     var id: String { rawValue }
 
     var displayName: String {
         switch self {
         case .icon: return "Icon"
-        case .percent: return "Percent text"
-        case .percentWithTrend: return "Percent + trend"
+        case .percent: return "Percent"
+        case .percentWithPace: return "Percent + pace"
         }
     }
 
