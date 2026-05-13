@@ -22,7 +22,7 @@ spec_criteria:
     done: false
     evidence: null
   - id: SC3
-    criterion: "access_token 过期(`expiry_date` 已过):自动调 `https://oauth2.googleapis.com/token` 用 refresh_token 换新,落回 `oauth_creds.json`(原子写入,权限 0600)"
+    criterion: "access_token 过期后,下一次 refreshNow() 自动 refresh + 后续 polling 不再返回 401(用户视角『不需要手工重登』)"
     done: false
     evidence: null
   - id: SC4
@@ -38,7 +38,7 @@ spec_criteria:
     done: false
     evidence: null
   - id: SC7
-    criterion: "菜单栏 + Settings 沿用 v0.3.0 框架:Gemini 在 Settings/Provider 列表中可启用/禁用、菜单栏可见性独立、可拖拽排序"
+    criterion: "菜单栏 + Settings 沿用 v0.3.0 框架:Gemini 在 Settings/Provider 列表中可启用/禁用、菜单栏可见性独立、可拖拽排序(前置假设:SettingsView 按 ProviderID.allCases 自动渲染,Gemini 不需要额外 UI wire)"
     done: false
     evidence: null
   - id: SC8
@@ -46,7 +46,11 @@ spec_criteria:
     done: false
     evidence: null
   - id: SC9
-    criterion: "swift build -c release + swift test 全绿;新增 unit test 覆盖凭证解析、token 刷新、OAuth client 抠取、quota 响应解码、Pro/Flash 槽位映射"
+    criterion: "swift build -c release + swift test 全绿;凭证解析、token 刷新、OAuth client 抠取、quota 响应解码、Pro/Flash 槽位映射五条数据通路均有测试覆盖(具体测试文件 / fixture 由 plan 阶段定)"
+    done: false
+    evidence: null
+  - id: SC10
+    criterion: "README / docs 增『third-party credentials』披露段:说明本 app 复用本机 gemini-cli 的 OAuth 凭证、不分发 Google client secret、本机抠取仅在运行时读取且不上传"
     done: false
     evidence: null
 automated_checks:
@@ -58,7 +62,15 @@ manual_checks:
   - "SC4: 手工把 access_token 改坏 → 401 后看到对应文案"
   - "SC5: 卸载 gemini-cli(或临时改路径)→ 看到 unconfigured 文案"
   - "SC7: Settings 中拖拽 Gemini / 切换启用 / 切换菜单栏可见 — 全部生效"
-reviews: []
+reviews:
+  - reviewer: g2-general-purpose-subagent
+    date: 2026-05-13
+    verdict: needs-revision-addressed
+    notes: "首轮 5 条 required(用户授权钉死 / §2.3 范围确认 / v1internal payload fact-finding / oauth_creds.json 并发风险 / 合规披露移入 scope)+ 3 条 optional(SC3 / SC9 / SC7 改良)在本版 updated 落地;无 substantive 决策反转"
+  - reviewer: user-methol
+    date: 2026-05-13
+    verdict: approved
+    notes: "对话授权:(1) §2.2 选 OAuth 动态抠取方案,知悉 hard gate #6 法律合规风险并接受按 CodexBar 路径推进;(2) §2.3 接受『quota 先上线 + 本机统计走后续 iteration』分两步走,不阻塞本 spec 关闭 issue#27;授权来源:issue #27 AskUserQuestion 选 A + 后续『按流程自主开发和决策完成任务,不要问我』指令"
 ---
 
 # Gemini provider 接入 — 对标 Claude / Codex 的第三条 provider 数据源
@@ -75,18 +87,29 @@ reviews: []
 
 | 决策点 | 选择 | 备选 | 原因 |
 |---|---|---|---|
-| **2.1 quota 数据源** | `cloudcode-pa.googleapis.com/v1internal:loadCodeAssist` + `retrieveUserQuota`(私有 endpoint) | (a) 不显示 rate 只显示 identity; (b) 等 #15292 上 JSONL 后做离线估算 | gemini-cli 自身依赖此 endpoint,长期可用;CodexBar 已实战验证;不显示 rate 等于阉割,违反 issue "完整对标" |
-| **2.2 OAuth client_id/secret 来源** | **动态从本机 gemini-cli 安装目录用正则抠** `OAUTH_CLIENT_ID` / `OAUTH_CLIENT_SECRET`;三处枚举(`/opt/homebrew/lib/node_modules/...` / `~/.bun/...` / `/usr/local/lib/node_modules/...`) | (a) 硬编码进 app; (b) 让用户自己注册 GCP OAuth client | 跟 CodexBar 一致;Google secret 不被二次分发(法律暴露最低);失败兜底进 unconfigured 态 |
-| **2.3 本机会话统计** | **本 spec 不做**,作为后续 iteration | (a) 初版就扫 `~/.gemini/tmp/<hash>/chats/*.json` | 该文件单体重写、无 token 字段,精度差;跟版本走的契约风险;等 [gemini-cli #15292](https://github.com/google-gemini/gemini-cli/issues/15292) JSONL 提案落地后再做 |
+| **2.1 quota 数据源** | `cloudcode-pa.googleapis.com/v1internal:loadCodeAssist` + `retrieveUserQuota`(私有 endpoint) | (a) 不显示 rate 只显示 identity; (b) 等 #15292 上 JSONL 后做离线估算 | gemini-cli 自身依赖此 endpoint,长期可用;CodexBar 已实战验证(payload 引用见 §2.1.1);不显示 rate 等于阉割,违反 issue "完整对标" |
+| **2.2 OAuth client_id/secret 来源** | **动态从本机 gemini-cli 安装目录用正则抠** `OAUTH_CLIENT_ID` / `OAUTH_CLIENT_SECRET`;三处枚举(`/opt/homebrew/lib/node_modules/...` / `~/.bun/...` / `/usr/local/lib/node_modules/...`)。**用户已确认**(2026-05-13,见 frontmatter `reviews:` user-methol verdict) | (a) 硬编码进 app; (b) 让用户自己注册 GCP OAuth client | 跟 CodexBar 一致;Google secret 不被二次分发(法律暴露最低);失败兜底进 unconfigured 态 |
+| **2.3 本机会话统计** | **本 spec 不做**,作为后续 iteration。**用户已确认**接受『分两步走』(2026-05-13,见 frontmatter `reviews:` user-methol verdict) | (a) 初版就扫 `~/.gemini/tmp/<hash>/chats/*.json` | 该文件单体重写、无 token 字段,精度差;跟版本走的契约风险;等 [gemini-cli #15292](https://github.com/google-gemini/gemini-cli/issues/15292) JSONL 提案落地后再做 |
 | **2.4 UI 双 bar 映射** | Pro 模型 → primary 槽(原 5h 位)、Flash 模型 → secondary 槽(原 7d 位);各自的 `resetTime` 独立显示 | (a) 单 bar 只显示日总; (b) 用户当前默认模型作单值 | 沿用 IconBar 双 bar 视觉一致性;Pro 是用户主要算力(60/min,1000/day),Flash 是 fallback,与现有"主/次窗口"语义同构 |
 | **2.5 target_version** | `v0.6.0-gemini-provider`(新 minor) | (a) 塞进 v0.5.0 observable-migration | Gemini 接入与 SwiftUI hygiene 主题正交;混版本会让 release notes 与回滚边界模糊 |
 | **2.6 历史落地** | `history-gemini.json`,新建 `UsageHistoryService(filename:)` 实例,与 Codex 同形 | (a) 与 Codex 共用一个文件 | 与 Codex `history-codex.json` 同结构、不同文件,沿用 v0.2.8 既有模式 |
 
-**关于 §2.2 的合规备注**:本决策路径与 CodexBar 一致,但**仍属于 AGENTS.md §5 hard gate #6 范围**,需要用户在 spec 通过前明确确认。三种可选方案的合规风险等级:
+**关于 §2.2 的合规备注**:本决策路径与 CodexBar 一致,属于 AGENTS.md §5 hard gate #6 范围。**用户已在 2026-05-13 确认按本方案推进**(frontmatter `reviews:` 留痕)。三种可选方案的合规风险等级:
 
 - **动态抠取(选)**:client_id/secret 仍存在用户本机 gemini-cli 安装目录,本 app 不分发它们,只在运行时读出来用 — 法律上接近"用户授权我们代理调用 Google API";Google ToS 上仍有灰度
 - **硬编码**:等同于本 app 二次分发 Google 发给 gemini-cli 的凭证,**最高风险**
 - **用户自注册**:合规最优,但要求每个用户在 GCP console 建 OAuth client + project + 启用 API,产品上几乎不可行
+
+### 2.1.1 v1internal payload fact-finding 引用
+
+`loadCodeAssist` / `retrieveUserQuota` 的 request / response schema 直接来源:
+
+- **CodexBar Gemini 接入**:[`steipete/CodexBar/docs/gemini.md`](https://github.com/steipete/CodexBar/blob/main/docs/gemini.md) — 详细记录了套餐识别 / quota endpoint / projectId 解析回退链
+- **gemini-cli 上游源码**:`packages/core/src/code_assist/` 子目录(尤其 `oauth2.ts` 凭证、`server.ts` / `setup.ts` 调用 v1internal 的位置)
+- **POST `loadCodeAssist`** body 关键字段:`metadata`(client info)、`cloudaicompanionProject`(项目 ID 或 "default");response 含 `currentTier.id`(`free` / `legacy` / `standard` / `workspace`)、`cloudaicompanionProject`
+- **POST `retrieveUserQuota`** body 关键字段:`{"project": "<projectId>"}`;response 是 per-model 数组,每条含 `model` / `remainingFraction`(0~1 浮点)/ `resetTime`(ISO8601)/ `dailyLimit`(整型,可为 null 表示无限)
+
+> **注**:这是私有 API,字段细节以 plan 阶段实测为准。gemini-cli 主仓库的 license 是 Apache-2.0,本 spec 引用其 source code 为 fact-finding 用途符合 OSS 合理使用。
 
 ## 3. 设计
 
@@ -185,7 +208,17 @@ GeminiUsageModel                                (NEW)
 - **`GeminiUsageModelTests`**:`asProviderSnapshot` 把 [Pro, Flash, OtherModel] 数组正确映射;Pro 缺失时 primary=nil
 - **`GeminiProviderTests`**:`refreshNow` 重入闸门 / 401 路径 / 历史样本写入
 
-### 3.5 现有架构红线对齐
+### 3.5 third-party credentials 披露(合规交付物)
+
+本 spec G6 验收要求 README + docs(具体页面 plan 定)增加专门段落,披露:
+
+- 本 app 复用本机已安装 gemini-cli 的 OAuth 凭证(`~/.gemini/oauth_creds.json`),不引导用户重新登录 Google
+- 本 app 的 GeminiOAuthClientLocator **仅在运行时**从用户本机 gemini-cli 安装包中读取 `OAUTH_CLIENT_ID` / `OAUTH_CLIENT_SECRET`,**不分发**这些 secret、**不上传**到任何远端、**不在 app 二进制中硬编码**
+- 用户可通过卸载 gemini-cli / 删除 `~/.gemini/oauth_creds.json` 完全切断本 app 与 Google 的连接
+
+此段为本 spec scope,不外推到后续 spec(reviewer G2 反馈)。
+
+### 3.6 现有架构红线对齐
 
 - ✅ `UsageService` 单源真相:Gemini 不在 Claude OAuth 路径内,只引入独立的 Gemini OAuth(Google) — 不重复使用 UsageService 的 fetch/auth
 - ✅ 后台 polling:走 `ProviderCoordinator.onBackgroundTick`,不自持 timer
@@ -218,6 +251,7 @@ GeminiUsageModel                                (NEW)
 4. **"完整对标 claude 和 codex 功能"的边界**:用户在 issue 27 提出"完整对标"。本 spec 不做本机统计(决策 §2.3),严格说不算完整。需用户在 spec review 时确认是否接受"分两步走"(quota 先上线 → 等 #15292 后补本机统计)。
 5. **Pro / Flash 映射假设**:CodexBar 用模型名前缀匹来分桶。如果 Google 未来引入新一级模型(如 `gemini-3-ultra`),映射策略要更新。缓解:在 `GeminiUsageModel` 集中存映射表,易于 patch。
 6. **首次启用时的引导文案**:用户从未跑过 `gemini` 登录时,本 app 无法主动拉起登录流程(不像 Claude 我们自管 OAuth)。需要明确文案引导用户去终端跑 `gemini`。这部分在本 spec 计入 SC2 / SC5,但具体文案 wording 留 plan 阶段定。
+7. **`oauth_creds.json` 与本机 gemini CLI 并发刷新竞态**:用户同时跑 `gemini` 命令时,双方都会读 → refresh → 写。即使本 app 用原子 rename,仍可能让其中一方读到旧 access_token,刷新后冲掉对方刚拿到的新 token,导致 refresh_token 失效需要重登。**缓解**:plan 阶段实施时优先策略 — (a) 仅在 401 时才主动 refresh,不基于本地 expiry_date 预刷;(b) refresh 前 + 写回前都用 `flock(2)` 文件锁;(c) refresh 失败的 401 路径走 unconfigured 态而非反复重试,把责任推回用户终端 `gemini` 重登。三条策略组合优先 (a) + (c),(b) 看 plan 阶段实测必要性。
 
 ## 6. 后续工作(不在本 spec 范围)
 
@@ -225,7 +259,7 @@ GeminiUsageModel                                (NEW)
 2. **Enterprise / Vertex AI / API key 用户**:走 GCP Cloud Monitoring `aiplatform.googleapis.com/PublisherModel` 指标 — 数据源完全不同,独立 spec
 3. **Settings 增加"手动指定 gemini-cli 路径"入口**:为 GeminiOAuthClientLocator 失败的边缘情况(自定义 nvm / volta / asdf 安装)兜底
 4. **Gemini 模型成本估算**:`ModelPricingCatalog` 接入 LiteLLM 已含 Gemini 价格,等本机统计就绪后顺带启用
-5. **README / docs 的 third-party credentials 披露段**
+5. ~~README / docs 的 third-party credentials 披露段~~ — **已移入本 spec scope §3.5**(reviewer G2 反馈)
 
 ## 7. 引用
 
@@ -247,3 +281,4 @@ GeminiUsageModel                                (NEW)
 - [ ] SC7 — pending
 - [ ] SC8 — pending
 - [ ] SC9 — pending
+- [ ] SC10 — pending
