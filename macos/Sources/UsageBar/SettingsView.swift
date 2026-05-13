@@ -110,18 +110,23 @@ private struct ProviderRow: View {
                 }
             }
             Spacer()
-            Toggle("菜单栏", isOn: Binding(
+            Toggle(isOn: Binding(
                 get: { coordinator.menuBarVisibleProviderIDs.contains(id) },
                 set: { coordinator.setMenuBarVisible(id, $0) }
-            ))
-            .toggleStyle(.checkbox)
+            )) {
+                Image(systemName: "menubar.rectangle")
+            }
+            .toggleStyle(.button)
             .controlSize(.small)
             .disabled(!enabled || !registered)
+            .help("显示在菜单栏")
             Toggle("", isOn: Binding(
                 get: { enabled },
                 set: { coordinator.setEnabled(id, $0) }
             ))
             .labelsHidden()
+            .toggleStyle(.switch)
+            .controlSize(.small)
             .disabled(!registered)
         }
     }
