@@ -349,7 +349,7 @@ extension UsageService {
         let isFirst = accounts.isEmpty
         let newAccount = StoredAccount(
             id: UUID(),
-            label: "账号 \(accounts.count + 1)",
+            label: "Account \(accounts.count + 1)",
             addedAt: now,
             lastUsed: now,
             credentials: credentials
@@ -471,7 +471,7 @@ extension UsageService {
             // bootstrap 首次：建第一个 account
             let first = StoredAccount(
                 id: UUID(),
-                label: "账号 1",
+                label: "Account 1",
                 addedAt: Date(),
                 lastUsed: Date(),
                 credentials: credentials

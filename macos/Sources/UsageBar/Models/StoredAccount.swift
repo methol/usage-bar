@@ -45,7 +45,7 @@ extension StoredCredentialsStore {
             activeIndex: 0,
             accounts: [StoredAccount(
                 id: UUID(),
-                label: "账号 1",
+                label: "Account 1",
                 addedAt: now,
                 lastUsed: now,
                 credentials: oldCreds

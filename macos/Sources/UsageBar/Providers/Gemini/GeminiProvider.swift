@@ -62,7 +62,7 @@ final class GeminiProvider: UsageProvider {
             credsOpt = try GeminiCredentialStore.load(environment: environment)
         } catch {
             runtime.setConfigured(false)
-            runtime.setError("未检测到有效的 Gemini 凭证，请运行 `gemini` 重新登录", clearSnapshot: true)
+            runtime.setError("Gemini not signed in. Run `gemini` to sign in.", clearSnapshot: true)
             return
         }
         guard var current = credsOpt else {
@@ -75,7 +75,7 @@ final class GeminiProvider: UsageProvider {
         // 2. locate OAuth client —— 失败 → unconfigured + 错误文案（401 路径也依赖它，故前置）
         guard let client = locator.findClientIdSecret() else {
             runtime.setConfigured(false)
-            runtime.setError("未检测到 gemini-cli 安装，无法识别 OAuth 凭证", clearSnapshot: true)
+            runtime.setError("gemini-cli not installed; cannot resolve OAuth credentials.", clearSnapshot: true)
             return
         }
 
@@ -92,22 +92,22 @@ final class GeminiProvider: UsageProvider {
                     session: session,
                     environment: environment)
             } catch {
-                runtime.setError("Gemini 凭证已过期，请运行 `gemini` 重新登录", clearSnapshot: true)
+                runtime.setError("Gemini credentials expired. Run `gemini` to sign in again.", clearSnapshot: true)
                 return
             }
             do {
                 try await fetchAndPublish(credentials: current)
             } catch GeminiUsageError.unauthorized {
-                runtime.setError("Gemini 凭证已过期，请运行 `gemini` 重新登录", clearSnapshot: true)
+                runtime.setError("Gemini credentials expired. Run `gemini` to sign in again.", clearSnapshot: true)
             } catch GeminiUsageError.missingProject {
-                runtime.setError("未检测到 Gemini Code Assist 项目", clearSnapshot: true)
+                runtime.setError("No Gemini Code Assist project found.", clearSnapshot: true)
             } catch {
-                runtime.setError("无法获取 Gemini 用量（稍后重试）", clearSnapshot: false)
+                runtime.setError("Could not fetch Gemini usage. Will retry.", clearSnapshot: false)
             }
         } catch GeminiUsageError.missingProject {
-            runtime.setError("未检测到 Gemini Code Assist 项目", clearSnapshot: true)
+            runtime.setError("No Gemini Code Assist project found.", clearSnapshot: true)
         } catch {
-            runtime.setError("无法获取 Gemini 用量（稍后重试）", clearSnapshot: false)
+            runtime.setError("Could not fetch Gemini usage. Will retry.", clearSnapshot: false)
         }
     }
 
