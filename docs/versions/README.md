@@ -52,6 +52,7 @@ placeholder ─首个 spec 落地─► planned ─开发开始─► in-progres
 | [v0.2.14](./v0.2.14-litellm-pricing.md) | litellm-pricing | in-progress | 2026-05-14 | 🔌 价格表改走 LiteLLM 快照（打包 + 3h 后台刷新）+ 逐级回退 normalize（修 Codex「未知模型」误报） |
 | [v0.3.0](./v0.3.0-provider-self-management.md) | provider-self-management | planned | 2026-05-15 | ⚙️ 全供应商可禁用（含 Claude）+ 独立菜单栏开关 + 拖拽排序修复 |
 | [v0.3.1](./v0.3.1-swiftui-hygiene.md) | swiftui-hygiene | planned | 2026-05-13 | 🧹 SwiftUI hygiene：3 处 high bug + low 清理 + 死代码下线 |
+| [v0.3.2](./v0.3.2-code-structure-hygiene.md) | code-structure-hygiene | planned | 2026-05-13 | 🧹 代码结构治理：目录分 9 子目录（Providers/Claude+Codex）+ demo.png 清理 + UsageService 同文件章节化 + AppResources 改名 |
 | [v0.4.0](./v0.4.0-view-layer-modernization.md) | view-layer-modernization | placeholder | — | 🎨 view 层现代化：SettingsView Binding + PopoverView 抽 struct + GCD 嵌套清理 |
 | [v0.5.0](./v0.5.0-observable-migration.md) | observable-migration | placeholder | — | 🏗️ ObservableObject → @Observable 迁移 + UsageService 887 行拆分 |
 

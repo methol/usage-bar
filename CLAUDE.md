@@ -39,9 +39,9 @@ CI (`.github/workflows/build.yml`) runs `swift build -c release`, `swift test`, 
 
 The big picture cannot be inferred from any single file. Key invariants:
 
-- **`UsageService` is the single source of truth for API state.** It owns OAuth (PKCE + browser callback paste), token refresh, polling timer, and exponential backoff. Other types receive it via `@StateObject` injection from `UsageBarApp` and read published properties — do not duplicate fetch/auth logic elsewhere. See `UsageService.swift:1-100`.
-- **Three injected services compose the app**, wired in `UsageBarApp.swift`: `UsageService` (API), `UsageHistoryService` (in-memory ring buffer flushed to disk every 5 min and on `willTerminate`; 30-day retention), `NotificationService` (threshold notifications), `AppUpdater` (Sparkle wrapper). `UsageService` holds weak-ish references to history/notification services so its polling loop can push samples and fire alerts.
-- **Token & history live on disk under `~/.config/usage-bar/`**: `credentials.json` (0600, contains access+refresh+expiry+scopes; falls back to legacy plaintext `token` file if present — see `StoredCredentials.swift`) and `history.json`. The legacy `token` file is deleted on first save of the new format.
+- **`UsageService` is the single source of truth for API state.** It owns OAuth (PKCE + browser callback paste), token refresh, polling timer, and exponential backoff. Other types receive it via `@StateObject` injection from `UsageBarApp` and read published properties — do not duplicate fetch/auth logic elsewhere. See `Providers/Claude/UsageService.swift`（v0.3.2 同文件 `// MARK:` 章节化为 OAuth / Polling / Backoff 三段 + UsageProvider conformance）。
+- **Three injected services compose the app**, wired in `App/UsageBarApp.swift`: `UsageService` (API), `UsageHistoryService` (in-memory ring buffer flushed to disk every 5 min and on `willTerminate`; 30-day retention), `NotificationService` (threshold notifications), `AppUpdater` (Sparkle wrapper). `UsageService` holds weak-ish references to history/notification services so its polling loop can push samples and fire alerts.
+- **Token & history live on disk under `~/.config/usage-bar/`**: `credentials.json` (0600, contains access+refresh+expiry+scopes; falls back to legacy plaintext `token` file if present — see `Models/StoredCredentials.swift`) and `history.json`. The legacy `token` file is deleted on first save of the new format.
 - **Model price data comes from a bundled LiteLLM snapshot, not hand-maintained tables.** `ModelPricingCatalog` loads `litellm_model_prices.json` (upstream: `BerriAI/litellm`'s `model_prices_and_context_window.json`) with priority: `~/.config/usage-bar/litellm_model_prices.json` (runtime cache, refreshed every 3h on the background tick — see `ProviderCoordinator.onTickSideEffects`) → bundled copy → empty table (UI degrades to "定价数据未加载"). `build.sh` `curl`s a fresh snapshot into `macos/Sources/UsageBar/Resources/litellm_model_prices.json` *before* `swift build` and `git checkout`s it back *after* assembling the bundle (so `git status` stays clean; if the fetch fails it just keeps the committed copy). `OpenAIPricing` / `ClaudePricing` now only hold `normalize`/`displayName`; all price lookups go through `ModelPricingCatalog` (which runs a step-down fallback candidate chain so codex CLI aliases like `gpt-5.3-codex` resolve). `THIRD_PARTY_LICENSES.txt` (LiteLLM MIT) is bundled alongside; both new resources are checked by `verify-release.sh`.
 - **Bundle creation is custom, not stock SwiftPM.** `macos/scripts/build.sh` runs `swift build -c release`, then hand-assembles `.app/Contents/{MacOS,Resources,Frameworks}`, copies the SwiftPM resource bundle (`UsageBar_UsageBar.bundle`), compiles `Resources/Assets.xcassets` with `actool`, and embeds `Sparkle.framework`. Adding new bundled resources requires they land in the SwiftPM resource bundle (declared in `Package.swift` `resources: [.process("Resources")]`), and any new `.app/Contents/Resources/...` invariants must also be enforced in `macos/scripts/verify-release.sh`.
 - **Sparkle is gated by `SU_FEED_URL` at build time.** If the env var is unset (the default for local builds), `build.sh` strips `SUFeedURL` from `Info.plist`, leaving the updater inert. Release CI injects the feed URL. Do not hardcode the feed URL in `Info.plist`.
@@ -49,12 +49,12 @@ The big picture cannot be inferred from any single file. Key invariants:
 
 ## Mock server gotcha
 
-`scripts/mock-server.py` only mocks `GET /api/oauth/usage`. To point the app at it you must temporarily edit `UsageService.swift`'s `defaultUsageEndpoint` AND add `NSAppTransportSecurity > NSAllowsLocalNetworking` to `macos/Resources/Info.plist`. **Both edits must be reverted before committing** — they are not behind a debug flag. The mock server does not implement the OAuth flow, so an existing valid token in `~/.config/usage-bar/credentials.json` is required.
+`scripts/mock-server.py` only mocks `GET /api/oauth/usage`. To point the app at it you must temporarily edit `Providers/Claude/UsageService.swift`'s `defaultUsageEndpoint` AND add `NSAppTransportSecurity > NSAllowsLocalNetworking` to `macos/Resources/Info.plist`. **Both edits must be reverted before committing** — they are not behind a debug flag. The mock server does not implement the OAuth flow, so an existing valid token in `~/.config/usage-bar/credentials.json` is required.
 
 ## Style & dependencies
 
 - Keep third-party dependencies minimal — Sparkle is the only runtime dep, and adding another requires updating `Package.swift`, `verify-release.sh` (if it ships in the bundle), and the `build.sh` framework-bundling step.
-- One primary SwiftUI view per file (existing convention: `PopoverView.swift`, `SettingsView.swift`, `UsageChartView.swift`).
+- One primary SwiftUI view per file (existing convention: `Features/Popover/PopoverView.swift`, `Features/Settings/SettingsView.swift`, `Features/Popover/UsageChartView.swift`).
 - All UI-touching service classes are `@MainActor`; keep that annotation when extending them.
 
 ## Issue 驱动开发配置
@@ -85,7 +85,7 @@ The big picture cannot be inferred from any single file. Key invariants:
 
 ### 受保护文件 / 敏感写入链路
 - 受保护文件(改了就 `status:needs-human`):`docs/adr/*`、`AGENTS.md`、`docs/superpowers/specs/2026-05-11-docs-governance.md`、`.github/workflows/release.yml`、`macos/Package.swift` 的依赖 pin、`macos/scripts/verify-release.sh` 的 invariant 检查
-- 敏感写入链路(ship 阶段 diff 碰到就 `status:needs-human`):OAuth / token 刷新链路(`UsageService.swift`、`StoredCredentials.swift`)、Sparkle 更新链路(`AppUpdater.swift`、`appcast.xml` 生成、release workflow)、codesign / `build.sh` 的 framework 嵌入步骤
+- 敏感写入链路(ship 阶段 diff 碰到就 `status:needs-human`):OAuth / token 刷新链路(`Providers/Claude/UsageService.swift`、`Models/StoredCredentials.swift`)、Sparkle 更新链路(`App/AppUpdater.swift`、`appcast.xml` 生成、release workflow)、codesign / `build.sh` 的 framework 嵌入步骤
 
 ### 本地验证命令(实施后、ship 前必跑相关项)
 | 触发条件 | 命令 |
