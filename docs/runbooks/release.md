@@ -208,7 +208,8 @@ CI workflow 若使用 generate-appcast 工具需根据 tag 后缀注入 `--chann
 
 | Date | Version | Result | Operator | Evidence |
 |---|---|---|---|---|
-| — | — | — | — | (尚未跑过) |
+| 2026-05-13 | v0.3.1 | tag-pushed | claude-sonnet-4-6 | tag bbb2af3；CI release workflow triggered |
+| 2026-05-13 | v0.3.2 | tag-pushed | claude-sonnet-4-6 | tag dcef2ea；CI release workflow triggered |
 
 ## 引用
 
