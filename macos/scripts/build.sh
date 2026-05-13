@@ -75,9 +75,12 @@ fetch_litellm_prices() {
         echo "==> warning: LiteLLM price fetch size out of range ($size bytes); keeping committed snapshot"
         return 0
     fi
-    if ! "$PLUTIL" -lint "$tmp" >/dev/null 2>&1; then
-        echo "==> warning: LiteLLM price fetch is not valid JSON; keeping committed snapshot"
-        return 0
+    # JSON 校验：优先 python3（plutil -lint 不认裸 JSON）；没有 python3 就跳过这一步校验（size 已查过）。
+    if command -v python3 >/dev/null 2>&1; then
+        if ! python3 -c "import json,sys; json.load(open(sys.argv[1]))" "$tmp" >/dev/null 2>&1; then
+            echo "==> warning: LiteLLM price fetch is not valid JSON; keeping committed snapshot"
+            return 0
+        fi
     fi
     cp "$tmp" "$dest"
     echo "==> Refreshed LiteLLM price snapshot ($size bytes)"
