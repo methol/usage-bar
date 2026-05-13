@@ -192,29 +192,7 @@ private struct UsageChartContentView: View {
         .chartPlotStyle { plot in
             plot.clipped()
         }
-        .chartOverlay { proxy in
-            GeometryReader { geo in
-                Rectangle()
-                    .fill(.clear)
-                    .contentShape(Rectangle())
-                    .onContinuousHover { phase in
-                        switch phase {
-                        case .active(let location):
-                            guard let plot = proxy.plotFrame else {
-                                hoverDate = nil
-                                return
-                            }
-                            let plotOrigin = geo[plot].origin
-                            let x = location.x - plotOrigin.x
-                            if let date: Date = proxy.value(atX: x) {
-                                hoverDate = date
-                            }
-                        case .ended:
-                            hoverDate = nil
-                        }
-                    }
-            }
-        }
+        .chartXSelection(value: $hoverDate)
         .overlay(alignment: .top) {
             if let iv = interpolated {
                 tooltipView(date: iv.date, pct5h: iv.pct5h, pct7d: iv.pct7d)
