@@ -33,11 +33,15 @@ struct SettingsWindowContent: View {
             }
 
             Section("Providers") {
-                ForEach(coordinator.orderedProviderIDs, id: \.self) { id in
-                    ProviderRow(coordinator: coordinator, id: id)
+                List {
+                    ForEach(coordinator.orderedProviderIDs, id: \.self) { id in
+                        ProviderRow(coordinator: coordinator, id: id)
+                    }
+                    .onMove { from, to in coordinator.moveProvider(from: from, to: to) }
                 }
-                .onMove { from, to in coordinator.moveProvider(from: from, to: to) }
-                Text("开关 = 同时控制菜单栏显示与后台刷新；Claude 始终开启。拖动调整顺序（也影响 popover tab 顺序）。")
+                .listStyle(.inset(alternatesRowBackgrounds: false))
+                .frame(height: CGFloat(coordinator.orderedProviderIDs.count) * 40 + 8)
+                Text("Enable = 控制数据采集与 tab；菜单栏 = 是否在状态栏展示。拖动可调整顺序。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -88,25 +92,37 @@ struct SettingsWindowContent: View {
     }
 }
 
-/// Settings「Providers」section 的一行：名称 + 启用开关（Claude/未注册者禁用）。
 private struct ProviderRow: View {
     @ObservedObject var coordinator: ProviderCoordinator
     let id: ProviderID
 
     var body: some View {
         let registered = coordinator.isAvailable(id)
-        HStack(spacing: 8) {
-            Text(id.displayName).foregroundStyle(registered ? .primary : .secondary)
-            if !registered {
-                Text("coming soon").font(.caption2).foregroundStyle(.tertiary)
+        let enabled = coordinator.enabledProviderIDs.contains(id)
+        HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(id.displayName)
+                    .foregroundStyle(registered ? .primary : .secondary)
+                if !registered {
+                    Text("coming soon")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
             }
             Spacer()
+            Toggle("菜单栏", isOn: Binding(
+                get: { coordinator.menuBarVisibleProviderIDs.contains(id) },
+                set: { coordinator.setMenuBarVisible(id, $0) }
+            ))
+            .toggleStyle(.checkbox)
+            .controlSize(.small)
+            .disabled(!enabled || !registered)
             Toggle("", isOn: Binding(
-                get: { coordinator.enabledProviderIDs.contains(id) },
+                get: { enabled },
                 set: { coordinator.setEnabled(id, $0) }
             ))
             .labelsHidden()
-            .disabled(id == .claude || !registered)
+            .disabled(!registered)
         }
     }
 }
