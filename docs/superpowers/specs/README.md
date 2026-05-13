@@ -56,3 +56,90 @@ draft ─G2 approved─► accepted ─G6 spec_criteria 全 done─► implement
 - 文件名：`YYYY-MM-DD-<kebab-case-slug>.md`（与 frontmatter `id` 一致）
 - slug 简短、表达主题，不带版本号（版本号在 `target_version` 字段）
 - 同一主题如需新版（supersede），新建文件并把旧文件 status 改为 `superseded`，不删除旧文件
+
+## 历史路径映射（v0.3.2 后）
+
+v0.3.2 把 `macos/Sources/UsageBar/` 平铺 55 个 swift 文件改为 9 个职责子目录。已 implemented 的 spec / plan / artifacts 中
+形如 `Sources/UsageBar/<Name>.swift` 的旧引用，用下表查新位置。权威清单见
+[`2026-05-13-code-structure-hygiene.md`](./2026-05-13-code-structure-hygiene.md) §3.3。
+
+**App/** (3)
+- `UsageBarApp.swift` → `App/UsageBarApp.swift`
+- `AppUpdater.swift` → `App/AppUpdater.swift`
+- `AppResources.swift` → `App/BundleLocator.swift` (**改名**)
+
+**Models/** (10)
+- `UsageModel.swift` → `Models/UsageModel.swift`
+- `UsageHistoryModel.swift` → `Models/UsageHistoryModel.swift`
+- `UsageStoreTypes.swift` → `Models/UsageStoreTypes.swift`
+- `StoredAccount.swift` → `Models/StoredAccount.swift`
+- `StoredCredentials.swift` → `Models/StoredCredentials.swift`
+- `ProviderID.swift` → `Models/ProviderID.swift`
+- `ProviderRuntime.swift` → `Models/ProviderRuntime.swift`
+- `ProviderUsageSnapshot.swift` → `Models/ProviderUsageSnapshot.swift`
+- `MenuBarDisplayMode.swift` → `Models/MenuBarDisplayMode.swift`
+- `UpdateChannel.swift` → `Models/UpdateChannel.swift`
+
+**Services/** (5)
+- `UsageHistoryService.swift` → `Services/UsageHistoryService.swift`
+- `UsageStatsService.swift` → `Services/UsageStatsService.swift`
+- `NotificationService.swift` → `Services/NotificationService.swift`
+- `ProviderCoordinator.swift` → `Services/ProviderCoordinator.swift`
+- `ProviderRegistry.swift` → `Services/ProviderRegistry.swift`
+
+**Providers/Core/** (1)
+- `UsageProvider.swift` → `Providers/Core/UsageProvider.swift`
+
+**Providers/Claude/** (4)
+- `UsageService.swift` → `Providers/Claude/UsageService.swift` (Claude provider 实现)
+- `ClaudeUsageStrategy.swift` → `Providers/Claude/ClaudeUsageStrategy.swift`
+- `ClaudeUsageCollector.swift` → `Providers/Claude/ClaudeUsageCollector.swift`
+- `ClaudeCLICredentialsStrategy.swift` → `Providers/Claude/ClaudeCLICredentialsStrategy.swift`
+
+**Providers/Codex/** (6)
+- `CodexProvider.swift` → `Providers/Codex/CodexProvider.swift`
+- `CodexCredentials.swift` → `Providers/Codex/CodexCredentials.swift`
+- `CodexUsageClient.swift` → `Providers/Codex/CodexUsageClient.swift`
+- `CodexUsageCollector.swift` → `Providers/Codex/CodexUsageCollector.swift`
+- `CodexUsageModel.swift` → `Providers/Codex/CodexUsageModel.swift`
+- `CodexRolloutCostParser.swift` → `Providers/Codex/CodexRolloutCostParser.swift`
+
+**Pricing/** (4)
+- `ModelPricing.swift` → `Pricing/ModelPricing.swift`
+- `ModelPricingCatalog.swift` → `Pricing/ModelPricingCatalog.swift`
+- `ClaudePricing.swift` → `Pricing/ClaudePricing.swift`
+- `OpenAIPricing.swift` → `Pricing/OpenAIPricing.swift`
+
+**LocalCost/** (4)
+- `UsageEventStore.swift` → `LocalCost/UsageEventStore.swift`
+- `UsageAggregator.swift` → `LocalCost/UsageAggregator.swift`
+- `ScanCursorStore.swift` → `LocalCost/ScanCursorStore.swift`
+- `JSONLCostParser.swift` → `LocalCost/JSONLCostParser.swift`
+
+**MenuBar/** (3)
+- `MenuBarLabel.swift` → `MenuBar/MenuBarLabel.swift`
+- `MultiMenuBarLabel.swift` → `MenuBar/MultiMenuBarLabel.swift`
+- `MenuBarIconRenderer.swift` → `MenuBar/MenuBarIconRenderer.swift`
+
+**Features/Popover/** (10)
+- `PopoverView.swift` → `Features/Popover/PopoverView.swift`
+- `UsageHeroCard.swift` → `Features/Popover/UsageHeroCard.swift`
+- `UsageCard.swift` → `Features/Popover/UsageCard.swift`
+- `UsageChartView.swift` → `Features/Popover/UsageChartView.swift`
+- `UsageHeatmapView.swift` → `Features/Popover/UsageHeatmapView.swift`
+- `LocalCostCard.swift` → `Features/Popover/LocalCostCard.swift`
+- `ProviderTabBar.swift` → `Features/Popover/ProviderTabBar.swift`
+- `ProviderUsageSection.swift` → `Features/Popover/ProviderUsageSection.swift`
+- `AccountSwitcherView.swift` → `Features/Popover/AccountSwitcherView.swift`
+- `PillPicker.swift` → `Features/Popover/PillPicker.swift`
+
+**Features/Settings/** (1)
+- `SettingsView.swift` → `Features/Settings/SettingsView.swift`
+
+**Utilities/** (4)
+- `PaceCalculator.swift` → `Utilities/PaceCalculator.swift`
+- `TrendCalculator.swift` → `Utilities/TrendCalculator.swift`
+- `ResetCountdownFormatter.swift` → `Utilities/ResetCountdownFormatter.swift`
+- `PollingOptionFormatter.swift` → `Utilities/PollingOptionFormatter.swift`
+
+**合计 55 文件**（3 + 10 + 5 + 1 + 4 + 6 + 4 + 4 + 3 + 10 + 1 + 4 = 55 ✅）
