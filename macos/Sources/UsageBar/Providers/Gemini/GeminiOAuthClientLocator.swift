@@ -34,15 +34,12 @@ final class GeminiOAuthClientLocator {
         return nil
     }
 
-    /// 在 root 下递归找 `lib/node_modules/<oauth2RelativePathInside>` 或 `node_modules/<...>`。
-    /// 不深度遍历整树（那太慢）；只走两条已知模式的相对路径。
+    /// 在 root 下查 `lib/node_modules/<oauth2RelativePathInside>`(homebrew / npm global)
+    /// 或 `node_modules/<...>`(bun / 项目本地)。不深度遍历整树。
     private func locateOauth2Js(under root: URL) -> URL? {
         let candidates = [
             root.appendingPathComponent("lib/node_modules").appendingPathComponent(Self.oauth2RelativePathInside),
             root.appendingPathComponent("node_modules").appendingPathComponent(Self.oauth2RelativePathInside),
-            // 测试 fixture 形态：tmp 直接指向 `<...>/code_assist/` 父级
-            root.appendingPathComponent("lib/node_modules/@google/gemini-cli-core/dist/src/code_assist/oauth2.js"),
-            root.appendingPathComponent("node_modules/@google/gemini-cli-core/dist/src/code_assist/oauth2.js"),
         ]
         return candidates.first { fileManager.fileExists(atPath: $0.path) }
     }
