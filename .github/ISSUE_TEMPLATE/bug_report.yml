@@ -1,0 +1,58 @@
+name: "🐛 Bug 反馈"
+description: 人工测试或运行中发现的缺陷
+title: "[bug] "
+labels: ["type:bug", "status:triaged"]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: 现象概要
+      description: 一两句话描述表面现象
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: 复现步骤
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期望行为
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: 实际行为
+      description: 包含错误信息 / 截图 / 日志片段
+    validations:
+      required: true
+  - type: input
+    id: scope
+    attributes:
+      label: 涉及面(可留空,AI 分诊时复核)
+      placeholder: app(SwiftUI/服务层) / infra(CI/scripts/build) / 不确定
+  - type: dropdown
+    id: severity
+    attributes:
+      label: 严重度建议(AI 分诊时会复核)
+      options:
+        - p0(阻塞,立即处理)
+        - p1(重要,当轮处理)
+        - p2(常规)
+  - type: textarea
+    id: env
+    attributes:
+      label: 环境
+      description: macOS 版本、app 版本 / commit、是否带 Sparkle 更新链路
+  - type: textarea
+    id: notes
+    attributes:
+      label: 其他线索
+      description: 关联 issue / PR / 文档

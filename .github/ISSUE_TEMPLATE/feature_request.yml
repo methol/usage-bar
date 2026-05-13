@@ -1,0 +1,34 @@
+name: "💡 小功能点 / 增强"
+description: 在现有骨架上的小需求或增强(需要 spec / ADR 的大粒度任务走 AGENTS.md 主回路,不走 issue)
+title: "[feat] "
+labels: ["type:feat", "status:triaged"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: 要解决什么问题
+      description: 背景与动机;避免只写"做 XX"不说为什么
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 期望方向(可留空)
+  - type: input
+    id: scope
+    attributes:
+      label: 涉及面(可留空)
+      placeholder: app(SwiftUI/服务层) / infra(CI/scripts/build)
+  - type: textarea
+    id: scope_check
+    attributes:
+      label: 范围自检
+      description: |
+        若需要 spec / ADR 支撑、或触碰 CLAUDE.md "Issue 驱动开发配置" 段的守护线 checklist,
+        请先确认 —— 这类不走 issue,走 AGENTS.md 主回路。
+      placeholder: "无 / 或简要说明"
+  - type: textarea
+    id: notes
+    attributes:
+      label: 关联线索
+      description: 相关 issue / PR / 文档段落

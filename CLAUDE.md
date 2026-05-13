@@ -55,3 +55,47 @@ The big picture cannot be inferred from any single file. Key invariants:
 - Keep third-party dependencies minimal — Sparkle is the only runtime dep, and adding another requires updating `Package.swift`, `verify-release.sh` (if it ships in the bundle), and the `build.sh` framework-bundling step.
 - One primary SwiftUI view per file (existing convention: `PopoverView.swift`, `SettingsView.swift`, `UsageChartView.swift`).
 - All UI-touching service classes are `@MainActor`; keep that annotation when extending them.
+
+## Issue 驱动开发配置
+
+> 本节为 `methol-issue-driven-dev` skill 的项目配置单源。改动需配合 `.github/labels.json` 与 `scripts/issues/` 一起更新。完整生命周期见 [`docs/workflow/issue-driven.md`](./docs/workflow/issue-driven.md)。
+
+### 适用范围
+- 适用:人工测试反馈的 bug、单个小功能点、脚本 / 文档微调。
+- 不适用:跨模块架构级、需要 spec / ADR 支撑的大粒度任务 —— 走 [`AGENTS.md`](./AGENTS.md) §4 的 research → spec/ADR → plan → 实施 主回路。
+
+### 模块清单 → scope 标签
+| scope 标签 | 覆盖范围 |
+|-----------|---------|
+| `scope:infra` | CI / `scripts/` / `Makefile` / `macos/scripts/` 构建链路 / 治理文档工具链 |
+
+本仓库是单个 macOS app,业务代码改动默认不打 scope(只在涉及构建 / 工具链时打 `scope:infra`)。(同步到 `.github/labels.json`)
+
+### 评审者
+- `reviewer`: `subagent` —— 用 Task 起评审 agent,prompt 见 skill 的 `references/review-prompts.md`。与 AGENTS.md §5 的 fallback 一致,无需 codex;codex 可用时也可临时改用 `codex`(`codex:rescue` skill)。
+
+### 守护线 checklist(plan 阶段自检,任一项触发 → `status:needs-human`)
+- [ ] 不触碰凭证 / 密钥链路:OAuth token 刷新、`credentials.json` 格式、Sparkle 私钥、`SU_FEED_URL` 注入逻辑(见 AGENTS.md §6.1)
+- [ ] 不引入新第三方依赖、不改 `LICENSE`、不改变开源 / 收费定位
+- [ ] 不修改 `docs/adr/` 下已 `accepted` 的 ADR、不修改 `AGENTS.md` 或母法 spec(issue 明确要求除外)
+- [ ] 不在 `UsageService` 之外重复 fetch / auth / 轮询逻辑(架构红线,见本文件 Architecture 节)
+- [ ] 不手改 `Info.plist` 里的版本号(由 `APP_VERSION` / git tag 在 build 时注入)
+- [ ] 单 issue 影响面不跨"app 代码 / 发版链路 / 治理文档"三大块,且改动文件数大致 ≤ 5
+
+### 受保护文件 / 敏感写入链路
+- 受保护文件(改了就 `status:needs-human`):`docs/adr/*`、`AGENTS.md`、`docs/superpowers/specs/2026-05-11-docs-governance.md`、`.github/workflows/release.yml`、`macos/Package.swift` 的依赖 pin、`macos/scripts/verify-release.sh` 的 invariant 检查
+- 敏感写入链路(ship 阶段 diff 碰到就 `status:needs-human`):OAuth / token 刷新链路(`UsageService.swift`、`StoredCredentials.swift`)、Sparkle 更新链路(`AppUpdater.swift`、`appcast.xml` 生成、release workflow)、codesign / `build.sh` 的 framework 嵌入步骤
+
+### 本地验证命令(实施后、ship 前必跑相关项)
+| 触发条件 | 命令 |
+|---------|------|
+| 改 Swift 代码 | `cd macos && swift build -c release` + `cd macos && swift test` |
+| 改 build / bundle / `scripts/` | `make release-artifacts` + `bash macos/scripts/verify-release.sh macos/UsageBar.zip` |
+| 改 UI | `make app` 后手动起 app 回归金路径(尽量少跑 Xcode build) |
+| 改纯文档 | 链接核对 + frontmatter lint(母法 spec 的 `automated_checks`);无脚本则人工核对 |
+
+### CI / PR checks
+- PR 必须等绿的 check:`build`(`.github/workflows/build.yml`,跑 `swift build -c release` → `swift test` → `make release-artifacts`)。`merge.sh` 用 `gh pr checks --watch` 等全部 check 绿。
+
+### artifacts 路径
+- `artifacts/issues/<num>/`(沿用 skill 默认)

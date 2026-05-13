@@ -13,6 +13,7 @@
 | [`adr/`](./adr/) | 架构决策记录（append-only） | 决策需让 6 个月后的 AI 也能看懂 |
 | [`versions/`](./versions/) | 版本路线 + 每版本验收 + release notes 草稿 | 计划下一个 vX.Y.Z 时；发版前后更新 |
 | [`runbooks/`](./runbooks/) | AI 可执行的标准操作流程 | 任何 AI 要按部就班跑的操作 |
+| [`workflow/`](./workflow/) | 轻量协作流程（如 [`issue-driven.md`](./workflow/issue-driven.md) — bug / 小功能 / 微调走的 issue 驱动回路） | 处理 issue 号 / 人工测试反馈时 |
 | [`user-guide/`](./user-guide/) | 面向终端用户（中文） | 用户可见功能落地后 |
 
 ## 根目录配套

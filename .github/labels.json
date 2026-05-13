@@ -1,0 +1,20 @@
+[
+  { "name": "type:bug", "color": "d73a4a", "description": "缺陷反馈(人工测试 / 现场问题)" },
+  { "name": "type:feat", "color": "a2eeef", "description": "小功能点 / 增强" },
+  { "name": "type:chore", "color": "cfd3d7", "description": "工程化、脚本、CI、非业务改动" },
+  { "name": "type:docs", "color": "0075ca", "description": "纯文档更新" },
+
+  { "name": "priority:p0", "color": "b60205", "description": "阻塞,立即处理" },
+  { "name": "priority:p1", "color": "d93f0b", "description": "重要,当轮处理" },
+  { "name": "priority:p2", "color": "fbca04", "description": "常规,排期即可" },
+
+  { "name": "scope:infra", "color": "006b75", "description": "CI / scripts / build / docs 工具链;本仓库单 app 不细分模块" },
+
+  { "name": "status:triaged", "color": "c2e0c6", "description": "AI 已分诊,确认范围与类型" },
+  { "name": "status:plan-review", "color": "fef2c0", "description": "修复方案已产出,进入 AI 评审" },
+  { "name": "status:in-progress", "color": "1f883d", "description": "AI 正在实施" },
+  { "name": "status:ship-review", "color": "bfd4f2", "description": "PR 已创建,进入上线前 AI 评审" },
+  { "name": "status:needs-human", "color": "e99695", "description": "AI 判定需要人工介入,等待决策" },
+  { "name": "status:blocked", "color": "6f42c1", "description": "外部依赖阻塞(前置 / 环境)" },
+  { "name": "status:done", "color": "0e8a16", "description": "已合并 / 已关闭" }
+]
