@@ -9,6 +9,26 @@
 
 ---
 
+## [v0.4.1] — 2026-05-13
+
+> spec: [`2026-05-13-docs-cleanup`](./docs/superpowers/specs/2026-05-13-docs-cleanup.md) · 版本: [`v0.4.1`](./docs/versions/v0.4.1-docs-cleanup.md)
+
+### 内部（Internal）
+
+**纯文档治理整理，无用户可见变更，无代码改动。**
+
+- **AI 入口分层**：`AGENTS.md` 重构为三层结构 — L0（30 秒指引含任务反向索引）/ L1（必读骨架：项目快照、文档地图、工作流主回路、7 review gate、6 条 hard gates）/ L2（扩展引用），体量 216 → 140 行
+- **CLAUDE.md 瘦身**：102 → 34 行，仅保留 Claude Code 专用坑（Mock server gotcha 与跳板）；Common commands / Issue 驱动配置 / 跨文件架构红线整段迁出
+- **新建 `docs/agents/` 子目录**收编分散信息：
+  - `quickstart.md` — 任务类型 → 路径反向索引（接 issue / 写新功能 / 发版 / 改 ADR / 写 spec 等）
+  - `operations.md` — 构建命令 + Issue 驱动配置 + 守护线 checklist + 跨 runner 工具 preflight + 项目架构红线
+  - `conventions.md` — 写作约定 + frontmatter 三表速查 + 命名规范
+- **`docs/versions/README.md` 状态对齐**：索引表新增 "Main 已含" / "Tag" 两列；修复 v0.0.7 (planned → in-progress) 与 v0.4.0 (placeholder → shipped) 与 frontmatter 对齐；增加代码层 / 治理层 drift 注解
+- **`CONTRIBUTING.md`**：顶部追加 AI-led 提示段（引导贡献者优先走 issue-driven 流程）；Project structure 段从 v0.3.2 之前的扁平结构更新为当前 9 子目录结构
+- **runbooks/README**：将 active 与 placeholder runbook 拆为两个独立表，避免混淆
+
+---
+
 ## [v0.4.0] — 2026-05-13
 
 > spec: [`2026-05-13-view-layer-modernization`](./docs/superpowers/specs/2026-05-13-view-layer-modernization.md) · 版本: [`v0.4.0`](./docs/versions/v0.4.0-view-layer-modernization.md)

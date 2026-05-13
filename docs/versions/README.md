@@ -59,6 +59,7 @@ placeholder ─首个 spec 落地─► planned ─开发开始─► in-progres
 | [v0.3.1](./v0.3.1-swiftui-hygiene.md) | swiftui-hygiene | shipped | ✅ | | 2026-05-13 | 🧹 SwiftUI hygiene：3 处 high bug + low 清理 + 死代码下线 |
 | [v0.3.2](./v0.3.2-code-structure-hygiene.md) | code-structure-hygiene | shipped | ✅ | ✅ | 2026-05-13 | 🧹 代码结构治理：目录分 9 子目录（Providers/Claude+Codex）+ demo.png 清理 + UsageService 同文件章节化 + AppResources 改名 |
 | [v0.4.0](./v0.4.0-view-layer-modernization.md) | view-layer-modernization | shipped | ✅ | | 2026-05-13 | 🎨 view 层现代化：GCD 清理 + chartXSelection + PopoverView 抽 struct |
+| [v0.4.1](./v0.4.1-docs-cleanup.md) | docs-cleanup | shipped | ✅ | | 2026-05-13 | 📚 文档治理整理：AGENTS.md 3 层 + docs/agents/ 子目录 + drift 修复（纯文档，无代码改动） |
 | [v0.5.0](./v0.5.0-observable-migration.md) | observable-migration | placeholder | — | | — | 🏗️ ObservableObject → @Observable 迁移 + UsageService 887 行拆分 |
 
 > **代码层 / 治理层 drift 说明**：本仓库采用"积压发版"模式 — 多个功能版本攒在一起、由更高版本（如 v0.3.2）一次性 tag 推送。

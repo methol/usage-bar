@@ -6,7 +6,7 @@ created: 2026-05-13
 updated: 2026-05-13
 owner: claude-code
 model: claude-opus-4-7
-target_version: v0.5.0
+target_version: v0.4.1
 related_adrs: [0003]
 related_research: []
 spec_criteria:
@@ -249,7 +249,7 @@ Claude Code 专用提示。通用 AI 治理 / 命令 / 约定 见 [`AGENTS.md`](
 ## 7. 引用
 
 - 相关 ADR：0003（AI-led）
-- 落地版本：v0.5.0（计划与 observable-migration 同期，或作为独立 patch ship）
+- 落地版本：v0.4.1（纯文档 patch；不单独打 tag，随下一个有代码改动的版本一起发布）
 - 母法 spec（参照但不修改）：`docs/superpowers/specs/2026-05-11-docs-governance.md`
 
 ## Verification log
