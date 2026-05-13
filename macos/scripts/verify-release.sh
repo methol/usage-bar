@@ -32,7 +32,8 @@ verify_app_bundle() {
     [[ -f "$app_plist" ]] || { echo "Error: missing Info.plist"; exit 1; }
     [[ -d "$resource_bundle" ]] || { echo "Error: missing SwiftPM resource bundle"; exit 1; }
     [[ -f "$resource_bundle/Info.plist" ]] || { echo "Error: missing resource bundle Info.plist"; exit 1; }
-    [[ -f "$resource_bundle/claude-logo.png" ]] || { echo "Error: missing packaged logo resource"; exit 1; }
+    [[ -f "$resource_bundle/claude-logo.png" ]] || { echo "Error: missing packaged logo resource (claude-logo.png)"; exit 1; }
+    [[ -f "$resource_bundle/codex-logo.png" ]] || { echo "Error: missing packaged logo resource (codex-logo.png)"; exit 1; }
     [[ -f "$resource_bundle/en.lproj/Localizable.strings" ]] || { echo "Error: missing packaged localization resource"; exit 1; }
     local litellm_json="$resource_bundle/litellm_model_prices.json"
     [[ -f "$litellm_json" ]] || { echo "Error: missing bundled litellm_model_prices.json"; exit 1; }
