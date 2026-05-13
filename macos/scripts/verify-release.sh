@@ -34,6 +34,16 @@ verify_app_bundle() {
     [[ -f "$resource_bundle/Info.plist" ]] || { echo "Error: missing resource bundle Info.plist"; exit 1; }
     [[ -f "$resource_bundle/claude-logo.png" ]] || { echo "Error: missing packaged logo resource"; exit 1; }
     [[ -f "$resource_bundle/en.lproj/Localizable.strings" ]] || { echo "Error: missing packaged localization resource"; exit 1; }
+    local litellm_json="$resource_bundle/litellm_model_prices.json"
+    [[ -f "$litellm_json" ]] || { echo "Error: missing bundled litellm_model_prices.json"; exit 1; }
+    if command -v python3 >/dev/null 2>&1; then
+        python3 -c "import json,sys; json.load(open(sys.argv[1]))" "$litellm_json" \
+            || { echo "Error: bundled litellm_model_prices.json is not valid JSON"; exit 1; }
+    fi
+    local litellm_size
+    litellm_size="$(stat -f%z "$litellm_json" 2>/dev/null || stat -c%s "$litellm_json" 2>/dev/null || echo 0)"
+    [[ "$litellm_size" -gt 100000 ]] || { echo "Error: bundled litellm_model_prices.json too small ($litellm_size bytes)"; exit 1; }
+    [[ -f "$resource_bundle/THIRD_PARTY_LICENSES.txt" ]] || { echo "Error: missing bundled THIRD_PARTY_LICENSES.txt"; exit 1; }
     [[ -d "$sparkle_framework" ]] || { echo "Error: missing Sparkle.framework"; exit 1; }
 
     echo "==> Verifying app signature..."

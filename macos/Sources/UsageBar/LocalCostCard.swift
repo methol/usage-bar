@@ -109,8 +109,13 @@ struct LocalCostCard: View {
 
             // ── Footnotes (only when expanded) ───────────────────────────
             if expanded {
-                if summary.unknownModelCount > 0 {
-                    Text("含 \(summary.unknownModelCount) 条未知模型调用（价格表过时？）")
+                if !ModelPricingCatalog.shared.isLoaded {
+                    Text("定价数据未加载，费用估算暂不可用")
+                        .font(.caption2)
+                        .foregroundStyle(Color.orange.opacity(0.8))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                } else if summary.unknownModelCount > 0 {
+                    Text("含 \(summary.unknownModelCount) 条无定价数据的调用")
                         .font(.caption2)
                         .foregroundStyle(Color.orange.opacity(0.8))
                         .frame(maxWidth: .infinity, alignment: .leading)

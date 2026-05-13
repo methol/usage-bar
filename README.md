@@ -177,3 +177,8 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, testing with the m
 ## License
 
 [BSD 2-Clause](LICENSE)
+
+### Third-party
+
+- Cost estimates use model price data from [`BerriAI/litellm`](https://github.com/BerriAI/litellm) (`model_prices_and_context_window.json`), MIT License — bundled as `litellm_model_prices.json`; see `THIRD_PARTY_LICENSES.txt` in the app bundle.
+- Update mechanism: [Sparkle](https://sparkle-project.org), MIT License.

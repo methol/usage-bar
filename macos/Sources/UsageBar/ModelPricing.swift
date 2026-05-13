@@ -12,7 +12,7 @@ protocol ModelPriceTable: Sendable {
     func displayName(_ model: String) -> String
 }
 
-/// 一个模型的 per-Mtok 单价（与 `ClaudeModelPricing` 同字段，但 provider-无关）。
+/// 一个模型的 per-Mtok 单价（provider-无关）。`ModelPricingCatalog` 从 LiteLLM 的 per-token 价换算填充。
 struct ModelUnitPricing: Equatable, Sendable {
     let inputUSDPerMTok: Double
     let outputUSDPerMTok: Double
