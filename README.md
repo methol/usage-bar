@@ -9,9 +9,9 @@ Have you ever found yourself refreshing the Claude usage page, wondering how clo
 Now it's just a glimpse away — always sitting at the top of your screen.
 
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/9224ea74-702d-4e50-bd47-444e9bf11dd0" width="400" alt="UsageBar Claude usage view">
+  <img src="https://file1.tuzhihao.com/20260513/8266ffa0-1b9b-4eb0-86e5-6cb0cdb52efa.png" width="400" alt="UsageBar Claude usage view">
   &nbsp;&nbsp;
-  <img src="https://github.com/user-attachments/assets/d3827410-35bc-46f1-a8b4-07ed62970e3b" width="400" alt="UsageBar Codex usage view">
+  <img src="https://file1.tuzhihao.com/20260513/cf618e92-89bc-4454-a24f-0e93238e983d.png" width="400" alt="UsageBar Codex usage view">
 </p>
 
 ![macOS 14+ (Sonoma)](https://img.shields.io/badge/macOS-14%2B%20Sonoma-blue)
