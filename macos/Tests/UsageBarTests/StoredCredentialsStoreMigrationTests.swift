@@ -44,7 +44,7 @@ final class StoredCredentialsStoreMigrationTests: XCTestCase {
         let loaded = store.loadAccounts(defaultScopes: scopes)
         XCTAssertNotNil(loaded)
         XCTAssertEqual(loaded?.accounts.count, 1)
-        XCTAssertEqual(loaded?.accounts.first?.label, "账号 1")
+        XCTAssertEqual(loaded?.accounts.first?.label, "Account 1")
         XCTAssertEqual(loaded?.accounts.first?.credentials.accessToken, "mock-v1")
         XCTAssertEqual(loaded?.accounts.first?.credentials.refreshToken, "mock-refresh")
         // v0.1.3 双写镜像设计：v1 credentials.json 保留作为 active account token mirror（不删）

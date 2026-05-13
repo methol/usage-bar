@@ -11,8 +11,8 @@ enum UpdateChannel: String, CaseIterable, Identifiable {
 
     var displayName: String {
         switch self {
-        case .stable: return "稳定版"
-        case .beta: return "Beta（实验性）"
+        case .stable: return "Stable"
+        case .beta: return "Beta"
         }
     }
 

@@ -299,12 +299,12 @@ struct PopoverView: View {
     private struct NoProvidersView: View {
         var body: some View {
             VStack(spacing: 12) {
-                Text("没有启用的供应商")
+                Text("No providers enabled")
                     .font(.headline)
-                Text("请在设置中至少启用一个供应商。")
+                Text("Enable at least one provider in Settings.")
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
-                SettingsLink { Text("打开设置") }
+                SettingsLink { Text("Open Settings") }
                     .buttonStyle(.borderedProminent)
             }
             .padding()
@@ -325,13 +325,13 @@ struct PopoverView: View {
         @ObservedObject var claude: UsageService
 
         var body: some View {
-            Text("未检测到有效的授权凭证")
+            Text("Not signed in")
                 .font(.headline)
-            Text("请在终端完成 Claude 授权后，点击「重新检测」或重启本应用。")
+            Text("Sign in with the Claude CLI, then tap Retry.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.leading)
-            Button("重新检测") {
+            Button("Retry") {
                 Task { await coordinator.claude.bootstrapFromCLIIfNeeded() }
             }
             .buttonStyle(.borderedProminent)

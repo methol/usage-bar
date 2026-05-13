@@ -927,7 +927,7 @@ final class UsageServiceTests: XCTestCase {
         let keychainRT = "cli-refresh-to-strip"
         // 种一个带 CLI refresh_token 的账号（历史遗留）
         let account = StoredAccount(
-            id: UUID(), label: "账号 1",
+            id: UUID(), label: "Account 1",
             addedAt: Date(timeIntervalSince1970: 1_700_000_000),
             lastUsed: Date(timeIntervalSince1970: 1_700_000_000),
             credentials: StoredCredentials(
@@ -965,7 +965,7 @@ final class UsageServiceTests: XCTestCase {
         let pkceRT = "pkce-own-refresh"
         // PKCE 自有账号（RT 不在 CLI Keychain 中）
         let account = StoredAccount(
-            id: UUID(), label: "账号 1",
+            id: UUID(), label: "Account 1",
             addedAt: Date(timeIntervalSince1970: 1_700_000_000),
             lastUsed: Date(timeIntervalSince1970: 1_700_000_000),
             credentials: StoredCredentials(

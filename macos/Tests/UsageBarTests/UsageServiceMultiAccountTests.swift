@@ -53,7 +53,7 @@ final class UsageServiceMultiAccountTests: XCTestCase {
 
         let service = makeService()
         XCTAssertEqual(service.accounts.count, 1)
-        XCTAssertEqual(service.accounts.first?.label, "账号 1")
+        XCTAssertEqual(service.accounts.first?.label, "Account 1")
         XCTAssertTrue(service.isAuthenticated)
     }
 

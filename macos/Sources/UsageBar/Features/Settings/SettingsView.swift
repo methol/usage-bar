@@ -41,9 +41,6 @@ struct SettingsWindowContent: View {
                 }
                 .listStyle(.inset(alternatesRowBackgrounds: false))
                 .frame(height: CGFloat(coordinator.orderedProviderIDs.count) * 44 + 8)
-                Text("Enable = 控制数据采集与 tab；菜单栏 = 是否在状态栏展示。拖动可调整顺序。")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
             }
 
             Section("Notifications") {
@@ -65,8 +62,8 @@ struct SettingsWindowContent: View {
             }
 
             // v0.2.2: 更新通道（G3-N1 位置：Notifications 之后 / Account 之前）
-            Section("更新通道") {
-                Picker("通道", selection: $rawChannel) {
+            Section("Updates") {
+                Picker("Channel", selection: $rawChannel) {
                     ForEach(UpdateChannel.allCases) { ch in
                         Text(ch.displayName).tag(ch.rawValue)
                     }
@@ -77,7 +74,7 @@ struct SettingsWindowContent: View {
                         rawChannel = UpdateChannel.defaultChannel.rawValue
                     }
                 }
-                Text("Beta 通道包含未稳定版本，仅建议测试用户启用")
+                Text("Beta includes pre-release builds for testing.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -119,7 +116,7 @@ private struct ProviderRow: View {
             .toggleStyle(.button)
             .controlSize(.small)
             .disabled(!enabled || !registered)
-            .help("显示在菜单栏")
+            .help("Show in menu bar")
             // 未注册 provider 在 UI 上显示为 OFF（enabledProviderIDs 里的值保留，等接入时自动恢复）
             Toggle("", isOn: Binding(
                 get: { enabled && registered },

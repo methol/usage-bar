@@ -62,7 +62,7 @@ final class CodexProvider: UsageProvider {
             creds = try CodexCredentialStore.load(environment: environment)
         } catch {
             runtime.setConfigured(false)
-            runtime.setError("未检测到有效的 Codex 凭证，请在终端运行 `codex` 登录", clearSnapshot: true)
+            runtime.setError("Codex not signed in. Run `codex` to sign in.", clearSnapshot: true)
             return
         }
         guard let creds else {
@@ -77,9 +77,9 @@ final class CodexProvider: UsageProvider {
             runtime.setSuccess(snapshot: snapshot)
             recordHistorySample(from: snapshot)
         } catch CodexUsageError.unauthorized {
-            runtime.setError("Codex 凭证已过期，请在终端运行 `codex` 重新登录", clearSnapshot: true)
+            runtime.setError("Codex credentials expired. Run `codex` to sign in again.", clearSnapshot: true)
         } catch {
-            runtime.setError("无法获取 Codex 用量（稍后重试）", clearSnapshot: false)
+            runtime.setError("Could not fetch Codex usage. Will retry.", clearSnapshot: false)
         }
     }
 

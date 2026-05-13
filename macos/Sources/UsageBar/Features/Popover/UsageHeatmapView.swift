@@ -97,7 +97,7 @@ struct UsageHeatmapView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             if isInitializing {
-                HStack { ProgressView().controlSize(.small); Text("统计中…").font(.caption2).foregroundStyle(.secondary) }
+                HStack { ProgressView().controlSize(.small); Text("Loading…").font(.caption2).foregroundStyle(.secondary) }
             } else {
                 let m = model
                 let lastIndex = m.weeks.count - 1
@@ -110,7 +110,7 @@ struct UsageHeatmapView: View {
                                         RoundedRectangle(cornerRadius: 2)
                                             .fill(color(for: cell.bucket))
                                             .frame(width: 9, height: 9)
-                                            .accessibilityLabel(cell.dayKey.map { "\($0)，约 \(ExtraUsage.formatUSDCompact(cell.usd))" } ?? "")
+                                            .accessibilityLabel(cell.dayKey.map { "\($0), approx \(ExtraUsage.formatUSDCompact(cell.usd))" } ?? "")
                                             .onHover { isHovering in
                                                 if isHovering {
                                                     hovered = cell

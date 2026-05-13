@@ -124,7 +124,7 @@ final class GeminiProviderTests: XCTestCase {
         await p.refreshNow()
         XCTAssertNotNil(p.runtime.lastError)
         XCTAssertNil(p.runtime.snapshot)
-        XCTAssertTrue(p.runtime.lastError?.contains("过期") == true || p.runtime.lastError?.contains("登录") == true)
+        XCTAssertTrue(p.runtime.lastError?.contains("expired") == true || p.runtime.lastError?.contains("sign in") == true)
     }
 
     @MainActor

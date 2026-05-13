@@ -49,8 +49,8 @@ final class UpdateChannelTests: XCTestCase {
     }
 
     func testDisplayName() {
-        XCTAssertEqual(UpdateChannel.stable.displayName, "稳定版")
-        XCTAssertEqual(UpdateChannel.beta.displayName, "Beta（实验性）")
+        XCTAssertEqual(UpdateChannel.stable.displayName, "Stable")
+        XCTAssertEqual(UpdateChannel.beta.displayName, "Beta")
     }
 
     func testAllCases() {

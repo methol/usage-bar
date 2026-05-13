@@ -113,17 +113,17 @@ struct LocalCostCard: View {
             // ── Footnotes (only when expanded) ───────────────────────────
             if expanded {
                 if !ModelPricingCatalog.shared.isLoaded {
-                    Text("定价数据未加载，费用估算暂不可用")
+                    Text("Pricing data unavailable.")
                         .font(.caption2)
                         .foregroundStyle(Color.orange.opacity(0.8))
                         .frame(maxWidth: .infinity, alignment: .leading)
                 } else if summary.unknownModelCount > 0 {
-                    Text("含 \(summary.unknownModelCount) 条无定价数据的调用")
+                    Text("\(summary.unknownModelCount) call(s) without pricing data")
                         .font(.caption2)
                         .foregroundStyle(Color.orange.opacity(0.8))
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                Text("ⓘ 仅读用量字段，不读对话内容")
+                Text("ⓘ Usage fields only; conversations are not read.")
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -135,7 +135,7 @@ struct LocalCostCard: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("本机消费明细")
-        .accessibilityHint(expanded ? "收起" : "展开")
+        .accessibilityLabel("Local cost breakdown")
+        .accessibilityHint(expanded ? "Collapse" : "Expand")
     }
 }

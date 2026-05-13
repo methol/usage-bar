@@ -49,11 +49,11 @@ struct ProviderComingSoonView: View {
             Image(systemName: "hourglass")
                 .font(.system(size: 28))
                 .foregroundStyle(.secondary)
-            Text("\(provider.displayName) 支持开发中，敬请期待")
+            Text("\(provider.displayName) coming soon")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
-            Button("← 回到 Claude", action: onBackToClaude)
+            Button("← Back to Claude", action: onBackToClaude)
                 .buttonStyle(.borderless)
                 .font(.caption)
         }
@@ -74,13 +74,13 @@ struct ProviderUnconfiguredView: View {
             Image(systemName: "person.crop.circle.badge.questionmark")
                 .font(.system(size: 28))
                 .foregroundStyle(.secondary)
-            Text("未检测到 \(provider.displayName) 凭证")
+            Text("\(provider.displayName) not signed in")
                 .font(.subheadline)
             Text(hint)
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
-            Button("← 回到 Claude", action: onBackToClaude)
+            Button("← Back to Claude", action: onBackToClaude)
                 .buttonStyle(.borderless)
                 .font(.caption)
         }
@@ -91,9 +91,9 @@ struct ProviderUnconfiguredView: View {
     private var hint: String {
         switch provider {
         case .codex:
-            return "请在终端运行 `codex` 登录后回到这里。"
+            return "Run `codex` in your terminal, then come back."
         default:
-            return "请先在对应的 CLI / app 里登录 \(provider.displayName)。"
+            return "Sign in via the \(provider.displayName) CLI / app."
         }
     }
 }
