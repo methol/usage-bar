@@ -71,14 +71,14 @@ struct PopoverView: View {
                 : nil)
             ProviderUsageArea(runtime: runtime,
                               providerID: selectedProvider,
-                              onBackToClaude: { selectedProvider = .claude },
+                              onBackToClaude: { selectedProvider = coordinator.availableIDs.first ?? .claude },
                               history: history,
                               costStats: costStats,
                               costContext: costContext,
                               bottomBar: { bottomBar })
         } else {
             ProviderComingSoonView(provider: selectedProvider,
-                                   onBackToClaude: { selectedProvider = .claude })
+                                   onBackToClaude: { selectedProvider = coordinator.availableIDs.first ?? .claude })
         }
     }
 
@@ -275,10 +275,11 @@ struct PopoverView: View {
         .frame(maxWidth: .infinity)
         Divider()
         HStack {
-            settingsButton
             Spacer()
             Button("Quit") { NSApplication.shared.terminate(nil) }
                 .buttonStyle(.borderless)
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
     }
 
