@@ -40,7 +40,7 @@ updated: 2026-05-13
 | `2026-05-13-provider-self-management` | Provider 自主管理：全供应商可禁用（含 Claude）+ 独立菜单栏开关 + 拖拽排序修复；只用 Codex 的用户不再被强制引导 Claude 登录 | implemented | v0.3.0 | [文件](./2026-05-13-provider-self-management.md) |
 | `2026-05-13-swiftui-hygiene` | SwiftUI hygiene：3 处 high bug（PlotFrame API / Heatmap 模型转 @State / LocalCostCard 可点击转 Button）+ low 清理 + 死代码下线（supportsBackgroundPolling / currencyCode）| implemented | v0.3.1 | [文件](./2026-05-13-swiftui-hygiene.md) |
 | `2026-05-13-code-structure-hygiene` | 代码结构治理：目录分 9 子目录（Providers/Core+per-provider）+ UsageService 移进 Providers/Claude/ 同文件 // MARK: 章节化 + demo.png 清理 + AppResources 改名 BundleLocator | implemented | v0.3.2 | [文件](./2026-05-13-code-structure-hygiene.md) |
-| `2026-05-13-view-layer-modernization` | View 层现代化：GCD 清理（2 处）+ chartXSelection 替换 GeometryReader + PopoverView 5 个 @ViewBuilder private var → private nested struct | accepted | v0.4.0 | [文件](./2026-05-13-view-layer-modernization.md) |
+| `2026-05-13-view-layer-modernization` | View 层现代化：GCD 清理（2 处）+ chartXSelection 替换 GeometryReader + PopoverView 5 个 @ViewBuilder private var → private nested struct | implemented | v0.4.0 | [文件](./2026-05-13-view-layer-modernization.md) |
 
 > 新增 spec 时在表格 append 一行；状态由 spec frontmatter 同步。
 

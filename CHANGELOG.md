@@ -9,6 +9,18 @@
 
 ---
 
+## [v0.4.0] — 2026-05-13
+
+> spec: [`2026-05-13-view-layer-modernization`](./docs/superpowers/specs/2026-05-13-view-layer-modernization.md) · 版本: [`v0.4.0`](./docs/versions/v0.4.0-view-layer-modernization.md)
+
+### 内部（Internal）
+
+- **GCD 清理**：消除两处 `DispatchQueue.main.async` 残留，改用 Swift Concurrency（`Task { @MainActor in }` / `.task { await Task.yield() }`），与项目 Swift Concurrency 风格一致
+- **Chart hover 简化**：`UsageChartView` 折线图 hover 交互从 `chartOverlay + GeometryReader` 坐标转换改为 `.chartXSelection(value:)`（macOS 14+ Charts 内置 API），删除 ~23 行代码
+- **PopoverView 结构化**：5 个 `@ViewBuilder private var` helper 提升为 private nested struct（`ProviderAreaView` / `ClaudeUsageAreaView` / `BottomBarView` / `NoProvidersView` / `NotAuthenticatedView`），改善 SwiftUI diff 精确度，与现有 `ProviderUsageArea` 模式一致
+
+---
+
 ## [v0.3.2] — 2026-05-13
 
 > spec: [`2026-05-13-code-structure-hygiene`](./docs/superpowers/specs/2026-05-13-code-structure-hygiene.md) · 版本: [`v0.3.2`](./docs/versions/v0.3.2-code-structure-hygiene.md)

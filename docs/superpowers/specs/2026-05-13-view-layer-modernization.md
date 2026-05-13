@@ -1,7 +1,7 @@
 ---
 id: 2026-05-13-view-layer-modernization
 title: View 层现代化：GCD 清理 + chartXSelection + PopoverView helper 抽 struct
-status: accepted
+status: implemented
 created: 2026-05-13
 updated: 2026-05-13
 owner: claude-code
@@ -59,6 +59,12 @@ reviews:
     verdict: approved-after-revisions
     date: 2026-05-13
     summary: "2 个 must-fix：(a) UsageHeatmapView `.task {}` 无 await 时可能同 runloop 执行，需加 `await Task.yield()` 保证 next-runloop 延迟语义；(b) @EnvironmentObject 同类型碰撞风险 — 已核查 UsageBarApp.swift，codexStats 只走构造参数从不进 env，无碰撞，spec 已加说明。已修复后视为 approved。"
+  - gate: G5
+    round: 1
+    reviewer: general-purpose-subagent
+    verdict: approved
+    date: 2026-05-13
+    summary: "SC1/SC2/SC3 全部通过。Task.yield() 与 DispatchQueue.main.async 语义等价（社区广泛接受）；chartXSelection hover-leave 自动设 nil 框架内部处理，无粘住问题；@EnvironmentObject 安全性已核查 UsageBarApp.swift 确认 codexStats 从不进 env。Nit：Task.yield() 可加注释说明用途（非阻塞）。"
 ---
 
 # View 层现代化：GCD 清理 + chartXSelection + PopoverView helper 抽 struct
