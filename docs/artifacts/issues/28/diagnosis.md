@@ -80,30 +80,49 @@ Codex errors:
 ### B. 砍掉冗余提示文案
 
 - **SettingsView L44**:`Text("Enable = 控制数据采集与 tab；菜单栏 = 是否在状态栏展示。拖动可调整顺序。")` → **整行删除**。Enable 拨片 + 菜单栏 toggle + 拖动手柄自解释,无需补丁注释。
-- **SettingsView L80**:`Text("Beta 通道包含未稳定版本,仅建议测试用户启用")` → **整行删除**。Picker 选项里 "Beta" 已足够,标签后再加 "(experimental)" 也是噪音 — 看名字就懂。
+- **SettingsView L80**:`Text("Beta 通道包含未稳定版本,仅建议测试用户启用")` → 简化并翻译为 `Text("Beta includes pre-release builds for testing.")` **保留**。理由(plan 评审反馈):OTA 推送 beta 是发版安全相关 UX,新用户需要知道 "Beta" channel 的含义,不能完全砍掉。
 - **PopoverView L304**:`Text("请在设置中至少启用一个供应商。")` → 简化为 `Text("Enable at least one provider in Settings.")`(改英文不删,因为下面 Open Settings 按钮需要这条提示给出"为什么"上下文)
 - **PopoverView L330**:`Text("请在终端完成 Claude 授权后,点击「重新检测」或重启本应用。")` → 简化为 `Text("Sign in with the Claude CLI, then tap Retry.")`(同上,Retry 按钮需要一句话上下文)
 - **UpdateChannel "Beta(实验性)"** → "Beta" (砍掉括号后缀)
 
 ### C. 已有用户磁盘上的 "账号 N" label
 
-`StoredAccount.label` 写入 `~/.config/usage-bar/accounts.json`。本 PR 只改**新创建账号**的默认 label;已有用户的中文 label 不动(用户可手动改;label 本来就是用户可编辑字段)。这是低成本兼容策略,**不做迁移**:
-- 老用户最多看到自己之前用过的 "账号 1" 残留,不影响功能
+`StoredAccount.label` 写入 `~/.config/usage-bar/accounts.json`。本 PR 改两类入口:
+
+1. `Models/StoredAccount.swift:48` 是 **v1 → v2 静默迁移路径**的硬编码 label — 当 v1 老用户首次跑到本 PR 版本时,迁移代码会以**英文** `"Account 1"` 写新 accounts.json(用户从未在 UI 看到过这条 label,纯粹是迁移产物,无回归风险)。
+2. `Providers/Claude/UsageService.swift:352/474` 是**首次签入 / 新增账号**时的默认 label — 此后新账号一律英文 `"Account N"`。
+
+**已经处于 v2 状态且当前 label 是中文的用户**(已经在 UI 上用过、可能也手动改过):**不迁移**,保留磁盘上的字段不动。理由:
+- label 是用户可编辑字段,自动覆盖反而是行为越界
 - 不引入迁移代码 = 不增加额外复杂度 / 不动持久化数据
+
+### D. 测试 fixture / 断言里硬编码的中文 label
+
+`grep -rn '账号' macos/Tests` 共 4 处影响断言/fixture:
+
+| 文件:行 | 类型 | 处理 |
+|---|---|---|
+| `Tests/UsageBarTests/StoredCredentialsStoreMigrationTests.swift:47` | 断言迁移后 label | **改成 `"Account 1"`**(对齐 §C.1 v1→v2 迁移路径英文化) |
+| `Tests/UsageBarTests/UsageServiceMultiAccountTests.swift:56` | 断言首次签入后 label | **改成 `"Account 1"`**(对齐 `UsageService.swift:474`) |
+| `Tests/UsageBarTests/UsageServiceTests.swift:930` | fixture 构造 `StoredAccount(label: "账号 1", ...)` | **统一改成 `"Account 1"`**(self-consistent fixture,不与生产代码耦合) |
+| `Tests/UsageBarTests/UsageServiceTests.swift:968` | 同上 | **统一改成 `"Account 1"`** |
+
+注释里的"账号"(`// 模拟前账号瞬态数据` 等)不动 — 与 issue 显示要求无关。
 
 ## 影响范围
 
-- **修改文件**(9 个):
+- **修改文件**(10 个 source + 3 个 test):
   - `macos/Sources/UsageBar/Features/Settings/SettingsView.swift`
   - `macos/Sources/UsageBar/Features/Popover/PopoverView.swift`
-  - `macos/Sources/UsageBar/Features/Popover/ProviderTabBar.swift`
+  - `macos/Sources/UsageBar/Features/Popover/ProviderTabBar.swift`(`← Back to Claude` 出现 **2 处** L56+L83,确保两处都改)
   - `macos/Sources/UsageBar/Features/Popover/LocalCostCard.swift`
   - `macos/Sources/UsageBar/Features/Popover/UsageHeatmapView.swift`
   - `macos/Sources/UsageBar/Models/UpdateChannel.swift`
   - `macos/Sources/UsageBar/Models/StoredAccount.swift`
-  - `macos/Sources/UsageBar/Providers/Gemini/GeminiProvider.swift`
+  - `macos/Sources/UsageBar/Providers/Gemini/GeminiProvider.swift`(L95+L101、L103+L108、L105+L110 三对重复字符串,确保全 replace 一致)
   - `macos/Sources/UsageBar/Providers/Codex/CodexProvider.swift`
-  - `macos/Sources/UsageBar/Providers/Claude/UsageService.swift`(只改 2 处 label 字符串字面量)
+  - `macos/Sources/UsageBar/Providers/Claude/UsageService.swift`(只改 2 处 label 字符串字面量,L352 / L474)
+  - 测试 fixture / 断言 3 个文件(见 §D)
 
 - **风险点**:
   - `UsageService.swift` 属于"敏感写入链路"(项目 CLAUDE.md 配置段),但本次只改 2 处 label 字符串字面量,**不动序列化结构 / 不动 OAuth / 不动 token 刷新逻辑**。语义零变化,运行时行为一致。
@@ -112,8 +131,25 @@ Codex errors:
 
 - **测试计划**:
   - `cd macos && swift build -c release` 通过
-  - `cd macos && swift test` 通过(若有 "账号" 断言失败,改成 "Account")
-  - `make app` 后手动起 app:看菜单栏 / popover / Settings / 各 provider tab 的所有可达态(空态 / 未登录态 / 错误态 / 加载态)
+  - `cd macos && swift test` 通过(同步改 §D 列出的 4 处测试 label 中文 → 英文)
+  - `make app` 后手动起 app,按下表逐态回归(每条覆盖一条新文案的触发路径):
+
+| 视图 / 状态 | 触发路径 | 期望看到的英文文案 |
+|---|---|---|
+| Menubar + 默认 popover | 启动 app,有 Claude 凭证 | (普通进入,无新文案,但确认主路径无中文残留) |
+| Popover 空态 | 临时禁用所有 provider | "No providers enabled" / "Enable at least one provider in Settings." / "Open Settings" 按钮 |
+| Popover Claude 未登录 | 删 `credentials.json` 重启 | "Not signed in" / "Sign in with the Claude CLI, then tap Retry." / "Retry" 按钮 |
+| ProviderTabBar 占位 tab | 切到尚未注册的 provider(如 .codex 卡占位 — v0.2.5 路径) | "{name} coming soon" / "← Back to Claude" |
+| ProviderTabBar 未配置 tab | 切到 Codex 但删 `~/.codex/auth.json` | "Codex not signed in" / "Run \`codex\` in your terminal, then come back." / "← Back to Claude" |
+| ProviderTabBar 未配置 tab (其他) | Gemini tab + 删 `~/.gemini/oauth_creds.json` | "Gemini not signed in" / "Sign in via the Gemini CLI / app." |
+| Settings | 打开 Settings | "Updates" section / "Channel" picker / picker options "Stable" "Beta" / "Beta includes pre-release builds for testing." / 移除 L44 原中文长行 |
+| LocalCostCard footnote A | 删 `~/.config/usage-bar/pricing.json` / 触发 `isLoaded == false` | "Pricing data unavailable." |
+| LocalCostCard footnote B | 跑出不在定价表的 model 调用 | "{N} call(s) without pricing data" + 隐私行 "ⓘ Usage fields only; conversations are not read." |
+| Heatmap loading | 清 history cache 重启,trigger 初始化 | "Loading…" + spinner |
+| UpdateChannel Picker 切 Beta | Settings → Updates Picker → Beta | Picker selected text "Beta",下方一句话 |
+| Gemini 5 种 error | 5 种场景手工触发(无凭证/cli未装/token过期/无 project/拉取失败) | 5 条英文 error 串(若 5 种场景成本太高,至少覆盖"无凭证"+"凭证过期"两条最常见) |
+| Codex 3 种 error | 同上(无凭证/凭证过期/拉取失败) | 3 条英文 error 串(至少覆盖前两条) |
+| 新账号 label | Claude sign in 流程触发首次 sign-in 或新增第二账号 | accounts.json 里 label = "Account 1" / "Account 2" |
 
 ## 守护线自检
 
