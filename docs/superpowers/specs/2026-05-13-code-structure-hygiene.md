@@ -1,7 +1,7 @@
 ---
 id: 2026-05-13-code-structure-hygiene
 title: 代码结构治理 —— 目录分层 + 死资源清理 + UsageService 文件内章节化
-status: draft
+status: accepted
 created: 2026-05-13
 updated: 2026-05-13
 owner: claude-code
@@ -12,24 +12,24 @@ related_research: []
 spec_criteria:
   - id: SC1
     criterion: macos/Sources/UsageBar/ 按 9 个职责子目录（App / Models / Services / Providers/{Core,Claude,Codex} / Pricing / LocalCost / MenuBar / Features/{Popover,Settings} / Utilities）分组；55 个 swift 文件迁移到位（含 UsageService.swift 进 Providers/Claude/）；evidence 命令 `find macos/Sources/UsageBar -name '*.swift' -not -path '*/Resources/*' | wc -l` 应输出 55，且 `find macos/Sources/UsageBar -maxdepth 1 -name '*.swift' | wc -l` 应输出 0；`cd macos && swift build -c release` + `cd macos && swift test` 全绿
-    done: false
-    evidence: null
+    done: true
+    evidence: "commit 9b2cfab: 55 swift git-mv 到 9 子目录；find 验证 55 + 顶层 0；swift build/test 272 全绿；make release-artifacts + verify-release (zip+dmg) 全绿"
   - id: SC2
     criterion: 死资源 `macos/Resources/demo.png` 删除；`grep -rn "demo\.png" --include="*.md"` 输出只剩 docs/artifacts/issues/ 历史 + 本 spec 自身；`bash macos/scripts/verify-release.sh macos/UsageBar.zip` 绿
-    done: false
-    evidence: null
+    done: true
+    evidence: "commit f4ad6dc: git rm demo.png；grep 残留仅 docs/artifacts/issues/11 + spec/version/plan 自身；272 swift test + verify-release 全绿"
   - id: SC3
     criterion: `AppResources.swift` 重命名 `BundleLocator.swift`；类型 `AppResourceBundleFinder` 重命名 `BundleLocator`；外部函数 `usageBarResourceBundle()` **保留原名**（2 处调用方 `PollingOptionFormatter` / `MenuBarIconRenderer` 不需改）；`swift build` + `swift test` 绿
-    done: false
-    evidence: null
+    done: true
+    evidence: "commit 7536e31: git mv 改名 (rename 84% similarity)；类名 AppResourceBundleFinder → BundleLocator；函数名保留；272 swift test 全绿"
   - id: SC4
     criterion: `Providers/Claude/UsageService.swift` 同一文件内用 `// MARK: -` 分章节 + 多个 `extension UsageService { ... }` 块把 OAuth / Polling / Backoff 三段独立成区；**每个 method 保留原 access modifier**（private 仍 private，internal 仍 internal）、**不动方法签名**、**不动 method body**；evidence 命令 `git diff origin/main..HEAD --stat -- 'macos/Sources/UsageBar/Providers/Claude/UsageService.swift'` 应见 1 file changed；OAuth / backoff / polling 相关测试全绿（`UsageServiceTests` / `UsageServiceMultiAccountTests` 全过）
-    done: false
-    evidence: null
+    done: true
+    evidence: "commit 35b74c4: 单文件改动 (1 file changed, 259 ins, 239 del —— 行数差是 // MARK: 注释)；BEFORE/AFTER signature sort+diff 各 125 行完全一致空输出；272 swift test 全绿；make release-artifacts + verify-release 全绿"
   - id: SC5
     criterion: 因结构变动失效的 file path 引用按白名单全量更新——白名单 = `CLAUDE.md` / `AGENTS.md` / `docs/superpowers/specs/README.md` / `docs/versions/README.md` / `docs/runbooks/**` / draft 或 planned 状态的 specs / 主 `README.md`；**implemented specs / plans / docs/artifacts/** 一律不改（母法 immutability）；在 `docs/superpowers/specs/README.md` 增加一节"v0.3.2 路径映射表"，复制 spec §3.3 的全 55 项映射；evidence 命令 `grep -rn 'Sources/UsageBar/[A-Z][^/]*\.swift' CLAUDE.md AGENTS.md README.md docs/versions/README.md` 输出**无命中**（顶层 .swift 引用已全部改为子目录路径）
-    done: false
-    evidence: null
+    done: true
+    evidence: "commit 3fa221b: CLAUDE.md 5 处 path 更新 + specs/README 增 9 组 55 项映射表；evidence grep 无命中 ✓；AGENTS.md / README.md / docs/versions/README.md 扫后无失效引用，未改"
 automated_checks:
   - "SC_AUTO_BUILD: cd macos && swift build -c release"
   - "SC_AUTO_TEST: cd macos && swift test"
@@ -397,8 +397,8 @@ extension UsageService {
 
 > G6 验收依据。每条 SC 完成时勾选并填 evidence。
 
-- [ ] SC1 — pending
-- [ ] SC2 — pending
-- [ ] SC3 — pending
-- [ ] SC4 — pending
-- [ ] SC5 — pending
+- [x] SC1 — done (commit 9b2cfab): 55 swift git-mv 到 9 子目录；find 验证 55 项 + 顶层 0 项；swift build/test/release-artifacts/verify-release 全绿
+- [x] SC2 — done (commit f4ad6dc): demo.png 已删；grep 残留仅历史；272 swift test + verify-release 全绿
+- [x] SC3 — done (commit 7536e31): AppResources.swift → BundleLocator.swift；类名重命名；函数名保留；272 swift test 全绿
+- [x] SC4 — done (commit 35b74c4): 单文件改动；BEFORE/AFTER signature sort+diff 各 125 行完全一致空输出；272 swift test 全绿
+- [x] SC5 — done (commit 3fa221b): CLAUDE.md 5 处 + specs/README 加 9 组 55 项映射表；evidence grep 无命中
