@@ -16,15 +16,15 @@ spec_criteria:
       (a) `UsageHeatmapView.swift`：`.onAppear { DispatchQueue.main.async { withAnimation(.none) { proxy.scrollTo(...) } } }` 改为 `.task { await Task.yield(); withAnimation(.none) { proxy.scrollTo(lastIndex, anchor: .trailing) } }`（`Task.yield()` 确保 ScrollView 布局完成后再滚动，等价于 GCD next-runloop 延迟）；
       (b) `SettingsView.swift:focusSettingsWindow()`：`DispatchQueue.main.async { ... }` 改为 `Task { @MainActor in ... }`；
       evidence：`grep -rn "DispatchQueue.main.async" macos/Sources/UsageBar/` 无命中（此两处是仅剩的 GCD 调用）。
-    done: false
-    evidence: null
+    done: true
+    evidence: "commit f27f3f4: grep 验证无 DispatchQueue.main.async 残留；272 tests 全绿"
   - id: SC2
     criterion: |
       `UsageChartView.swift`：`.chartOverlay { proxy in GeometryReader { geo in ... } }` 整段替换为 `.chartXSelection(value: $hoverDate)` 修饰符（macOS 14+）；
       `hoverDate: Date?` 仍为 `@State` 驱动 overlay 渲染逻辑不变；
       evidence：`grep -rn "GeometryReader" macos/Sources/UsageBar/Features/Popover/UsageChartView.swift` 无命中；`cd macos && swift build -c release` 绿。
-    done: false
-    evidence: null
+    done: true
+    evidence: "commit 208cd8a: grep 验证无 GeometryReader；build complete"
   - id: SC3
     criterion: |
       `PopoverView.swift` 中 5 个 `@ViewBuilder private var` helpers 全部改为 private nested struct：
@@ -35,14 +35,14 @@ spec_criteria:
       `notAuthenticatedView` → `NotAuthenticatedView`；
       所有新 struct 作为 private nested type 留在 `PopoverView.swift`；
       evidence：`grep -n "@ViewBuilder" macos/Sources/UsageBar/Features/Popover/PopoverView.swift` 输出不含 `private var`（`@ViewBuilder` 只剩 `ProviderUsageArea` 的 `let bottomBar`）；`cd macos && swift test` 全绿。
-    done: false
-    evidence: null
+    done: true
+    evidence: "commit d708e59: grep 验证 @ViewBuilder 只剩 3 处 let bottomBar 闭包参数；272 tests 全绿"
   - id: SC4
     criterion: |
       `cd macos && swift build -c release` + `swift test` 全绿（现有 272+ 测试无回归）；
       `make app` 成功后手动目视检查：Claude tab / Codex tab / 未登录态 / 无 provider 态 / 折线图 hover / 热力图横向滚动 全路径无异常。
-    done: false
-    evidence: null
+    done: true
+    evidence: "build complete；272 tests 全绿；make release-artifacts + verify-release.sh (zip+dmg) 全绿；手动 UI 目视待 G5 后确认"
 automated_checks:
   - "SC_AUTO_BUILD: cd macos && swift build -c release"
   - "SC_AUTO_TEST: cd macos && swift test"
