@@ -1,7 +1,7 @@
 ---
 id: 2026-05-13-view-layer-modernization
 title: View 层现代化：GCD 清理 + chartXSelection + PopoverView helper 抽 struct
-status: draft
+status: accepted
 created: 2026-05-13
 updated: 2026-05-13
 owner: claude-code
@@ -13,7 +13,7 @@ spec_criteria:
   - id: SC1
     criterion: |
       GCD 清理（2 处）：
-      (a) `UsageHeatmapView.swift`：`.onAppear { DispatchQueue.main.async { withAnimation(.none) { proxy.scrollTo(...) } } }` 改为 `.task { withAnimation(.none) { proxy.scrollTo(lastIndex, anchor: .trailing) } }`；
+      (a) `UsageHeatmapView.swift`：`.onAppear { DispatchQueue.main.async { withAnimation(.none) { proxy.scrollTo(...) } } }` 改为 `.task { await Task.yield(); withAnimation(.none) { proxy.scrollTo(lastIndex, anchor: .trailing) } }`（`Task.yield()` 确保 ScrollView 布局完成后再滚动，等价于 GCD next-runloop 延迟）；
       (b) `SettingsView.swift:focusSettingsWindow()`：`DispatchQueue.main.async { ... }` 改为 `Task { @MainActor in ... }`；
       evidence：`grep -rn "DispatchQueue.main.async" macos/Sources/UsageBar/` 无命中（此两处是仅剩的 GCD 调用）。
     done: false
@@ -52,7 +52,13 @@ automated_checks:
 manual_checks:
   - "make app 后手动起 app，逐一目视：Claude tab 正常加载、Codex tab 正常加载、折线图 hover 高亮正常、热力图末尾自动滚动正常、Settings 窗口可弹出聚焦"
   - "G5 code review（subagent 独立判断；重点：PopoverView @EnvironmentObject 流动是否正确、chartXSelection 在 hover 态下 hoverDate nil 判断是否正确、GCD → task 的 MainActor 语义是否等价）"
-reviews: []
+reviews:
+  - gate: G2
+    round: 1
+    reviewer: general-purpose-subagent
+    verdict: approved-after-revisions
+    date: 2026-05-13
+    summary: "2 个 must-fix：(a) UsageHeatmapView `.task {}` 无 await 时可能同 runloop 执行，需加 `await Task.yield()` 保证 next-runloop 延迟语义；(b) @EnvironmentObject 同类型碰撞风险 — 已核查 UsageBarApp.swift，codexStats 只走构造参数从不进 env，无碰撞，spec 已加说明。已修复后视为 approved。"
 ---
 
 # View 层现代化：GCD 清理 + chartXSelection + PopoverView helper 抽 struct
@@ -92,11 +98,12 @@ v0.3.2 代码结构治理完成目录分层后，v0.4.0 针对 view 层做三类
 
 // After
 .task {
+    await Task.yield()
     withAnimation(.none) { proxy.scrollTo(lastIndex, anchor: .trailing) }
 }
 ```
 
-`.task` 在 SwiftUI view 的 lifecycle 上触发时机与 `.onAppear` 等价，且默认继承父视图的 `@MainActor` 隔离（`ScrollViewReader` 中 `proxy.scrollTo` 需在主线程，`.task` 的 `@MainActor` 继承保证这一点）。`DispatchQueue.main.async` 的"下一 runloop 延迟"语义在 `@MainActor .task` 里自然成立（task 在当前 turn 之后调度）。
+`.task` 默认继承父视图的 `@MainActor` 隔离，`proxy.scrollTo` 线程安全。`await Task.yield()` 是关键：没有 `await` 的 `.task {}` body 可能在同一 runloop 立即执行（协作式调度不保证挂起），而 `Task.yield()` 强制让出当前调度槽，等价于 `DispatchQueue.main.async` 的 next-runloop 语义，确保 ScrollView 布局完成后再调用 `scrollTo`。
 
 **`SettingsView.swift`（原 139-145 行，`focusSettingsWindow()`）**：
 
@@ -162,7 +169,7 @@ private func focusSettingsWindow() {
 | `BottomBarView` | `@Binding var selectedProvider`、`@ObservedObject var coordinator`、`@ObservedObject var appUpdater` | `settingsButton` 3 行内联（不再引用 `self.settingsButton`） |
 | `NoProvidersView` | 无 | 静态内容 |
 | `NotAuthenticatedView` | `@ObservedObject var coordinator`、`@ObservedObject var claude` | 内联 settingsButton 代码 |
-| `ClaudeUsageAreaView<BottomBar: View>` | `@ObservedObject var coordinator`、`@ObservedObject var historyService`、`@EnvironmentObject var usageStats`、`@ObservedObject var appUpdater`、`@ViewBuilder let bottomBar: () -> BottomBar` | `usageStats` 走 `@EnvironmentObject`（与 PopoverView 一致，避免同类型 double init） |
+| `ClaudeUsageAreaView<BottomBar: View>` | `@ObservedObject var coordinator`、`@ObservedObject var historyService`、`@EnvironmentObject var usageStats`、`@ObservedObject var appUpdater`、`@ViewBuilder let bottomBar: () -> BottomBar` | `usageStats` 走 `@EnvironmentObject`（安全：`UsageBarApp` 只注入 Claude 的 `usageStats` 入 env；`codexStats` 只走构造参数，**从不进 env**，无同类型碰撞风险，见 `UsageBarApp.swift:13-26`） |
 | `ProviderAreaView<BottomBar: View>` | `@Binding var selectedProvider`、`@ObservedObject var coordinator`、`@ObservedObject var codexStats`、`@ViewBuilder let bottomBar: () -> BottomBar` | 调用 `ClaudeUsageAreaView` 时透传 `bottomBar` |
 
 **PopoverView.body 简化后**：
