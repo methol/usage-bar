@@ -109,16 +109,19 @@ private func drawDashedBar(x: CGFloat, y: CGFloat, width: CGFloat, height: CGFlo
 
 // MARK: - Provider glyph
 
-/// Claude 用预渲染的 512px template PNG；其它 provider 不带专属图片资源 —— 用 SF Symbol 渲染成 template image。
-private let claudeLogoImage: NSImage? = {
+/// Claude / Codex 用预渲染的 512px template PNG（源 SVG 来自 lobehub/lobe-icons，MIT —— 见 THIRD_PARTY_LICENSES.txt）；
+/// 其它 provider 不带专属图片资源 —— 用 SF Symbol 渲染成 template image。
+private func loadResourcePNG(_ name: String) -> NSImage? {
     if let bundle = usageBarResourceBundle(),
-       let png = bundle.url(forResource: "claude-logo", withExtension: "png") {
+       let png = bundle.url(forResource: name, withExtension: "png") {
         return NSImage(contentsOf: png)
     }
     return nil
-}()
+}
+private let claudeLogoImage: NSImage? = loadResourcePNG("claude-logo")  // 源：icons.lobehub.com/components/claude
+private let codexLogoImage: NSImage? = loadResourcePNG("codex-logo")    // 源：icons.lobehub.com/components/codex（macos/scripts/codex-logo.svg）
 
-/// Codex 的菜单栏 glyph：自绘的 `</>` 标记（描边、圆角接头）—— **非任何品牌 logo**，只是「代码生成」的通用符号。
+/// Codex glyph 的兜底：`codex-logo.png` 资源缺失时自绘的 `</>` 标记（描边、圆角接头）—— **非任何品牌 logo**，只是「代码生成」的通用符号。
 /// 在 `NSImage(size:flipped: true)` 的绘图上下文里：小 y = 视觉上方，所以 `top`(小 y) 在上、`bot`(大 y) 在下、`/` 从右上到左下。
 private func drawCodeBracketsGlyph(x: CGFloat, y: CGFloat, size: CGFloat) {
     let lw = max(size * 0.16, 1.4)
@@ -156,7 +159,11 @@ private func drawProviderGlyph(for id: ProviderID, x: CGFloat, y: CGFloat, size:
         return
     }
     if id == .codex {
-        drawCodeBracketsGlyph(x: x, y: y, size: size)
+        if let logo = codexLogoImage {
+            logo.draw(in: NSRect(x: x, y: y, width: size, height: size))
+        } else {
+            drawCodeBracketsGlyph(x: x, y: y, size: size)
+        }
         return
     }
     let config = NSImage.SymbolConfiguration(pointSize: size, weight: .medium)
