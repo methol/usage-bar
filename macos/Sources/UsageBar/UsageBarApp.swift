@@ -44,10 +44,6 @@ struct UsageBarApp: App {
                     // v0.1.1: 启动期尝试复用 Claude CLI 凭证（Keychain 'Claude Code-credentials'）
                     // 内部已用 Task.detached 避免主线程阻塞
                     await coordinator.claude.bootstrapFromCLIIfNeeded()
-                    // bootstrap 成功或本来已 sign in 的用户：标记 setup 完成不显示 SetupView
-                    if coordinator.claude.isAuthenticated && !UserDefaults.standard.bool(forKey: "setupComplete") {
-                        UserDefaults.standard.set(true, forKey: "setupComplete")
-                    }
                     // 首次 refresh 本机 JSONL 统计（之后随后台 tick 的 onPollTick 继续更新）
                     await usageStats.refresh()
                     await codexStats.refresh()
