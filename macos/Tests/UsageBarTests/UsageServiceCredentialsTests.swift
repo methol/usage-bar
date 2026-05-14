@@ -1,4 +1,3 @@
-import Testing
 import XCTest
 @testable import UsageBar
 
