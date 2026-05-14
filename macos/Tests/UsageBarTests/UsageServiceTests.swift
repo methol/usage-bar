@@ -234,7 +234,7 @@ final class UsageServiceTests: XCTestCase {
             tokenEndpoint: tokenURL,
             credentialsStore: store
         )
-        service.cliKeychainLoader = { nil }  // v0.2.7：本测试断言硬过期路径，禁掉 Keychain 恢复回退
+        service.cliKeychainLoader = { _ in nil }  // v0.2.7：本测试断言硬过期路径，禁掉 Keychain 恢复回退
 
         await service.fetchUsage()
 
@@ -470,7 +470,7 @@ final class UsageServiceTests: XCTestCase {
             tokenEndpoint: tokenURL,
             credentialsStore: store
         )
-        service.cliKeychainLoader = { nil }  // v0.2.7：本测试断言硬过期路径，禁掉 Keychain 恢复回退
+        service.cliKeychainLoader = { _ in nil }  // v0.2.7：本测试断言硬过期路径，禁掉 Keychain 恢复回退
 
         await service.fetchUsage()
 
@@ -521,7 +521,7 @@ final class UsageServiceTests: XCTestCase {
 
     func testRecoversFromKeychainOnPermanentRefreshFailure() async throws {
         let (service, store) = try makePermanentRefreshFailureService()
-        service.cliKeychainLoader = { self.freshCreds(accessToken: "FRESH_FROM_KEYCHAIN") }
+        service.cliKeychainLoader = { _ in self.freshCreds(accessToken: "FRESH_FROM_KEYCHAIN") }
 
         await service.fetchUsage()
 
@@ -533,7 +533,7 @@ final class UsageServiceTests: XCTestCase {
 
     func testHardExpiresWhenKeychainEmpty() async throws {
         let (service, store) = try makePermanentRefreshFailureService()
-        service.cliKeychainLoader = { nil }
+        service.cliKeychainLoader = { _ in nil }
 
         await service.fetchUsage()
 
@@ -546,7 +546,7 @@ final class UsageServiceTests: XCTestCase {
 
     func testNoRecoveryLoopWhenKeychainHasSameStaleToken() async throws {
         let (service, _) = try makePermanentRefreshFailureService(storedAccessToken: "STALE")
-        service.cliKeychainLoader = { self.freshCreds(accessToken: "STALE") }  // 同一个失效 token
+        service.cliKeychainLoader = { _ in self.freshCreds(accessToken: "STALE") }  // 同一个失效 token
 
         await service.fetchUsage()
 
@@ -556,7 +556,7 @@ final class UsageServiceTests: XCTestCase {
 
     func testHardExpiresWhenKeychainTokenAlreadyExpired() async throws {
         let (service, _) = try makePermanentRefreshFailureService()
-        service.cliKeychainLoader = {
+        service.cliKeychainLoader = { _ in
             StoredCredentials(accessToken: "DIFFERENT_BUT_DEAD", refreshToken: "x",
                               expiresAt: Date().addingTimeInterval(-10), scopes: UsageService.defaultOAuthScopes)
         }
@@ -602,7 +602,7 @@ final class UsageServiceTests: XCTestCase {
             credentialsStore: store
         )
         XCTAssertEqual(service.accounts.count, 2)
-        service.cliKeychainLoader = { self.freshCreds(accessToken: "FRESH_FROM_KEYCHAIN") }
+        service.cliKeychainLoader = { _ in self.freshCreds(accessToken: "FRESH_FROM_KEYCHAIN") }
 
         await service.fetchUsage()
 
@@ -638,7 +638,7 @@ final class UsageServiceTests: XCTestCase {
             tokenEndpoint: tokenURL,
             credentialsStore: store
         )
-        service.cliKeychainLoader = { XCTFail("正常 refresh 成功路径不该读 Keychain"); return nil }
+        service.cliKeychainLoader = { _ in XCTFail("正常 refresh 成功路径不该读 Keychain"); return nil }
 
         await service.fetchUsage()
 
@@ -909,7 +909,7 @@ final class UsageServiceTests: XCTestCase {
             expiresAt: Date().addingTimeInterval(3600), scopes: UsageService.defaultOAuthScopes
         )
         // 模拟 ClaudeCLICredentialsStrategy 返回含 refresh_token 的凭证
-        service.cliKeychainLoader = { cliCreds }
+        service.cliKeychainLoader = { _ in cliCreds }
 
         // 手动触发 bootstrap（替代 ClaudeCLICredentialsStrategy.loadCredentials 路径）
         // 直接调用 bootstrapFromCLIIfNeeded 需要 ClaudeCLICredentialsStrategy，
@@ -947,7 +947,7 @@ final class UsageServiceTests: XCTestCase {
             credentialsStore: store
         )
         // Keychain 返回相同 refresh_token → 触发迁移剥离
-        service.cliKeychainLoader = {
+        service.cliKeychainLoader = { _ in
             StoredCredentials(accessToken: "cli-access", refreshToken: keychainRT,
                               expiresAt: Date().addingTimeInterval(3600), scopes: UsageService.defaultOAuthScopes)
         }
@@ -985,7 +985,7 @@ final class UsageServiceTests: XCTestCase {
             credentialsStore: store
         )
         // Keychain RT 与存储 RT 不同 → 不应剥离
-        service.cliKeychainLoader = {
+        service.cliKeychainLoader = { _ in
             StoredCredentials(accessToken: "cli-access", refreshToken: "different-cli-rt",
                               expiresAt: Date().addingTimeInterval(3600), scopes: UsageService.defaultOAuthScopes)
         }
@@ -999,7 +999,7 @@ final class UsageServiceTests: XCTestCase {
     func testKeychainRecoveryDoesNotSaveRefreshToken() async throws {
         let (service, store) = try makePermanentRefreshFailureService()
         // Keychain 返回含 refresh_token 的新鲜凭证
-        service.cliKeychainLoader = {
+        service.cliKeychainLoader = { _ in
             StoredCredentials(accessToken: "FRESH_FROM_KEYCHAIN", refreshToken: "keychain-rt",
                               expiresAt: Date().addingTimeInterval(3600), scopes: UsageService.defaultOAuthScopes)
         }

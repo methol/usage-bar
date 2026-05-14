@@ -31,9 +31,19 @@ final class UsageService: ObservableObject {
     private let tokenEndpoint: URL
     private let credentialsStore: StoredCredentialsStore
     private let localProfileLoader: @MainActor () -> String?
+    /// v0.5.1: in-memory only —— Claude 凭证不存盘，启动/过期时从 Claude CLI Keychain 重读。
+    /// nil = 尚未拉取或上次拉取失败；非 nil 但 isExpired() → 需重读。
+    private var inMemoryCredentials: StoredCredentials?
+
+    #if DEBUG
+    /// 测试种子（@testable import 可见，因 access 是 internal）。
+    func _test_setInMemoryCredentials(_ c: StoredCredentials?) { inMemoryCredentials = c }
+    #endif
+
     /// v0.2.7：refresh 永久失败时回退去读 Claude CLI Keychain（fail-silent，不弹 ACL）。`internal` 是为单测可替换。
-    var cliKeychainLoader: () async -> StoredCredentials? = {
-        try? await ClaudeCLICredentialsStrategy().loadCredentials(allowInteraction: false)
+    /// v0.5.1：签名升级 —— 增加 `allowInteraction` 参数（false=后台 polling 安全、true=前台用户操作）。
+    var cliKeychainLoader: (_ allowInteraction: Bool) async -> StoredCredentials? = { allowInteraction in
+        try? await ClaudeCLICredentialsStrategy().loadCredentials(allowInteraction: allowInteraction)
     }
     /// 429 backoff 状态：`currentBackoffSeconds` = 当前 backoff 时长（0 = 不在 backoff，用于指数递增）；`backoffUntil` = 「这之前别再拉」的截止时刻。
     /// v0.2.11：取代原 `currentInterval`（自持 timer 退役后，「下次拉的间隔」由 `ProviderCoordinator` 的统一 timer 负责）。
@@ -129,6 +139,28 @@ extension UsageService: UsageProvider {
     }
 }
 
+// MARK: - In-memory credentials entry (v0.5.1)
+//
+// 凭证拉取统一入口 —— in-memory cache 命中直接返回；否则从 Claude CLI Keychain 重读并写回 cache。
+// 旧 OAuth/refresh/多账号路径暂未删，本入口先与之并存；后续 task 切 fetchUsage 走 ensureFreshCredentials。
+
+extension UsageService {
+    /// v0.5.1: 凭证拉取统一入口 —— in-memory cache 命中直接返回；否则从 Claude CLI Keychain 重读并写回 cache。
+    /// - Parameter allowInteraction: false=后台 polling 安全（ACL prompt 静默降级返回 nil）；true=前台用户操作（允许首次弹 ACL）。
+    /// - Returns: 最新有效 credentials；Keychain 无 / 不可读 / 解析失败 → nil。
+    func ensureFreshCredentials(allowInteraction: Bool) async -> StoredCredentials? {
+        if let c = inMemoryCredentials, !c.isExpired() {
+            return c
+        }
+        let creds = await cliKeychainLoader(allowInteraction)
+        inMemoryCredentials = creds
+        // 注：必须显式写 isAuthenticated —— 现有 runtimeAuthSync sink 方向是 isAuthenticated → runtime，
+        // 反向不通；UI 依赖 `claude.isAuthenticated` 触发 NotAuthenticatedView 分支。
+        isAuthenticated = (creds != nil)
+        return creds
+    }
+}
+
 // MARK: - OAuth & Credentials
 //
 // PKCE flow、token refresh、多账号切换、Claude CLI Keychain 回退。所有 OAuth/token 写入路径都在这一段。
@@ -165,7 +197,7 @@ extension UsageService {
     /// 若需语义精确区分，应为 StoredAccount 添加 source 字段（留待后续 issue）。
     private func migrateStripCLIRefreshToken() async {
         guard !accounts.isEmpty else { return }
-        guard let keychainCreds = await cliKeychainLoader(),
+        guard let keychainCreds = await cliKeychainLoader(false),
               let keychainRT = keychainCreds.refreshToken, !keychainRT.isEmpty else { return }
 
         var changed = false
@@ -648,7 +680,7 @@ extension UsageService {
     private func attemptCLIKeychainRecovery() async -> Bool {
         guard accounts.count <= 1 else { return false }
         let current = loadCredentials()
-        guard let recovered = await cliKeychainLoader() else { return false }
+        guard let recovered = await cliKeychainLoader(false) else { return false }
         guard recovered.accessToken != current?.accessToken else { return false }
         guard !recovered.isExpired() else { return false }
         do {
