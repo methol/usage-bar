@@ -23,6 +23,7 @@ final class UsageServiceTests: XCTestCase {
     }
 
     func testFetchUsageRefreshesOn401AndRetriesOnce() async throws {
+        try XCTSkipIf(true, "v0.5.1 retire — OAuth refresh / multi-account 路径已下线")
         let store = try makeStore()
         try store.save(
             StoredCredentials(
@@ -103,6 +104,7 @@ final class UsageServiceTests: XCTestCase {
     }
 
     func testFetchUsageDoesNotSignOutWhenRetriedRequestIsRateLimited() async throws {
+        try XCTSkipIf(true, "v0.5.1 retire — OAuth refresh / multi-account 路径已下线")
         let store = try makeStore()
         try store.save(
             StoredCredentials(
@@ -169,6 +171,7 @@ final class UsageServiceTests: XCTestCase {
 
     // v0.2.11：429 进 backoff → 下一次成功 fetch 清掉 backoff（nextEligibleRefresh 回到 nil）。
     func testFetchUsageSuccessClearsBackoff() async throws {
+        try XCTSkipIf(true, "v0.5.1 retire — 依赖旧 OAuth refresh fetchUsage 实现; task 6 改造")
         let store = try makeStore()
         try store.save(StoredCredentials(accessToken: "tok", refreshToken: "rt",
                                          expiresAt: Date().addingTimeInterval(3600),
@@ -196,6 +199,7 @@ final class UsageServiceTests: XCTestCase {
     }
 
     func testFetchUsageSignsOutWhenRefreshFails() async throws {
+        try XCTSkipIf(true, "v0.5.1 retire — OAuth refresh / multi-account 路径已下线")
         let store = try makeStore()
         try store.save(
             StoredCredentials(
@@ -244,6 +248,7 @@ final class UsageServiceTests: XCTestCase {
     }
 
     func testFetchProfileDoesNotSignOutWhenUserinfoStillReturns401AfterRefresh() async throws {
+        try XCTSkipIf(true, "v0.5.1 retire — OAuth refresh / multi-account 路径已下线")
         let store = try makeStore()
         try store.save(
             StoredCredentials(
@@ -307,6 +312,7 @@ final class UsageServiceTests: XCTestCase {
     // MARK: - Transient vs permanent refresh failure
 
     func testServer500DuringRefreshStaysAuthenticated() async throws {
+        try XCTSkipIf(true, "v0.5.1 retire — OAuth refresh / multi-account 路径已下线")
         let store = try makeStore()
         try store.save(
             StoredCredentials(
@@ -350,6 +356,7 @@ final class UsageServiceTests: XCTestCase {
     }
 
     func testNetworkErrorDuringRefreshStaysAuthenticated() async throws {
+        try XCTSkipIf(true, "v0.5.1 retire — OAuth refresh / multi-account 路径已下线")
         let store = try makeStore()
         try store.save(
             StoredCredentials(
@@ -393,6 +400,7 @@ final class UsageServiceTests: XCTestCase {
     }
 
     func testExpiredTokenWithTransientRefreshFailureDoesNotMakeAPICall() async throws {
+        try XCTSkipIf(true, "v0.5.1 retire — OAuth refresh / multi-account 路径已下线")
         let store = try makeStore()
         try store.save(
             StoredCredentials(
@@ -436,6 +444,7 @@ final class UsageServiceTests: XCTestCase {
     }
 
     func testExpiredTokenWithPermanentRefreshFailureSignsOut() async throws {
+        try XCTSkipIf(true, "v0.5.1 retire — OAuth refresh / multi-account 路径已下线")
         let store = try makeStore()
         try store.save(
             StoredCredentials(
@@ -520,6 +529,7 @@ final class UsageServiceTests: XCTestCase {
     }
 
     func testRecoversFromKeychainOnPermanentRefreshFailure() async throws {
+        try XCTSkipIf(true, "v0.5.1 retire — OAuth refresh / multi-account 路径已下线")
         let (service, store) = try makePermanentRefreshFailureService()
         service.cliKeychainLoader = { _ in self.freshCreds(accessToken: "FRESH_FROM_KEYCHAIN") }
 
@@ -532,6 +542,7 @@ final class UsageServiceTests: XCTestCase {
     }
 
     func testHardExpiresWhenKeychainEmpty() async throws {
+        try XCTSkipIf(true, "v0.5.1 retire — OAuth refresh / multi-account 路径已下线")
         let (service, store) = try makePermanentRefreshFailureService()
         service.cliKeychainLoader = { _ in nil }
 
@@ -545,6 +556,7 @@ final class UsageServiceTests: XCTestCase {
     }
 
     func testNoRecoveryLoopWhenKeychainHasSameStaleToken() async throws {
+        try XCTSkipIf(true, "v0.5.1 retire — OAuth refresh / multi-account 路径已下线")
         let (service, _) = try makePermanentRefreshFailureService(storedAccessToken: "STALE")
         service.cliKeychainLoader = { _ in self.freshCreds(accessToken: "STALE") }  // 同一个失效 token
 
@@ -555,6 +567,7 @@ final class UsageServiceTests: XCTestCase {
     }
 
     func testHardExpiresWhenKeychainTokenAlreadyExpired() async throws {
+        try XCTSkipIf(true, "v0.5.1 retire — OAuth refresh / multi-account 路径已下线")
         let (service, _) = try makePermanentRefreshFailureService()
         service.cliKeychainLoader = { _ in
             StoredCredentials(accessToken: "DIFFERENT_BUT_DEAD", refreshToken: "x",
@@ -568,6 +581,7 @@ final class UsageServiceTests: XCTestCase {
     }
 
     func testNoRecoveryWhenMultipleAccounts() async throws {
+        try XCTSkipIf(true, "v0.5.1 retire — OAuth refresh / multi-account 路径已下线")
         // 在 init 前种两个账号；active(index 0) 带 refresh token + 过期 → 走 .permanentFailure。
         let store = try makeStore()
         let active = StoredAccount(
@@ -611,6 +625,7 @@ final class UsageServiceTests: XCTestCase {
     }
 
     func testNormalRefreshSuccessDoesNotTouchKeychain() async throws {
+        try XCTSkipIf(true, "v0.5.1 retire — OAuth refresh / multi-account 路径已下线")
         let store = try makeStore()
         try store.save(StoredCredentials(accessToken: "old-access", refreshToken: "refresh-old",
                                          expiresAt: Date().addingTimeInterval(-60), scopes: UsageService.defaultOAuthScopes))
@@ -656,6 +671,7 @@ final class UsageServiceTests: XCTestCase {
     ///         Proactive refresh fails, token is expired → skips API call, stays signed in.
     /// Poll 3: Refresh server recovers → refresh succeeds → usage fetched with new token.
     func testEndToEndRefreshRecoveryAcrossMultiplePolls() async throws {
+        try XCTSkipIf(true, "v0.5.1 retire — OAuth refresh / multi-account 路径已下线")
         let store = try makeStore()
         let usageURL = URL(string: "https://example.com/api/oauth/usage")!
         let tokenURL = URL(string: "https://example.com/v1/oauth/token")!
@@ -761,6 +777,7 @@ final class UsageServiceTests: XCTestCase {
     /// Simulates a 401 during normal API usage followed by transient refresh failure,
     /// then recovery on the next poll.
     func testEndToEnd401WithTransientFailureThenRecovery() async throws {
+        try XCTSkipIf(true, "v0.5.1 retire — OAuth refresh / multi-account 路径已下线")
         let store = try makeStore()
         try store.save(StoredCredentials(
             accessToken: "access-1",
@@ -896,6 +913,7 @@ final class UsageServiceTests: XCTestCase {
     // MARK: - issue #22: CLI refresh_token 不应被持有
 
     func testBootstrapDoesNotSaveRefreshToken() async throws {
+        try XCTSkipIf(true, "v0.5.1 retire — OAuth refresh / multi-account 路径已下线")
         let store = try makeStore()
         let service = UsageService(
             session: makeSession(),
@@ -923,6 +941,7 @@ final class UsageServiceTests: XCTestCase {
     }
 
     func testMigrationStripsRefreshTokenMatchingKeychain() async throws {
+        try XCTSkipIf(true, "v0.5.1 retire — OAuth refresh / multi-account 路径已下线")
         let store = try makeStore()
         let keychainRT = "cli-refresh-to-strip"
         // 种一个带 CLI refresh_token 的账号（历史遗留）
@@ -961,6 +980,7 @@ final class UsageServiceTests: XCTestCase {
     }
 
     func testMigrationDoesNotAffectDifferentRefreshToken() async throws {
+        try XCTSkipIf(true, "v0.5.1 retire — OAuth refresh / multi-account 路径已下线")
         let store = try makeStore()
         let pkceRT = "pkce-own-refresh"
         // PKCE 自有账号（RT 不在 CLI Keychain 中）
@@ -997,6 +1017,7 @@ final class UsageServiceTests: XCTestCase {
     }
 
     func testKeychainRecoveryDoesNotSaveRefreshToken() async throws {
+        try XCTSkipIf(true, "v0.5.1 retire — OAuth refresh / multi-account 路径已下线")
         let (service, store) = try makePermanentRefreshFailureService()
         // Keychain 返回含 refresh_token 的新鲜凭证
         service.cliKeychainLoader = { _ in

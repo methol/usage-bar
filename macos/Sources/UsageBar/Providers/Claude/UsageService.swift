@@ -726,56 +726,71 @@ extension UsageService {
     // MARK: API Fetch
 
     func fetchUsage() async {
-        // G2-B1/G3-B3: 入口捕获 epoch；写值前比对若已变 → 丢弃响应（账号已切换）
+        // v0.5.1 task 2: 凭证读取走 ensureFreshCredentials（in-memory cache → Claude CLI Keychain）；
+        // 401 → 清 cache → 重读 Keychain；拿到新 token 重试一次；同 token 即报 token 过期。
+        // 旧 sendAuthorizedRequest 暂留（task 5 删）；accountSwitchEpoch race-guard 保留（task 5 删）。
         let epochAtStart = accountSwitchEpoch
-        guard loadCredentials() != nil else {
-            lastError = "Not signed in"
+        guard let creds = await ensureFreshCredentials(allowInteraction: false) else {
+            lastError = "Sign in with Claude CLI, then tap Retry"
             isAuthenticated = false
-            runtime.setError("Not signed in", clearSnapshot: true)
+            runtime.setError("Sign in with Claude CLI, then tap Retry", clearSnapshot: true)
             return
         }
 
         do {
-            guard let result = try await sendAuthorizedRequest(to: usageEndpoint) else {
-                // sendAuthorizedRequest 返回 nil 时已设好 self.lastError（"Not signed in" /
-                // refresh 失败 / session 过期）—— 把它镜像到 runtime（凭证类失败由 expireSession 自己清 snapshot）
-                if let err = lastError { runtime.setError(err, clearSnapshot: false) }
-                return
-            }
-            // race guard：账号切换导致此响应已陈旧 → 丢弃
+            let (data, http) = try await performAuthorizedRequest(token: creds.accessToken, url: usageEndpoint)
             guard accountSwitchEpoch == epochAtStart else { return }
-            let (data, http) = result
-            if http.statusCode == 429 {
-                let retryAfter = http.value(forHTTPHeaderField: "Retry-After").flatMap(Double.init)
-                let prev = currentBackoffSeconds == 0 ? baseInterval : currentBackoffSeconds
-                currentBackoffSeconds = Self.backoffInterval(retryAfter: retryAfter, currentInterval: prev)
-                backoffUntil = Date().addingTimeInterval(currentBackoffSeconds)   // coordinator 的 tick 在此前会跳过本 provider
-                lastError = "Rate limited — backing off to \(Int(currentBackoffSeconds))s"
-                runtime.setError(lastError ?? "Rate limited", clearSnapshot: false)
+
+            if http.statusCode == 401 {
+                let oldToken = creds.accessToken
+                inMemoryCredentials = nil
+                guard let retried = await ensureFreshCredentials(allowInteraction: false),
+                      retried.accessToken != oldToken else {
+                    lastError = "Token expired; run `claude` to refresh."
+                    isAuthenticated = false
+                    runtime.setError("Token expired; run `claude` to refresh.", clearSnapshot: false)
+                    return
+                }
+                let (data2, http2) = try await performAuthorizedRequest(token: retried.accessToken, url: usageEndpoint)
+                guard accountSwitchEpoch == epochAtStart else { return }
+                try processUsageResponse(data: data2, http: http2)
                 return
             }
-            guard http.statusCode == 200 else {
-                lastError = "HTTP \(http.statusCode)"
-                runtime.setError("HTTP \(http.statusCode)", clearSnapshot: false)
-                return
-            }
-            let decoded = try JSONDecoder().decode(UsageResponse.self, from: data)
-            let reconciled = decoded.reconciled(with: usage)
-            usage = reconciled
-            lastError = nil
-            let now = Date()
-            lastUpdated = now
-            runtime.setSuccess(snapshot: reconciled.asProviderSnapshot(), at: now)
-            historyService?.recordDataPoint(pct5h: pct5h, pct7d: pct7d)
-            notificationService?.checkAndNotify(pct5h: pct5h, pct7d: pct7d, pctExtra: pctExtra)
-            currentBackoffSeconds = 0      // 成功 → 清 backoff（下个 coordinator tick 就会正常 tick 本 provider）
-            backoffUntil = nil
+            try processUsageResponse(data: data, http: http)
         } catch {
-            // race guard：账号已切换则不写 lastError
             guard accountSwitchEpoch == epochAtStart else { return }
             lastError = error.localizedDescription
             runtime.setError(error.localizedDescription, clearSnapshot: false)
         }
+    }
+
+    /// 抽出原 fetchUsage 内 200/429/non-200 写入 runtime 的部分，供 fetchUsage 主路径 + 401 retry 共用。
+    private func processUsageResponse(data: Data, http: HTTPURLResponse) throws {
+        if http.statusCode == 429 {
+            let retryAfter = http.value(forHTTPHeaderField: "Retry-After").flatMap(Double.init)
+            let prev = currentBackoffSeconds == 0 ? baseInterval : currentBackoffSeconds
+            currentBackoffSeconds = Self.backoffInterval(retryAfter: retryAfter, currentInterval: prev)
+            backoffUntil = Date().addingTimeInterval(currentBackoffSeconds)
+            lastError = "Rate limited — backing off to \(Int(currentBackoffSeconds))s"
+            runtime.setError(lastError ?? "Rate limited", clearSnapshot: false)
+            return
+        }
+        guard http.statusCode == 200 else {
+            lastError = "HTTP \(http.statusCode)"
+            runtime.setError("HTTP \(http.statusCode)", clearSnapshot: false)
+            return
+        }
+        let decoded = try JSONDecoder().decode(UsageResponse.self, from: data)
+        let reconciled = decoded.reconciled(with: usage)
+        usage = reconciled
+        lastError = nil
+        let now = Date()
+        lastUpdated = now
+        runtime.setSuccess(snapshot: reconciled.asProviderSnapshot(), at: now)
+        historyService?.recordDataPoint(pct5h: pct5h, pct7d: pct7d)
+        notificationService?.checkAndNotify(pct5h: pct5h, pct7d: pct7d, pctExtra: pctExtra)
+        currentBackoffSeconds = 0
+        backoffUntil = nil
     }
 
     // MARK: Profile

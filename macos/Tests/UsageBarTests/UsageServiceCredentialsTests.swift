@@ -55,4 +55,80 @@ final class UsageServiceCredentialsTests: XCTestCase {
         XCTAssertNil(creds)
         XCTAssertFalse(service.runtime.isConfigured)
     }
+
+    /// 401 → 清 cache → 重读 Keychain 拿新 token → 重试一次 → 200
+    func testFetchUsage401ClearsCacheAndRetriesOnce() async throws {
+        let session = makeStubSession()
+        let service = UsageService(session: session,
+                                   usageEndpoint: URL(string: "https://example.invalid/usage")!)
+        let oldToken = "t-old"; let newToken = "t-new"
+        var keychainSeq = [oldToken, newToken]
+        service.cliKeychainLoader = { _ in
+            guard !keychainSeq.isEmpty else { return nil }
+            return StoredCredentials(accessToken: keychainSeq.removeFirst(),
+                                     refreshToken: nil,
+                                     expiresAt: Date().addingTimeInterval(3600),
+                                     scopes: ["user:profile"])
+        }
+
+        var callCount = 0
+        StubProtocol.responseProvider = { _ in
+            callCount += 1
+            if callCount == 1 {
+                return (Data("{}".utf8), HTTPURLResponse(url: URL(string: "x")!, statusCode: 401, httpVersion: nil, headerFields: nil)!)
+            }
+            let body = #"{"fiveHour":null,"sevenDay":null,"extraUsage":null}"#
+            return (Data(body.utf8), HTTPURLResponse(url: URL(string: "x")!, statusCode: 200, httpVersion: nil, headerFields: nil)!)
+        }
+
+        await service.fetchUsage()
+        XCTAssertEqual(callCount, 2)
+        XCTAssertNil(service.lastError)
+        XCTAssertTrue(service.isAuthenticated)
+    }
+
+    /// 401 → 清 cache → 重读 keychain 拿到同一个 token (CLI 没 refresh) → 不再重试 → setError 过期
+    func testFetchUsage401SameTokenReportsExpired() async throws {
+        let session = makeStubSession()
+        let service = UsageService(session: session,
+                                   usageEndpoint: URL(string: "https://example.invalid/usage")!)
+        service.cliKeychainLoader = { _ in
+            StoredCredentials(accessToken: "t-same", refreshToken: nil,
+                              expiresAt: Date().addingTimeInterval(3600),
+                              scopes: ["user:profile"])
+        }
+        var callCount = 0
+        StubProtocol.responseProvider = { _ in
+            callCount += 1
+            return (Data("{}".utf8), HTTPURLResponse(url: URL(string: "x")!, statusCode: 401, httpVersion: nil, headerFields: nil)!)
+        }
+
+        await service.fetchUsage()
+        XCTAssertEqual(callCount, 1, "同 token 不应重发")
+        XCTAssertEqual(service.lastError, "Token expired; run `claude` to refresh.")
+        XCTAssertFalse(service.runtime.isConfigured)
+    }
+
+    private func makeStubSession() -> URLSession {
+        StubProtocol.responseProvider = nil
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [StubProtocol.self]
+        return URLSession(configuration: config)
+    }
+}
+
+final class StubProtocol: URLProtocol {
+    static var responseProvider: ((URLRequest) -> (Data, HTTPURLResponse))?
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func startLoading() {
+        guard let provider = Self.responseProvider else {
+            client?.urlProtocol(self, didFailWithError: URLError(.badServerResponse)); return
+        }
+        let (data, http) = provider(request)
+        client?.urlProtocol(self, didReceive: http, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: data)
+        client?.urlProtocolDidFinishLoading(self)
+    }
+    override func stopLoading() {}
 }

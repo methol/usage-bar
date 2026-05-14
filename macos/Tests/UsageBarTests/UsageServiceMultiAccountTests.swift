@@ -35,6 +35,7 @@ final class UsageServiceMultiAccountTests: XCTestCase {
     }
 
     func testInitLoadsAccountsFromV2File() throws {
+        try XCTSkipIf(true, "v0.5.1 retire — OAuth refresh / multi-account 路径已下线")
         let a = makeAccount(label: "first")
         let b = makeAccount(label: "second")
         let file = StoredAccountsFile(version: 2, activeIndex: 1, accounts: [a, b])
@@ -49,6 +50,7 @@ final class UsageServiceMultiAccountTests: XCTestCase {
     }
 
     func testInitMigratesFromV1() throws {
+        try XCTSkipIf(true, "v0.5.1 retire — OAuth refresh / multi-account 路径已下线")
         try store.save(StoredCredentials(accessToken: "mock-v1", refreshToken: nil, expiresAt: nil, scopes: ["user:profile"]))
 
         let service = makeService()
@@ -57,7 +59,8 @@ final class UsageServiceMultiAccountTests: XCTestCase {
         XCTAssertTrue(service.isAuthenticated)
     }
 
-    func testInitEmptyAccountsUnauthenticated() {
+    func testInitEmptyAccountsUnauthenticated() throws {
+        try XCTSkipIf(true, "v0.5.1 retire — OAuth refresh / multi-account 路径已下线")
         let service = makeService()
         XCTAssertTrue(service.accounts.isEmpty)
         XCTAssertNil(service.activeAccountId)
@@ -65,6 +68,7 @@ final class UsageServiceMultiAccountTests: XCTestCase {
     }
 
     func testSwitchAccountClearsTransientState() throws {
+        try XCTSkipIf(true, "v0.5.1 retire — OAuth refresh / multi-account 路径已下线")
         let a = makeAccount(label: "A", token: "mock-A")
         let b = makeAccount(label: "B", token: "mock-B")
         let file = StoredAccountsFile(version: 2, activeIndex: 0, accounts: [a, b])
@@ -86,6 +90,7 @@ final class UsageServiceMultiAccountTests: XCTestCase {
     }
 
     func testSwitchAccountUpdatesLastUsed() throws {
+        try XCTSkipIf(true, "v0.5.1 retire — OAuth refresh / multi-account 路径已下线")
         let a = makeAccount(label: "A")
         let b = makeAccount(label: "B")
         let file = StoredAccountsFile(version: 2, activeIndex: 0, accounts: [a, b])
@@ -101,6 +106,7 @@ final class UsageServiceMultiAccountTests: XCTestCase {
     }
 
     func testSwitchAccountInvalidIdNoop() throws {
+        try XCTSkipIf(true, "v0.5.1 retire — OAuth refresh / multi-account 路径已下线")
         let a = makeAccount(label: "A")
         let file = StoredAccountsFile(version: 2, activeIndex: 0, accounts: [a])
         try store.saveAccounts(file)
@@ -113,6 +119,7 @@ final class UsageServiceMultiAccountTests: XCTestCase {
     }
 
     func testActiveIndexOutOfBoundClampedToLast() throws {
+        try XCTSkipIf(true, "v0.5.1 retire — OAuth refresh / multi-account 路径已下线")
         let a = makeAccount(label: "A")
         let b = makeAccount(label: "B")
         // activeIndex 越界
@@ -125,6 +132,7 @@ final class UsageServiceMultiAccountTests: XCTestCase {
     }
 
     func testSignOutClearsAllAccounts() throws {
+        try XCTSkipIf(true, "v0.5.1 retire — OAuth refresh / multi-account 路径已下线")
         let a = makeAccount(label: "A")
         let b = makeAccount(label: "B")
         let file = StoredAccountsFile(version: 2, activeIndex: 0, accounts: [a, b])

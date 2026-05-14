@@ -15,8 +15,10 @@ final class ProviderCoordinatorTests: XCTestCase {
         return dir
     }
     /// claude = 真 UsageService（凭证目录指向临时空目录 → 未登录、不发网络）；codex = 真 CodexProvider（CODEX_HOME 指向不存在路径 → unconfigured）。
+    /// v0.5.1: 显式 stub cliKeychainLoader 返回 nil，避免新 fetchUsage 路径读宿主机真实 Claude Keychain。
     private func makeCoordinator(_ d: UserDefaults, withCodex: Bool = true) -> ProviderCoordinator {
         let claude = UsageService(credentialsStore: StoredCredentialsStore(directoryURL: tmpDir()))
+        claude.cliKeychainLoader = { _ in nil }
         let extras: [UsageProvider] = withCodex
             ? [CodexProvider(environment: ["CODEX_HOME": "/nonexistent-\(UUID().uuidString)"], defaults: d)]
             : []
@@ -72,7 +74,7 @@ final class ProviderCoordinatorTests: XCTestCase {
         let c = makeCoordinator(freshDefaults())
         await c.refreshAllEnabledOnOpen()                  // codex unconfigured → 不发网络；claude snapshot==nil → 被拉一次
         XCTAssertNil(c.claude.runtime.snapshot)
-        XCTAssertEqual(c.claude.runtime.lastError, "Not signed in")   // Claude 被拉过（首屏空 → 兜一次）
+        XCTAssertEqual(c.claude.runtime.lastError, "Sign in with Claude CLI, then tap Retry")   // Claude 被拉过（首屏空 → 兜一次）
     }
 
     // 修复 issue #10：有 snapshot 的 non-Claude provider 在 popover 打开时不再刷。
@@ -86,12 +88,12 @@ final class ProviderCoordinatorTests: XCTestCase {
         XCTAssertEqual(stub.refreshNowCallCount, 0, "snapshot 非 nil 时不应再拉")
     }
 
-    // v0.2.11：onBackgroundTick 现在也 tick Claude（不再特判跳过）—— 用「未登录 UsageService → refreshNow→fetchUsage 走未登录分支、设 lastError = "Not signed in"」间接验证它被 tick 到了。
+    // v0.2.11：onBackgroundTick 现在也 tick Claude（不再特判跳过）—— 用「未登录 UsageService → refreshNow→fetchUsage 走未登录分支、设 lastError = "Sign in with Claude CLI, then tap Retry"」间接验证它被 tick 到了。
     func testOnBackgroundTickAlsoTicksClaude() async {
         let c = makeCoordinator(freshDefaults())
         c.onBackgroundTick()
         await Task.yield(); try? await Task.sleep(nanoseconds: 80_000_000)
-        XCTAssertEqual(c.claude.runtime.lastError, "Not signed in")   // 被 tick 到了（v0.2.10 之前 onBackgroundTick 不会碰 Claude）
+        XCTAssertEqual(c.claude.runtime.lastError, "Sign in with Claude CLI, then tap Retry")   // 被 tick 到了（v0.2.10 之前 onBackgroundTick 不会碰 Claude）
     }
 
     // backoff 窗口内的 provider 这一 tick 被跳过；窗口过后被 tick。
