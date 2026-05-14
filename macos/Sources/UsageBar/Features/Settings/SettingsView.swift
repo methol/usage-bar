@@ -149,6 +149,7 @@ struct LaunchAtLoginToggle: View {
     private let controlSize: ControlSize
     private let useSwitchStyle: Bool
 
+    @MainActor
     init(
         controlSize: ControlSize = .regular,
         useSwitchStyle: Bool = false,

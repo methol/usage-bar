@@ -1,6 +1,7 @@
 import SwiftUI
 
 @main
+@MainActor
 struct UsageBarApp: App {
     // v0.2.5 多供应商重构：用 ProviderCoordinator 装配（内部注册 Claude provider = UsageService）。
     // Claude 的 OAuth/refresh/多账号/polling/backoff 等仍在 coordinator.claude（= UsageService）里，
