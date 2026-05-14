@@ -1,7 +1,7 @@
 ---
 id: 2026-05-14-claude-credentials-in-memory
 title: Claude 凭证改 in-memory only —— 永不存盘、永不主动 refresh
-status: draft
+status: approved
 created: 2026-05-14
 updated: 2026-05-14T10:00:00+08:00
 owner: claude-code
@@ -70,8 +70,9 @@ reviews:
     verdict: approved-after-revisions
     notes: 4 条 required 已闭环 — §3.4 补 `isAwaitingCode` + `expireSessionOnAuthFailure` 参数 + PopoverView 文档注释；§3.6 列出具体测试方法名；automated_checks 改正向 grep；§5 #2 directoryURL 决策明确 + §6 加 AppPaths follow-up；§6 加 CONTRIBUTING.md mock-server 联动 follow-up。
   - round: 2
-    reviewer: pending
-    verdict: pending
+    reviewer: general-purpose-subagent
+    verdict: approved
+    notes: round 1 提的 4 条 required 全部闭环 (grep 校对 §3.4 删除清单与代码符号一致, automated_checks 注释澄清 `! grep` 语义)。无新评审点。G2 通过, 进入 G3 plan 阶段。
 ---
 
 # Claude 凭证改 in-memory only —— 永不存盘、永不主动 refresh
