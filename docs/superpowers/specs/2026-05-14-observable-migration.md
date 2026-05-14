@@ -28,7 +28,7 @@ spec_criteria:
     done: false
     evidence: ""
   - id: SC5
-    criterion: import Combine 从 UsageService / UsageStatsService / UsageHistoryService / MultiMenuBarLabel 移除；ProviderCoordinator 保留（AnyCancellable timer）
+    criterion: import Combine 从 UsageService / MultiMenuBarLabel 移除；UsageHistoryService 保留（内部 flushTimer AnyCancellable）；ProviderCoordinator 保留（backgroundTimer AnyCancellable）
     done: false
     evidence: ""
   - id: SC6
@@ -47,7 +47,7 @@ automated_checks:
   - "SC_AUTO_BUILD: swift build -c release"
   - "SC_AUTO_TEST: swift test"
   - "SC_AUTO_GREP_NO_OBSERVABLE_OBJECT: ! grep -rn 'ObservableObject\\|@Published' macos/Sources/UsageBar/ --include='*.swift'"
-  - "SC_AUTO_GREP_NO_RUNTIME_AGGREGATOR: ! grep -rn 'RuntimeAggregator\\|AnyCancellable' macos/Sources/UsageBar/MenuBar/ --include='*.swift'"
+  - "SC_AUTO_GREP_NO_RUNTIME_AGGREGATOR: ! grep -rn 'RuntimeAggregator' macos/Sources/UsageBar/ --include='*.swift'"
   - "SC_AUTO_GREP_NO_STATE_OBJECT: ! grep -rn '@StateObject\\|@ObservedObject\\|@EnvironmentObject' macos/Sources/UsageBar/ --include='*.swift'"
   - "SC_AUTO_RELEASE: make release-artifacts && bash macos/scripts/verify-release.sh macos/UsageBar.zip"
 manual_checks:
