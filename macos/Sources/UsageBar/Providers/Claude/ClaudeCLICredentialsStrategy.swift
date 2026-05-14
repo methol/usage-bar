@@ -43,7 +43,7 @@ struct ClaudeCLICredentialsStrategy: ClaudeUsageStrategy {
     /// - Parameter allowInteraction: `false` 时给 query 挂一个 `interactionNotAllowed` 的 `LAContext` ——
     ///   `SecItemCopyMatching` 不弹 ACL 授权框、直接返回 `errSecInteractionNotAllowed`（下面 switch 已把它降级为
     ///   返回 nil）。v0.2.7：`expireSession` 走的 Keychain 恢复读取可能发生在后台 polling 里，绝不能弹框 → 传 false；
-    ///   `bootstrapFromCLIIfNeeded`（前台首启）沿用 `loadCredentials()` = true，允许弹一次 ACL。
+    ///   App 启动 / Retry 按钮路径（`UsageService.retrySignIn`）沿用 `loadCredentials()` = true，允许弹一次 ACL。
     func loadCredentials(allowInteraction: Bool) async throws -> StoredCredentials? {
         // G3 B1 修订：SecItemCopyMatching 是同步 blocking C API；用 Task.detached
         // 把它挪到后台线程，避免主线程阻塞（首次 ACL 弹窗时尤其重要）

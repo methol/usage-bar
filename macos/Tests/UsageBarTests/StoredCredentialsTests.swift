@@ -1,8 +1,9 @@
 import XCTest
 @testable import UsageBar
 
-/// v0.5.1 task 6 后：StoredCredentialsStore 已下线 —— 本文件只剩 StoredCredentials 值类型
-/// 的 isExpired / needsRefresh 测试（struct 本身保留）。
+/// v0.5.1 task 6/7 后：StoredCredentialsStore 已下线，
+/// `hasRefreshToken` / `needsRefresh` / `strippingRefreshToken` 助手在 Sources 已无 caller 一并删除。
+/// 本文件只剩 StoredCredentials 值类型的 isExpired 测试（struct 本身保留 — `ensureFreshCredentials` 依赖）。
 final class StoredCredentialsTests: XCTestCase {
 
     // MARK: - isExpired
@@ -35,28 +36,5 @@ final class StoredCredentialsTests: XCTestCase {
             scopes: ["user:profile"]
         )
         XCTAssertFalse(credentials.isExpired())
-    }
-
-    // MARK: - needsRefresh leeway
-
-    func testNeedsRefreshUses300SecondLeewayByDefault() {
-        let now = Date()
-        let credentials = StoredCredentials(
-            accessToken: "token",
-            refreshToken: "refresh",
-            expiresAt: now.addingTimeInterval(200),
-            scopes: ["user:profile"]
-        )
-        // 200s until expiry < 300s leeway → needs refresh
-        XCTAssertTrue(credentials.needsRefresh(at: now))
-
-        let safeCredentials = StoredCredentials(
-            accessToken: "token",
-            refreshToken: "refresh",
-            expiresAt: now.addingTimeInterval(400),
-            scopes: ["user:profile"]
-        )
-        // 400s until expiry > 300s leeway → does not need refresh
-        XCTAssertFalse(safeCredentials.needsRefresh(at: now))
     }
 }
