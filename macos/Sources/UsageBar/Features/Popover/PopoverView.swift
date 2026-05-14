@@ -1,17 +1,13 @@
 import SwiftUI
 
 struct PopoverView: View {
-    @ObservedObject var coordinator: ProviderCoordinator
-    /// Claude provider（登录 UX / polling 设置 / Sign Out 等 Claude 专属 UI 直接用它）。
-    /// 单独 `@ObservedObject` —— 这样 `isAuthenticated`/`lastError`/`runtime` 变化能驱动重渲染
-    /// （`coordinator` 的 `menuBarVisibleProviderIDs`/`orderedProviderIDs`/`enabledProviderIDs` 是 `@Published`，不覆盖 `coordinator.claude` 的变化）。
-    @ObservedObject var claude: UsageService
-    @ObservedObject var historyService: UsageHistoryService
-    @ObservedObject var notificationService: NotificationService
-    @ObservedObject var appUpdater: AppUpdater
-    @EnvironmentObject var usageStats: UsageStatsService
-    /// Codex 本机用量/费用统计（与 Claude 的 `usageStats` 同型；`@EnvironmentObject` 一次只能注一个同型，故这里走构造参数）。
-    @ObservedObject var codexStats: UsageStatsService
+    let coordinator: ProviderCoordinator
+    let claude: UsageService
+    let historyService: UsageHistoryService
+    let notificationService: NotificationService
+    let appUpdater: AppUpdater
+    let usageStats: UsageStatsService
+    let codexStats: UsageStatsService
     @State private var selectedProvider: ProviderID = .claude
 
     var body: some View {
@@ -28,7 +24,8 @@ struct PopoverView: View {
                     coordinator: coordinator,
                     historyService: historyService,
                     codexStats: codexStats,
-                    appUpdater: appUpdater
+                    appUpdater: appUpdater,
+                    usageStats: usageStats
                 ) {
                     BottomBarView(selectedProvider: $selectedProvider,
                                   coordinator: coordinator,
@@ -63,22 +60,24 @@ struct PopoverView: View {
 
     private struct ProviderAreaView<BottomBar: View>: View {
         @Binding var selectedProvider: ProviderID
-        @ObservedObject var coordinator: ProviderCoordinator
-        @ObservedObject var historyService: UsageHistoryService
-        @ObservedObject var codexStats: UsageStatsService
-        @ObservedObject var appUpdater: AppUpdater
+        let coordinator: ProviderCoordinator
+        let historyService: UsageHistoryService
+        let codexStats: UsageStatsService
+        let appUpdater: AppUpdater
+        let usageStats: UsageStatsService
         @ViewBuilder let bottomBar: () -> BottomBar
 
         var body: some View {
             if selectedProvider == .claude && coordinator.availableIDs.contains(.claude) {
                 ClaudeUsageAreaView(coordinator: coordinator,
                                     historyService: historyService,
+                                    usageStats: usageStats,
                                     appUpdater: appUpdater,
                                     bottomBar: bottomBar)
             } else if coordinator.availableIDs.contains(selectedProvider),
                       let runtime = coordinator.runtime(for: selectedProvider) {
                 // v0.2.6 起：泛化的 provider 用量区（Codex 等）。configured/unconfigured 由 ProviderUsageArea
-                // 内部读 runtime.isConfigured 决定 —— 这样 runtime 的 @Published 变化能驱动该子树重渲染。
+                // 内部读 runtime.isConfigured 决定（@Observable 自动追踪属性读取，驱动子树重渲染）。
                 let history: (service: UsageHistoryService, primaryLabel: String, secondaryLabel: String)? =
                     (selectedProvider == .codex
                         ? (coordinator.provider(.codex) as? CodexProvider).map { ($0.history, "Session", "Weekly") }
@@ -103,7 +102,7 @@ struct PopoverView: View {
 
     /// 已注册的非 Claude provider 的用量区：观察其 `ProviderRuntime`，按 `isConfigured` 二选一渲染。
     private struct ProviderUsageArea<BottomBar: View>: View {
-        @ObservedObject var runtime: ProviderRuntime
+        let runtime: ProviderRuntime
         let providerID: ProviderID
         let onBackToClaude: () -> Void
         /// 该 provider 的历史（有则显示趋势箭头 + 折线图）。nil → 退化成只有 `ProviderUsageSection`（v0.2.6 现状）。
@@ -151,13 +150,11 @@ struct PopoverView: View {
     }
 
     /// 「带历史的 provider 用量区」：在 `ProviderUsageSection` 上挂趋势箭头（从 history 算）+ 额度折线图。
-    /// `historyService` 必须非 nil 才用本视图（SwiftUI 的 `@ObservedObject` 不能是 Optional）。
     private struct ProviderHistorySection: View {
-        @ObservedObject var historyService: UsageHistoryService
-        @ObservedObject var runtime: ProviderRuntime
+        let historyService: UsageHistoryService
+        let runtime: ProviderRuntime
         let primaryLabel: String
         let secondaryLabel: String
-        /// 普通 `let`（不是 `@ObservedObject` —— Optional 不能）；非 nil 时折线图区改用持 `@ObservedObject` 的 `ProviderCostArea`。
         var costStats: UsageStatsService? = nil
         var costContext: ProviderCostContext? = nil
 
@@ -180,10 +177,9 @@ struct PopoverView: View {
     }
 
     /// 带本机成本数据的折线图区（含估算费用卡）+ 消费热力图（mirror `claudeUsageArea` 的对应段）。
-    /// `stats` 是非-Optional `@ObservedObject` —— 这样 `codexStats` 的 `@Published` 变化能驱动这子树重渲染（v0.2.5 G5 nit 同款套路）。
     private struct ProviderCostArea: View {
-        @ObservedObject var historyService: UsageHistoryService
-        @ObservedObject var stats: UsageStatsService
+        let historyService: UsageHistoryService
+        let stats: UsageStatsService
         let costContext: ProviderCostContext
         let primaryLabel: String
         let secondaryLabel: String
@@ -202,17 +198,15 @@ struct PopoverView: View {
     // MARK: - Claude 已登录的用量区（与重构前 claudeUsageArea 内容/顺序一致）
 
     private struct ClaudeUsageAreaView<BottomBar: View>: View {
-        @ObservedObject var coordinator: ProviderCoordinator
-        @ObservedObject var historyService: UsageHistoryService
-        /// 从环境读取 Claude 的本机费用统计（UsageBarApp 只注入 Claude 的 usageStats 入 env；
-        /// codexStats 走构造参数从不进 env，无同类型碰撞，见 UsageBarApp.swift:13-26）。
-        @EnvironmentObject var usageStats: UsageStatsService
-        @ObservedObject var appUpdater: AppUpdater
+        let coordinator: ProviderCoordinator
+        let historyService: UsageHistoryService
+        let usageStats: UsageStatsService
+        let appUpdater: AppUpdater
         @ViewBuilder let bottomBar: () -> BottomBar
 
         var body: some View {
             // TODO(perf): trend/pace 在 body 每次重渲染都 O(n) 重算（v0.0.9/v0.0.11 G5 R2 noted）。
-            // 30 天 ~千点 history 下影响可接受；polling↑/retention↑ 至 ~万点时迁 UsageService @Published 缓存。
+            // 30 天 ~千点 history 下影响可接受；polling↑/retention↑ 至 ~万点时迁 UsageService 缓存计算结果。
             let runtime = coordinator.claude.runtime
             let points = historyService.history.dataPoints
             let snap = runtime.snapshot
@@ -264,8 +258,8 @@ struct PopoverView: View {
 
     private struct BottomBarView: View {
         @Binding var selectedProvider: ProviderID
-        @ObservedObject var coordinator: ProviderCoordinator
-        @ObservedObject var appUpdater: AppUpdater
+        let coordinator: ProviderCoordinator
+        let appUpdater: AppUpdater
 
         var body: some View {
             HStack(spacing: 12) {
@@ -320,8 +314,8 @@ struct PopoverView: View {
     }
 
     private struct NotAuthenticatedView: View {
-        @ObservedObject var coordinator: ProviderCoordinator
-        @ObservedObject var claude: UsageService
+        let coordinator: ProviderCoordinator
+        let claude: UsageService
 
         var body: some View {
             Text("Not signed in")

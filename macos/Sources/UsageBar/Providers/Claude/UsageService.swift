@@ -1,12 +1,15 @@
 import Foundation
-import Combine
+import Observation
 
 @MainActor
-final class UsageService: ObservableObject {
-    @Published var usage: UsageResponse?
-    @Published var lastError: String?
-    @Published var lastUpdated: Date?
-    @Published var isAuthenticated = false
+@Observable
+final class UsageService {
+    var usage: UsageResponse?
+    var lastError: String?
+    var lastUpdated: Date?
+    var isAuthenticated = false {
+        didSet { runtime.setConfigured(isAuthenticated) }
+    }
 
     // v0.2.5: 窄化成协议，便于单测注入 spy（实参仍是 UsageHistoryService / NotificationService）
     var historyService: HistoryRecording?
@@ -14,7 +17,6 @@ final class UsageService: ObservableObject {
 
     /// v0.2.5 多供应商抽象：Claude provider 的 UI 状态容器（每次 fetch 后镜像写入）。
     let runtime: ProviderRuntime
-    private var runtimeAuthSync: AnyCancellable?
 
     private let usageStats: UsageStatsService
     private let session: URLSession
@@ -45,7 +47,7 @@ final class UsageService: ObservableObject {
     nonisolated static let maxBackoffInterval: TimeInterval = 60 * 60
     nonisolated static let defaultUsageEndpoint = URL(string: "https://api.anthropic.com/api/oauth/usage")!
 
-    @Published private(set) var pollingMinutes: Int
+    private(set) var pollingMinutes: Int
 
     init(
         session: URLSession = .shared,
@@ -59,10 +61,7 @@ final class UsageService: ObservableObject {
         let minutes = Self.pollingOptions.contains(stored) ? stored : Self.defaultPollingMinutes
         self.pollingMinutes = minutes
         self.runtime = ProviderRuntime()
-        // 保持 runtime.isConfigured 与 isAuthenticated 同步（@Published 订阅时会立刻发当前值）
-        self.runtimeAuthSync = self.$isAuthenticated.sink { [runtime] authed in
-            runtime.setConfigured(authed)
-        }
+        runtime.setConfigured(isAuthenticated)
     }
 }
 
@@ -95,7 +94,7 @@ extension UsageService {
     /// - Returns: 最新有效 credentials；Keychain 无 / 不可读 / 解析失败 → nil。
     func ensureFreshCredentials(allowInteraction: Bool) async -> StoredCredentials? {
         // 注：cache hit / loader 重读 两条路径都显式写 isAuthenticated。
-        // 现有 runtimeAuthSync sink 方向是 isAuthenticated → runtime，反向不通；
+        // isAuthenticated didSet 已同步 runtime.setConfigured；
         // UI 依赖 `claude.isAuthenticated` 触发 NotAuthenticatedView 分支。
         // cache hit 时如 _test_setInMemoryCredentials 注入或某些 race 后 isAuthenticated 未同步，需补一次写。
         if let c = inMemoryCredentials, !c.isExpired() {

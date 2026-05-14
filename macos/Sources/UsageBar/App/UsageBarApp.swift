@@ -5,16 +5,16 @@ struct UsageBarApp: App {
     // v0.2.5 多供应商重构：用 ProviderCoordinator 装配（内部注册 Claude provider = UsageService）。
     // Claude 的 OAuth/refresh/多账号/polling/backoff 等仍在 coordinator.claude（= UsageService）里，
     // v0.2.11：所有 provider 的后台轮询由 coordinator.startBackgroundPolling() 的统一 timer 管（含 Claude）。
-    @StateObject private var coordinator = ProviderCoordinator(claude: UsageService(),
-                                                               additionalProviders: [
-                                                                   CodexProvider(),
-                                                                   GeminiProvider()
-                                                               ])
-    @StateObject private var historyService = UsageHistoryService()
-    @StateObject private var notificationService = NotificationService()
-    @StateObject private var appUpdater = AppUpdater()
-    @StateObject private var usageStats = UsageStatsService.shared
-    @StateObject private var codexStats = UsageStatsService(provider: .codex)
+    @State private var coordinator = ProviderCoordinator(claude: UsageService(),
+                                                         additionalProviders: [
+                                                             CodexProvider(),
+                                                             GeminiProvider()
+                                                         ])
+    @State private var historyService = UsageHistoryService()
+    @State private var notificationService = NotificationService()
+    @State private var appUpdater = AppUpdater()
+    @State private var usageStats = UsageStatsService.shared
+    @State private var codexStats = UsageStatsService(provider: .codex)
 
     var body: some Scene {
         MenuBarExtra {
@@ -24,9 +24,9 @@ struct UsageBarApp: App {
                 historyService: historyService,
                 notificationService: notificationService,
                 appUpdater: appUpdater,
+                usageStats: usageStats,
                 codexStats: codexStats
             )
-            .environmentObject(usageStats)
         } label: {
             // 所有已启用且已注册的 provider 并排展示（按 orderedProviderIDs 顺序）
             MultiMenuBarLabel(coordinator: coordinator)

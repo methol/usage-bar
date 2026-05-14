@@ -1,14 +1,16 @@
 import Foundation
 import Combine
 import AppKit
+import Observation
 
 @MainActor
-class UsageHistoryService: ObservableObject {
-    @Published var history = UsageHistory()
+@Observable
+class UsageHistoryService {
+    var history = UsageHistory()
 
-    private var flushTimer: AnyCancellable?
+    @ObservationIgnored private var flushTimer: AnyCancellable?
     private var isDirty = false
-    private var terminationObserver: Any?
+    @ObservationIgnored nonisolated(unsafe) private var terminationObserver: Any?
 
     private static let retentionInterval: TimeInterval = 30 * 86400 // 30 days
     private static let flushInterval: TimeInterval = 300 // 5 minutes

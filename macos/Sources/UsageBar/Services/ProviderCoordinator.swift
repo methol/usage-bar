@@ -1,12 +1,14 @@
 import Foundation
 import Combine
+import Observation
 
 /// 多 provider 的「门面」—— 持有注册表 + provider 顺序 / 启用集 / 菜单栏可见集 + 非-Claude 的后台 timer + 按需 refresh。
 ///
 /// v0.2.11：coordinator 持一个统一的后台 timer，覆盖**所有** enabled provider（含 Claude）—— 间隔 = `pollingMinutes`，监听 UserDefaults 变化重起。
 /// Claude 的 429 backoff 由它自己的 `UsageService.fetchUsage` 记进 `backoffUntil`（暴露为 `nextEligibleRefresh`），coordinator 的 tick 在 backoff 窗口内会跳过本 provider。
 @MainActor
-final class ProviderCoordinator: ObservableObject {
+@Observable
+final class ProviderCoordinator {
     /// Claude provider（一等公民，一定存在）—— 登录 UX / polling 设置等 Claude 专属 UI 直接用它。
     let claude: UsageService
     let registry: ProviderRegistry
@@ -18,17 +20,17 @@ final class ProviderCoordinator: ObservableObject {
     static let menuBarVisibleProvidersKey = "menuBarVisibleProviders"
 
     // MARK: - provider 顺序（含未注册的占位 provider；Settings 列表与 popover tab 顺序的来源）
-    @Published var orderedProviderIDs: [ProviderID] {
+    var orderedProviderIDs: [ProviderID] {
         didSet { defaults.set(orderedProviderIDs.map(\.rawValue), forKey: Self.providerOrderKey) }
     }
 
     // MARK: - 启用集
-    @Published private(set) var enabledProviderIDs: Set<ProviderID> {
+    private(set) var enabledProviderIDs: Set<ProviderID> {
         didSet { defaults.set(enabledProviderIDs.map(\.rawValue), forKey: Self.enabledProvidersKey) }
     }
 
     // MARK: - 菜单栏可见集（独立于启用集；用户可逐个控制是否在菜单栏显示）
-    @Published private(set) var menuBarVisibleProviderIDs: Set<ProviderID> {
+    private(set) var menuBarVisibleProviderIDs: Set<ProviderID> {
         didSet { defaults.set(menuBarVisibleProviderIDs.map(\.rawValue), forKey: Self.menuBarVisibleProvidersKey) }
     }
 

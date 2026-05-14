@@ -2,9 +2,9 @@ import SwiftUI
 import ServiceManagement
 
 struct SettingsWindowContent: View {
-    @ObservedObject var coordinator: ProviderCoordinator
-    @ObservedObject var service: UsageService
-    @ObservedObject var notificationService: NotificationService
+    let coordinator: ProviderCoordinator
+    let service: UsageService
+    let notificationService: NotificationService
     // @AppStorage 直接绑定 enum（G5 review B1 修订）
     @AppStorage(MenuBarDisplayMode.storageKey) private var menubarMode: MenuBarDisplayMode = .icon
     // v0.2.2: Sparkle 双通道
@@ -92,7 +92,7 @@ struct SettingsWindowContent: View {
 }
 
 private struct ProviderRow: View {
-    @ObservedObject var coordinator: ProviderCoordinator
+    let coordinator: ProviderCoordinator
     let id: ProviderID
 
     var body: some View {
@@ -145,7 +145,7 @@ private func focusSettingsWindow() {
 }
 
 struct LaunchAtLoginToggle: View {
-    @StateObject private var model: LaunchAtLoginModel
+    @State private var model: LaunchAtLoginModel
     private let controlSize: ControlSize
     private let useSwitchStyle: Bool
 
@@ -154,7 +154,7 @@ struct LaunchAtLoginToggle: View {
         useSwitchStyle: Bool = false,
         bundleURL: URL = Bundle.main.bundleURL
     ) {
-        _model = StateObject(
+        _model = State(
             wrappedValue: LaunchAtLoginModel(bundleURL: bundleURL)
         )
         self.controlSize = controlSize
@@ -190,40 +190,6 @@ struct LaunchAtLoginToggle: View {
     }
 }
 
-@MainActor
-final class LaunchAtLoginModel: ObservableObject {
-    @Published private(set) var isEnabled = false
-    @Published private(set) var isSupported: Bool
-    @Published private(set) var message: String?
-
-    init(bundleURL: URL = Bundle.main.bundleURL) {
-        isSupported = supportsLaunchAtLoginManagement(appURL: bundleURL)
-
-        guard isSupported else {
-            message = "Install the app in Applications to manage launch at login."
-            return
-        }
-
-        isEnabled = SMAppService.mainApp.status == .enabled
-    }
-
-    func setEnabled(_ enabled: Bool) {
-        guard isSupported else { return }
-
-        do {
-            if enabled {
-                try SMAppService.mainApp.register()
-            } else {
-                try SMAppService.mainApp.unregister()
-            }
-            isEnabled = enabled
-            message = nil
-        } catch {
-            isEnabled = SMAppService.mainApp.status == .enabled
-            message = "Could not update launch at login."
-        }
-    }
-}
 
 func supportsLaunchAtLoginManagement(
     appURL: URL = Bundle.main.bundleURL,

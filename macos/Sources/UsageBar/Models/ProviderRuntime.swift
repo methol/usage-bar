@@ -1,16 +1,18 @@
 import Foundation
+import Observation
 
-/// 一个 provider 的 UI 状态容器 —— 视图（popover 用量区 / 菜单栏 label）`@ObservedObject` 它。
+/// 一个 provider 的 UI 状态容器 —— 视图（popover 用量区 / 菜单栏 label）直接持有它。
 /// 由所属 `UsageProvider` 写入（`setSuccess` / `setError` / `clear` / `setConfigured`）。
 ///
 /// 错误时的 snapshot 取舍统一为：凭证类失败（401-ish / session 过期）`clearSnapshot: true`——
 /// 不留「旧卡片 + 过期错误」并存的歧义 UI；网络 / 5xx 类失败保留旧 snapshot 但显示错误文案。
 @MainActor
-final class ProviderRuntime: ObservableObject {
-    @Published private(set) var snapshot: ProviderUsageSnapshot?
-    @Published private(set) var lastUpdated: Date?
-    @Published private(set) var lastError: String?
-    @Published private(set) var isConfigured: Bool
+@Observable
+final class ProviderRuntime {
+    private(set) var snapshot: ProviderUsageSnapshot?
+    private(set) var lastUpdated: Date?
+    private(set) var lastError: String?
+    private(set) var isConfigured: Bool
 
     init(isConfigured: Bool = false) {
         self.isConfigured = isConfigured
@@ -32,7 +34,7 @@ final class ProviderRuntime: ObservableObject {
         self.lastError = message
         if clearSnapshot {
             self.snapshot = nil
-            self.lastUpdated = nil   // 不留「无 snapshot 但 lastUpdated 残留」的歧义状态（G5 nit）
+            self.lastUpdated = nil
         }
     }
 

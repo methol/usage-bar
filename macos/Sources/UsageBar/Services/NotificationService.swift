@@ -1,4 +1,5 @@
 import Foundation
+import Observation
 @preconcurrency import UserNotifications
 
 struct ThresholdAlert: Equatable {
@@ -55,11 +56,12 @@ private class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
 }
 
 @MainActor
-class NotificationService: ObservableObject {
+@Observable
+class NotificationService {
     /// 0 = off, 5–100 = alert when window reaches this %.
-    @Published private(set) var threshold5h: Int
-    @Published private(set) var threshold7d: Int
-    @Published private(set) var thresholdExtra: Int
+    private(set) var threshold5h: Int
+    private(set) var threshold7d: Int
+    private(set) var thresholdExtra: Int
 
     private var previousPct5h: Double?
     private var previousPct7d: Double?

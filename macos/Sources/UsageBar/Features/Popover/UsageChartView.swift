@@ -65,7 +65,7 @@ enum UsageChartInterpolation {
 // 趋势图 + 跟随 picker 时间窗口的估算费用卡
 
 struct UsageChartSectionView: View {
-    @ObservedObject var historyService: UsageHistoryService
+    let historyService: UsageHistoryService
     let recentEvents: [StoredUsageEvent]
     /// 两条线 / 图例的文字（默认 Claude 的 `5h`/`7d`；Codex 传 `Session`/`Weekly`）。
     var primaryLabel: String = "5h"
@@ -99,7 +99,7 @@ struct UsageChartSectionView: View {
 
 /// 拆出原 UsageChartView 的内容部分，接受外部 selectedRange 而非自持状态。
 private struct UsageChartContentView: View {
-    @ObservedObject var historyService: UsageHistoryService
+    let historyService: UsageHistoryService
     let selectedRange: TimeRange
     let primaryLabel: String
     let secondaryLabel: String

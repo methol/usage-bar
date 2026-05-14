@@ -7,7 +7,7 @@ import SwiftUI
 /// 那些由调用方（`PopoverView`）按需组合（折线图/热力图目前还是 Claude 专属，依赖未泛化的
 /// `UsageHistoryService` / `UsageStatsService`）。
 struct ProviderUsageSection: View {
-    @ObservedObject var runtime: ProviderRuntime
+    let runtime: ProviderRuntime
     /// 主/次窗口的趋势箭头（Claude tab 由 `PopoverView` 从历史算好传入；无历史的 provider 传 nil）。
     var trendPrimary: TrendIndicator? = nil
     var trendSecondary: TrendIndicator? = nil
