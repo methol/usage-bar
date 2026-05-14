@@ -9,6 +9,23 @@
 
 ---
 
+## [v0.5.1] — 2026-05-14
+
+> spec: [`2026-05-14-claude-credentials-in-memory`](./docs/superpowers/specs/2026-05-14-claude-credentials-in-memory.md) · 版本: [`v0.5.1`](./docs/versions/v0.5.1-claude-credentials-in-memory.md)
+
+### 移除（Removed）
+
+- usage-bar 不再持久化 Claude 凭证到磁盘。in-memory cache 在启动 / token 过期时从 Claude CLI 的 Keychain 条目重读。旧 `~/.config/usage-bar/credentials.json` / `accounts.json` 不会被读取也不会被覆盖；用户可自行 `rm` 清理。
+- **Claude provider 多账号 UI**：`AccountSwitcherView` 移除，`Account switcher` / `Add account` 菜单下线。请用 Claude CLI 切换当前会话；usage-bar 的"多账号"语义现在指"多 provider"（Claude / Codex / Gemini）。
+- **内置 OAuth refresh 流程**：token 刷新完全交给 Claude CLI 处理，usage-bar 不再持有 refresh_token。
+
+### 修复（Fixed）
+
+- token 过期后 popover 卡在 "Not signed in" 状态：Retry 按钮现在真正重读 Keychain（之前因 `accounts.json` 存在被短路）。
+- 从结构上消除 issue [#22](https://github.com/methol/usage-bar/issues/22) 这一类 OAuth Token Rotation 失败：usage-bar 不再持有 refresh_token，CLI 轮换 token 后不会再被迫退出登录。
+
+---
+
 ## [v0.4.1] — 2026-05-13
 
 > spec: [`2026-05-13-docs-cleanup`](./docs/superpowers/specs/2026-05-13-docs-cleanup.md) · 版本: [`v0.4.1`](./docs/versions/v0.4.1-docs-cleanup.md)

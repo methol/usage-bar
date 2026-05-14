@@ -13,44 +13,44 @@ related_research: []
 spec_criteria:
   - id: SC1
     criterion: 启动时 Keychain 有有效 token → 5 min 内首次 fetchUsage 成功，popover 显示数据
-    done: false
-    evidence: null
+    done: true
+    evidence: "真机 (commit b4ca68f after install): popover Claude 区显示 5h/7d window 用量数据"
   - id: SC2
     criterion: 启动时 Keychain 无 / 无 ACL 授权 → popover 显示 "Sign in with Claude CLI, tap Retry"；Retry 触发 `allowInteraction=true`
-    done: false
-    evidence: null
+    done: true
+    evidence: "单测 testEnsureFreshCredentialsKeychainEmptyClearsState (cliKeychainLoader→nil → isConfigured=false) + testRetrySignInForcesKeychainReload (allowInteraction=true 注入断言); 真机替代 — 跳过破坏性 Keychain 清空"
   - id: SC3
     criterion: Keychain access_token 已过期且 CLI 未刷新 → fetchUsage 收 401 → 清 cache → 重读 Keychain 仍同 token → setError "Token expired; run `claude` to refresh."；不无限 retry
-    done: false
-    evidence: null
+    done: true
+    evidence: "单测 testFetchUsage401SameTokenReportsExpired (callCount=1 + lastError 字面比对)"
   - id: SC4
     criterion: issue #22 回归不再现 —— CLI 触发 OAuth rotation 写新 token → usage-bar 下一 polling tick 自动用新 token，无掉线
-    done: false
-    evidence: null
+    done: true
+    evidence: "grep evidence: macos/Sources/UsageBar/Providers/Claude/ 内无 platform.claude.com/v1/oauth/token 调用; refreshToken 仅在 StoredCredentials struct field 定义 + KeychainPayload schema 解析 (read-only, 无写入路径); 结构上不可能触发 rotation"
   - id: SC5
     criterion: 真机：清 `~/.config/usage-bar/accounts.json` + `credentials.json` 后启动 app → 30s 内 popover 自动从 Keychain 恢复；旧文件不被重新创建
-    done: false
-    evidence: null
+    done: true
+    evidence: "真机操作: rm 两个文件 → sleep 35s → ls 输出无 accounts.json / credentials.json (未被重建) + popover Claude 区仍为用量数据"
   - id: SC6
     criterion: 代码层 — usage-bar 进程不再向 `~/.config/usage-bar/credentials.json` / `accounts.json` 写入任何内容（grep + 真机文件创建时间戳验证）
-    done: false
-    evidence: null
+    done: true
+    evidence: "SC_AUTO_GREP_NO_CREDS_WRITE / NO_ACCOUNT_VIEW / NO_STORE_TYPE 三条全空命中; SC5 真机 35s 后文件未重建"
   - id: SC7
     criterion: UI — popover 顶部不再有 AccountSwitcherView（无 email、无下拉菜单）
-    done: false
-    evidence: null
+    done: true
+    evidence: "真机 popover 验证: 无账号 email、无下拉菜单, 直接进用量区; grep -rn 'AccountSwitcherView' macos/Sources/ 空命中"
   - id: SC8
     criterion: swift test 全绿（多账号 / refresh 用例退役、新增 in-memory cache 用例）
-    done: false
-    evidence: null
+    done: true
+    evidence: "swift test: 274 tests, 0 failures, 0 skipped (Task 6 后); 新增 UsageServiceCredentialsTests 6 case (cache hit / 过期重读 / keychain 空 / 401 retry / 同 token 报过期 / retrySignIn force reload)"
   - id: SC9
     criterion: `make release-artifacts` + `verify-release.sh` 全绿
-    done: false
-    evidence: null
+    done: true
+    evidence: "make release-artifacts → UsageBar.zip + UsageBar.dmg 产出; verify-release.sh 两次均 'Release archive looks good'"
   - id: SC10
     criterion: CHANGELOG v0.5.1 entry 说明 "removed local credentials persistence; multi-account UI retired"
-    done: false
-    evidence: null
+    done: true
+    evidence: "CHANGELOG.md v0.5.1 entry 含 Removed (3 项: 持久化 / 多账号 UI / OAuth refresh) + Fixed (Stuck Not signed in / issue #22 整类) — commit b4ca68f"
 automated_checks:
   - "SC_AUTO_BUILD: swift build -c release"
   - "SC_AUTO_TEST: swift test"
@@ -304,13 +304,13 @@ mock：注入 `cliKeychainLoader: () async -> StoredCredentials?` 现已存在�
 
 > G6 验收依据。每条 SC 完成时勾选并填 evidence。
 
-- [ ] SC1 — pending
-- [ ] SC2 — pending
-- [ ] SC3 — pending
-- [ ] SC4 — pending
-- [ ] SC5 — pending
-- [ ] SC6 — pending
-- [ ] SC7 — pending
-- [ ] SC8 — pending
-- [ ] SC9 — pending
-- [ ] SC10 — pending
+- [x] SC1 — 真机: popover Claude 区显示 5h/7d window 用量
+- [x] SC2 — 单测: testEnsureFreshCredentialsKeychainEmptyClearsState + testRetrySignInForcesKeychainReload (allowInteraction=true)
+- [x] SC3 — 单测: testFetchUsage401SameTokenReportsExpired (callCount=1 + lastError 比对)
+- [x] SC4 — grep: 生产代码无 platform.claude.com/v1/oauth/token 调用; refreshToken 仅 schema 字段
+- [x] SC5 — 真机: rm accounts.json + credentials.json → sleep 35s → 未重建 + popover 仍显示用量
+- [x] SC6 — SC_AUTO_GREP_NO_CREDS_WRITE / NO_ACCOUNT_VIEW / NO_STORE_TYPE 三条空命中
+- [x] SC7 — 真机: popover 无账号 email + 无切换菜单; grep 空命中
+- [x] SC8 — swift test 274/0 failed/0 skipped
+- [x] SC9 — make release-artifacts → ZIP/DMG verify-release 全 OK
+- [x] SC10 — CHANGELOG v0.5.1 entry: Removed (持久化/多账号/OAuth refresh) + Fixed (Stuck/issue #22 整类)
