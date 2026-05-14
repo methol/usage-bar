@@ -5,6 +5,7 @@ import SwiftUI
 /// icon 模式：所有 provider 图标合并为一张 NSImage（compositeIcons），规避 SwiftUI MenuBarExtra
 /// label 中 ForEach 多张 template NSImage 只渲第一张的已知问题。
 /// text 模式：沿用每个 provider 独立 MenuBarLabel 子视图（各自观察自己的 runtime）。
+@MainActor
 struct MultiMenuBarLabel: View {
     let coordinator: ProviderCoordinator
     @AppStorage(MenuBarDisplayMode.storageKey) private var mode: MenuBarDisplayMode = .icon

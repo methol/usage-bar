@@ -1,6 +1,7 @@
 import SwiftUI
 import ServiceManagement
 
+@MainActor
 struct SettingsWindowContent: View {
     let coordinator: ProviderCoordinator
     let service: UsageService
@@ -91,6 +92,7 @@ struct SettingsWindowContent: View {
     }
 }
 
+@MainActor
 private struct ProviderRow: View {
     let coordinator: ProviderCoordinator
     let id: ProviderID
@@ -144,12 +146,12 @@ private func focusSettingsWindow() {
     }
 }
 
+@MainActor
 struct LaunchAtLoginToggle: View {
     @State private var model: LaunchAtLoginModel
     private let controlSize: ControlSize
     private let useSwitchStyle: Bool
 
-    @MainActor
     init(
         controlSize: ControlSize = .regular,
         useSwitchStyle: Bool = false,

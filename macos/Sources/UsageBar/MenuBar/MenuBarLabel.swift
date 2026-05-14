@@ -1,6 +1,7 @@
 import SwiftUI
 
 /// 菜单栏 label —— 显示指定 provider runtime 的用量。
+@MainActor
 struct MenuBarLabel: View {
     let runtime: ProviderRuntime
     var providerID: ProviderID
