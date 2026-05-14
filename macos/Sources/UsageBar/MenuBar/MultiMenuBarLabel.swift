@@ -1,5 +1,4 @@
 import SwiftUI
-import Combine
 
 /// 菜单栏 label —— 将所有 menuBarVisible 的 provider 并排展示（按 orderedProviderIDs 顺序）。
 ///
@@ -7,19 +6,12 @@ import Combine
 /// label 中 ForEach 多张 template NSImage 只渲第一张的已知问题。
 /// text 模式：沿用每个 provider 独立 MenuBarLabel 子视图（各自观察自己的 runtime）。
 struct MultiMenuBarLabel: View {
-    @ObservedObject var coordinator: ProviderCoordinator
-    @StateObject private var aggregator = RuntimeAggregator()
+    let coordinator: ProviderCoordinator
     @AppStorage(MenuBarDisplayMode.storageKey) private var mode: MenuBarDisplayMode = .icon
 
     var body: some View {
         let ids = coordinator.menuBarVisibleIDs
         content(for: ids)
-            .onAppear {
-                aggregator.update(runtimes: ids.compactMap { coordinator.runtime(for: $0) })
-            }
-            .onChange(of: ids) { _, newIds in
-                aggregator.update(runtimes: newIds.compactMap { coordinator.runtime(for: $0) })
-            }
     }
 
     @ViewBuilder
@@ -65,20 +57,5 @@ struct MultiMenuBarLabel: View {
                                            secondaryLabel: secondaryShort)
         }
         return icons.count > 1 ? compositeIcons(icons) : (icons.first ?? NSImage())
-    }
-}
-
-/// 聚合多个 ProviderRuntime 的变化通知，驱动 MultiMenuBarLabel 在 icon 模式下感知任一 provider 数据刷新。
-@MainActor
-private final class RuntimeAggregator: ObservableObject {
-    private var subscriptions = Set<AnyCancellable>()
-
-    func update(runtimes: [ProviderRuntime]) {
-        subscriptions.removeAll()
-        for rt in runtimes {
-            rt.objectWillChange
-                .sink { [weak self] _ in self?.objectWillChange.send() }
-                .store(in: &subscriptions)
-        }
     }
 }

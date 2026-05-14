@@ -1,4 +1,5 @@
 import Foundation
+import Observation
 import Sparkle
 
 /// SPUUpdaterDelegate 独立 impl（避免 AppUpdater 必须转 NSObject + 解决 nonisolated/MainActor 冲突）。
@@ -18,10 +19,11 @@ final class UpdaterDelegateImpl: NSObject, SPUUpdaterDelegate {
 }
 
 @MainActor
-final class AppUpdater: ObservableObject {
-    @Published private(set) var canCheckForUpdates = false
-    @Published private(set) var isConfigured: Bool
-    @Published private(set) var lastError: String?
+@Observable
+final class AppUpdater {
+    private(set) var canCheckForUpdates = false
+    private(set) var isConfigured: Bool
+    private(set) var lastError: String?
 
     private let updaterController: SPUStandardUpdaterController
     private let delegateImpl: UpdaterDelegateImpl  // 必须 strong hold，Sparkle 内部 weak

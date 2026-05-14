@@ -1,5 +1,5 @@
 import Foundation
-import Combine
+import Observation
 
 /// 「能产出 `CollectResult` 的本机用量收集器」抽象 —— `ClaudeUsageCollector` / `CodexUsageCollector` 各 conform 一个。
 /// `: Sendable` 因为 `UsageStatsService.refresh()` 在 `Task.detached` 里持有它。
@@ -8,14 +8,15 @@ protocol UsageCollecting: Sendable {
 }
 
 @MainActor
-final class UsageStatsService: ObservableObject {
+@Observable
+final class UsageStatsService {
     static let shared = UsageStatsService()
 
-    @Published private(set) var rolling30d: CostSummary? = nil
-    @Published private(set) var dailySpend: [DaySpend] = []
-    @Published private(set) var monthlySpend: [MonthSpend] = []
-    @Published private(set) var recentEvents: [StoredUsageEvent] = []
-    @Published private(set) var isInitializing: Bool = true
+    private(set) var rolling30d: CostSummary? = nil
+    private(set) var dailySpend: [DaySpend] = []
+    private(set) var monthlySpend: [MonthSpend] = []
+    private(set) var recentEvents: [StoredUsageEvent] = []
+    private(set) var isInitializing: Bool = true
 
     private let store: UsageEventStore
     private let collector: any UsageCollecting
