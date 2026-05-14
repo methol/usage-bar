@@ -1,9 +1,9 @@
 ---
 id: 2026-05-14-claude-credentials-in-memory
 title: Claude 凭证改 in-memory only —— 永不存盘、永不主动 refresh
-status: approved
+status: implemented
 created: 2026-05-14
-updated: 2026-05-14T10:00:00+08:00
+updated: 2026-05-14T19:35:00+08:00
 owner: claude-code
 model: claude-opus-4-7
 target_version: v0.5.1-claude-credentials-in-memory
