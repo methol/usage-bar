@@ -1,7 +1,7 @@
 ---
 id: 2026-05-14-claude-credentials-in-memory-plan
 title: Claude 凭证改 in-memory only — 实施计划
-status: draft
+status: approved
 created: 2026-05-14
 updated: 2026-05-14
 owner: claude-code
@@ -23,8 +23,9 @@ reviews:
       optional: makeStubSession 命名改为 "仿 GeminiAPIStubURLProtocol 模式".
       coverage gap (SC4) 已闭环 (required #3).
   - round: 2
-    reviewer: pending
-    verdict: pending
+    reviewer: general-purpose-subagent
+    verdict: approved
+    notes: 6 条 required + SC4 coverage gap 全部闭环; round 1 改动未引入新 inconsistency。G3 通过, 可进入实施。
 ---
 
 # Claude 凭证改 in-memory only Implementation Plan
