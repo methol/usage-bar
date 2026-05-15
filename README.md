@@ -82,6 +82,12 @@ If you have the [Codex CLI](https://github.com/openai/codex) installed and logge
 
 To enable Codex tracking: install and log in to the Codex CLI, then relaunch UsageBar.
 
+### Gemini
+
+If you have the [Gemini CLI](https://github.com/google-gemini/gemini-cli) installed and logged in, UsageBar automatically detects your credentials and shows a **Gemini** tab in the popover. No additional sign-in is required — the app reads your existing `~/.gemini/oauth_creds.json` (written by the Gemini CLI) and refreshes the access token in-place when it expires.
+
+To enable Gemini tracking: install and log in to the Gemini CLI, then relaunch UsageBar.
+
 ## Data storage
 
 All data is stored locally:

@@ -36,7 +36,8 @@ macos/Sources/UsageBar/
 ├── Providers/
 │   ├── Core/        # UsageProvider protocol
 │   ├── Claude/      # Claude provider: OAuth, polling, backoff
-│   └── Codex/       # Codex provider: ~/.codex/auth.json + JSONL scan
+│   ├── Codex/       # Codex provider: ~/.codex/auth.json + JSONL scan
+│   └── Gemini/      # Gemini provider: OAuth token refresh, Cloud Code Assist quota
 ├── Pricing/         # LiteLLM snapshot loader + per-provider normalize
 ├── LocalCost/       # JSONL parser, aggregator, scan cursor store
 ├── MenuBar/         # Menu bar label + icon rendering
@@ -98,9 +99,9 @@ python3 scripts/mock-server.py --scenario extra
 
 To connect the app to the mock server:
 
-1. In `UsageService.swift`, change the endpoint:
+1. In `Providers/Claude/UsageService.swift`, change the static default endpoint:
    ```swift
-   private let usageEndpoint = URL(string: "http://127.0.0.1:8080/api/oauth/usage")!
+   nonisolated static let defaultUsageEndpoint = URL(string: "http://127.0.0.1:8080/api/oauth/usage")!
    ```
 2. Add local networking to `Resources/Info.plist`:
    ```xml
@@ -144,7 +145,7 @@ Available scenarios:
 
 - Follow the existing conventions in the codebase
 - SwiftUI views in separate files, one primary view per file
-- Keep `UsageService` as the single source of truth for API state
+- Provider logic lives in `Providers/<Name>/`; `ProviderCoordinator` drives the unified polling cycle
 - Keep dependencies minimal — Sparkle is the only third-party runtime dependency
 
 ## License
