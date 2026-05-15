@@ -11,13 +11,15 @@ final class ProviderCoordinatorTests: XCTestCase {
     }
     /// claude = 真 UsageService（cliKeychainLoader stub → nil，等价未登录、不发网络）；codex = 真 CodexProvider（CODEX_HOME 指向不存在路径 → unconfigured）。
     /// v0.5.1：StoredCredentialsStore 已下线 —— 凭证只走 in-memory cache + Keychain loader，loader stub 返回 nil 即 unconfigured。
+    /// firstLaunchDetector 注入全集，保持现有测试与"首次启动检测"逻辑解耦。
     private func makeCoordinator(_ d: UserDefaults, withCodex: Bool = true) -> ProviderCoordinator {
         let claude = UsageService()
         claude.cliKeychainLoader = { _ in nil }
         let extras: [UsageProvider] = withCodex
             ? [CodexProvider(environment: ["CODEX_HOME": "/nonexistent-\(UUID().uuidString)"], defaults: d)]
             : []
-        return ProviderCoordinator(claude: claude, additionalProviders: extras, defaults: d)
+        return ProviderCoordinator(claude: claude, additionalProviders: extras, defaults: d,
+                                   firstLaunchDetector: { Set(ProviderID.allCases) })
     }
 
     func testDefaultOrderAndEnabled() {
@@ -98,7 +100,8 @@ final class ProviderCoordinatorTests: XCTestCase {
         let claude = UsageService()
         claude.cliKeychainLoader = { _ in nil }
         let stub = StubProviderForCoordTest(id: .cursor)   // cursor 默认 enabled、注册进去
-        let c = ProviderCoordinator(claude: claude, additionalProviders: [stub], defaults: d)
+        let c = ProviderCoordinator(claude: claude, additionalProviders: [stub], defaults: d,
+                                    firstLaunchDetector: { Set(ProviderID.allCases) })
         XCTAssertTrue(c.availableIDs.contains(.cursor))
 
         stub.nextEligibleRefreshOverride = Date().addingTimeInterval(3600)   // 还在 backoff 窗口
@@ -188,6 +191,57 @@ final class ProviderCoordinatorTests: XCTestCase {
             XCTAssertEqual(ids[0], .codex)
             XCTAssertEqual(ids[1], .claude)
         }
+    }
+
+    // MARK: - issue #34：首次启动工具检测
+
+    func testFirstLaunchDetectsInstalledProviders() {
+        let d = freshDefaults()
+        let claude = UsageService()
+        claude.cliKeychainLoader = { _ in nil }
+        let codex = CodexProvider(environment: ["CODEX_HOME": "/nonexistent-\(UUID().uuidString)"], defaults: d)
+        let c = ProviderCoordinator(claude: claude, additionalProviders: [codex], defaults: d,
+                                    firstLaunchDetector: { [.codex] })
+        XCTAssertEqual(c.enabledProviderIDs, [.codex], "首次启动只启用检测到的工具")
+        XCTAssertEqual(c.menuBarVisibleProviderIDs, [.codex], "menuBarVisible 同步首次检测结果")
+        XCTAssertFalse(c.availableIDs.contains(.claude), "claude 未被检测到，不在 availableIDs")
+    }
+
+    func testStoredKeySkipsDetection() {
+        let d = freshDefaults()
+        // 预存 enabledProviders key（= 非首次启动），detector 返回空集不应影响结果
+        d.set(["claude", "codex"], forKey: ProviderCoordinator.enabledProvidersKey)
+        d.set(["claude", "codex"], forKey: ProviderCoordinator.menuBarVisibleProvidersKey)
+        let claude = UsageService()
+        claude.cliKeychainLoader = { _ in nil }
+        var detectorCalled = false
+        let c = ProviderCoordinator(claude: claude, additionalProviders: [], defaults: d,
+                                    firstLaunchDetector: { detectorCalled = true; return [] })
+        _ = c.enabledProviderIDs
+        XCTAssertFalse(detectorCalled, "key 已存盘时不应调用 firstLaunchDetector")
+        XCTAssertTrue(c.enabledProviderIDs.contains(.claude))
+    }
+
+    func testUnregisteredDetectedProviderNotInAvailableIDs() {
+        let d = freshDefaults()
+        let claude = UsageService()
+        claude.cliKeychainLoader = { _ in nil }
+        // 检测结果含 cursor（未注册 provider），不应出现在 availableIDs
+        let c = ProviderCoordinator(claude: claude, additionalProviders: [], defaults: d,
+                                    firstLaunchDetector: { [.claude, .cursor] })
+        XCTAssertTrue(c.enabledProviderIDs.contains(.cursor), "cursor 被检测到、进入 enabledSet")
+        XCTAssertFalse(c.availableIDs.contains(.cursor), "cursor 未注册，不在 availableIDs")
+    }
+
+    func testFirstLaunchEmptyDetectionFallsBackToAllCases() {
+        let d = freshDefaults()
+        let claude = UsageService()
+        claude.cliKeychainLoader = { _ in nil }
+        // 空检测结果 → fallback 全启用，防 UI 空白
+        let c = ProviderCoordinator(claude: claude, additionalProviders: [], defaults: d,
+                                    firstLaunchDetector: { [] })
+        XCTAssertEqual(c.enabledProviderIDs, Set(ProviderID.allCases))
+        XCTAssertEqual(c.menuBarVisibleProviderIDs, Set(ProviderID.allCases))
     }
 }
 
