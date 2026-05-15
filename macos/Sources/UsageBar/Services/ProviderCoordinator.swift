@@ -42,7 +42,8 @@ final class ProviderCoordinator {
     /// 每次后台 tick 的「附带副作用」——默认让模型价格目录按 3h 节流自刷新。可注入便于单测。
     var onTickSideEffects: () -> Void = { ModelPricingCatalog.shared.refreshIfStale(now: Date()) }
 
-    init(claude: UsageService, additionalProviders: [UsageProvider] = [], defaults: UserDefaults = .standard) {
+    init(claude: UsageService, additionalProviders: [UsageProvider] = [], defaults: UserDefaults = .standard,
+         firstLaunchDetector: () -> Set<ProviderID> = { AIToolDetector.detect() }) {
         self.claude = claude
         self.defaults = defaults
         let registry = ProviderRegistry(providers: [claude] + additionalProviders)
@@ -59,20 +60,31 @@ final class ProviderCoordinator {
         for id in registry.orderedIDs where !seen.contains(id) { order.append(id); seen.insert(id) }
         if order.isEmpty { order = registry.orderedIDs }
 
-        // 启用集：读盘 → ∩ allCases；从没存过 → 默认全 allCases
+        // 首次启动（key 未写过时才调用检测器，结果缓存在 cache 里供两处复用）。
+        // 两个 key 独立存盘，任一缺失才调一次检测器；两个都存在时跳过，不调检测器。
+        var _firstLaunchCache: Set<ProviderID>? = nil
+        func firstLaunchSet() -> Set<ProviderID> {
+            if let cached = _firstLaunchCache { return cached }
+            let d = firstLaunchDetector()
+            let result = d.isEmpty ? Set(ProviderID.allCases) : d
+            _firstLaunchCache = result
+            return result
+        }
+
+        // 启用集：读盘 → ∩ allCases；从没存过 → 首次启动检测结果
         var enabled: Set<ProviderID>
         if let storedEnabled = defaults.stringArray(forKey: Self.enabledProvidersKey) {
             enabled = Set(storedEnabled.compactMap(ProviderID.init(rawValue:)).filter { ProviderID.allCases.contains($0) })
         } else {
-            enabled = Set(ProviderID.allCases)
+            enabled = firstLaunchSet()
         }
 
-        // 菜单栏可见集：读盘 → ∩ allCases；从没存过 → 默认全 allCases（首次升级保留全显行为）
+        // 菜单栏可见集：读盘 → ∩ allCases；从没存过 → 首次启动检测结果（与 enabled 共享缓存）
         let menuBarVisible: Set<ProviderID>
         if let stored = defaults.stringArray(forKey: Self.menuBarVisibleProvidersKey) {
             menuBarVisible = Set(stored.compactMap(ProviderID.init(rawValue:)).filter { ProviderID.allCases.contains($0) })
         } else {
-            menuBarVisible = Set(ProviderID.allCases)
+            menuBarVisible = firstLaunchSet()
         }
 
         self.orderedProviderIDs = order
