@@ -117,6 +117,10 @@ UsageBar talks to each provider's quota endpoints (Anthropic OAuth usage, ChatGP
 
 You can sever the link between UsageBar and any provider at any time by uninstalling the corresponding CLI or deleting the credential file listed in **Data storage** above.
 
+## Known limitations
+
+- **Keychain prompts may reappear** — UsageBar reads the Claude CLI's Keychain entry (`Claude Code-credentials`) to reuse your existing Claude session. Because the app ships with an ad-hoc code signature (it is not signed with an Apple Developer ID nor notarized), macOS cannot persistently honor an **Always Allow** decision for that entry: the Keychain access prompt may reappear on each launch and will reappear after every app update. Clicking **Allow** lets UsageBar continue — it only reads the credential and never modifies it. A properly signed and notarized build would resolve this.
+
 ## Development
 
 ```sh
